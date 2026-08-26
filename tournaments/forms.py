@@ -36,3 +36,10 @@ class MatchCreateForm(forms.ModelForm):
         model = TournamentMatch
         fields = ("game", "player_one", "player_two", "round", "scheduled_at", "status")
         widgets = {"scheduled_at": forms.DateTimeInput(attrs={"type": "datetime-local"})}
+
+
+class MatchScheduleForm(forms.ModelForm):
+    class Meta:
+        model = TournamentMatch
+        fields = ("scheduled_at",)
+        widgets = {"scheduled_at": forms.DateTimeInput(attrs={"type": "datetime-local"})}

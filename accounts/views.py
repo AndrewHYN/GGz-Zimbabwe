@@ -11,12 +11,11 @@ from django.utils import timezone
 from games.models import Game
 
 from .forms import CommentForm, GamerProfileForm, PostForm, SignupForm
-from .models import Block, Comment, Conversation, ConversationParticipant, Follow, FriendRequest, Friendship, GamerProfile, Message, Notification, Post, PostLike, Report, RespectTransaction
+from .models import Block, Comment, Conversation, ConversationParticipant, Follow, FriendRequest, Friendship, GamerProfile, Message, Notification, Post, PostLike, Report, RespectTransaction, notify
 
 
 def _notify(recipient, actor, notification_type, message, target_url=""):
-	if recipient != actor:
-		Notification.objects.create(recipient=recipient, actor=actor, notification_type=notification_type, message=message, target_url=target_url)
+	notify(recipient, actor, notification_type, message, target_url)
 
 
 def gamer_discovery(request):
@@ -308,6 +307,15 @@ def notification_read(request, notification_id):
 
 
 @login_required
+def notification_unread(request, notification_id):
+	if request.method != "POST":
+		return HttpResponseForbidden("This action requires POST.")
+	profile = get_object_or_404(GamerProfile, user=request.user)
+	Notification.objects.filter(id=notification_id, recipient=profile).update(is_read=False)
+	return redirect("notification_list")
+
+
+@login_required
 def notifications_read_all(request):
 	if request.method == "POST":
 		Notification.objects.filter(recipient__user=request.user, is_read=False).update(is_read=True)
@@ -317,7 +325,12 @@ def notifications_read_all(request):
 @login_required
 def conversation_list(request):
 	profile = get_object_or_404(GamerProfile, user=request.user)
-	conversations = Conversation.objects.filter(participants=profile).prefetch_related("participants", "messages")
+	conversations = Conversation.objects.filter(participants=profile).prefetch_related("participants", "messages", "participant_links")
+	for conversation in conversations:
+		conversation.other = conversation.participants.exclude(id=profile.id).first()
+		conversation.last_message = conversation.messages.last()
+		participant = conversation.participant_links.get(profile=profile)
+		conversation.unread_count = conversation.messages.filter(created_at__gt=participant.last_read_at).exclude(sender=profile).count() if participant.last_read_at else conversation.messages.exclude(sender=profile).count()
 	return render(request, "accounts/conversation_list.html", {"conversations": conversations, "profile": profile})
 
 
@@ -325,16 +338,24 @@ def conversation_list(request):
 def conversation_detail(request, conversation_id):
 	profile = get_object_or_404(GamerProfile, user=request.user)
 	conversation = get_object_or_404(Conversation.objects.prefetch_related("participants", "messages__sender"), id=conversation_id, participants=profile)
+	participant = get_object_or_404(ConversationParticipant, conversation=conversation, profile=profile)
 	if request.method == "POST":
+		if request.POST.get("action") == "clear":
+			participant.cleared_at = timezone.now()
+			participant.last_read_at = participant.cleared_at
+			participant.save(update_fields=("cleared_at", "last_read_at"))
+			messages.success(request, "Conversation cleared for you.")
+			return redirect("conversation_detail", conversation_id=conversation.id)
 		body = request.POST.get("body", "").strip()
 		other = conversation.participants.exclude(id=profile.id).first()
 		if body and other and not Block.objects.filter(Q(blocker=profile, blocked=other) | Q(blocker=other, blocked=profile)).exists():
 			Message.objects.create(conversation=conversation, sender=profile, body=body)
 			conversation.save(update_fields=("updated_at",))
-			Notification.objects.create(recipient=other, actor=profile, notification_type="message", message=f"{profile.gamer_tag} sent you a message", target_url=f"/messages/{conversation.id}/")
+			_notify(other, profile, "message", f"{profile.gamer_tag} sent you a message", f"/messages/{conversation.id}/")
 		return redirect("conversation_detail", conversation_id=conversation.id)
 	ConversationParticipant.objects.filter(conversation=conversation, profile=profile).update(last_read_at=timezone.now())
-	return render(request, "accounts/conversation_detail.html", {"conversation": conversation, "profile": profile, "other": conversation.participants.exclude(id=profile.id).first()})
+	messages_qs = conversation.messages.filter(created_at__gt=participant.cleared_at) if participant.cleared_at else conversation.messages.all()
+	return render(request, "accounts/conversation_detail.html", {"conversation": conversation, "profile": profile, "other": conversation.participants.exclude(id=profile.id).first(), "conversation_messages": messages_qs})
 
 
 @login_required

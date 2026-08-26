@@ -5,7 +5,7 @@ from django.db.models import Q
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 
-from accounts.models import GamerProfile, Notification, Report
+from accounts.models import GamerProfile, Notification, Report, notify
 from games.models import Game
 
 from .forms import ListingForm, ListingImageForm
@@ -109,7 +109,7 @@ def listing_report(request, listing_id):
 	viewer = get_object_or_404(GamerProfile, user=request.user)
 	if request.method == "POST" and listing.seller != viewer:
 		Report.objects.get_or_create(reporter=viewer, reported_listing_id=listing.id)
-		Notification.objects.create(recipient=listing.seller, actor=viewer, notification_type="marketplace", message=f"{viewer.gamer_tag} reported your listing", target_url=f"/marketplace/listing/{listing.id}/")
+		notify(listing.seller, viewer, "marketplace", f"{viewer.gamer_tag} reported your listing", f"/marketplace/listing/{listing.id}/")
 		messages.success(request, "Thanks. The listing has been reported.")
 	return redirect("listing_detail", listing_id=listing.id)
 
@@ -119,7 +119,7 @@ def contact_seller(request, listing_id):
 	listing = get_object_or_404(Listing, id=listing_id)
 	if listing.seller.user_id == request.user.id:
 		return redirect("listing_detail", listing_id=listing.id)
-	Notification.objects.get_or_create(recipient=listing.seller, actor=getattr(request.user, "gamer_profile", None), notification_type="marketplace", message=f"Someone contacted you about {listing.title}", target_url=f"/marketplace/listing/{listing.id}/")
+	notify(listing.seller, getattr(request.user, "gamer_profile", None), "marketplace", f"Someone contacted you about {listing.title}", f"/marketplace/listing/{listing.id}/")
 	return redirect("conversation_start", gamer_tag=listing.seller.gamer_tag)
 
 

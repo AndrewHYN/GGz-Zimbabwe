@@ -4,13 +4,13 @@ from django.core.paginator import Paginator
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 
-from accounts.models import GamerProfile
+from accounts.models import GamerProfile, notify
 
 from .models import Team, TeamInvitation, TeamMembership
 
 
 def team_list(request):
-    teams = Team.objects.filter(status="Active").select_related("game", "owner").prefetch_related("memberships")
+    teams = Team.objects.filter(status="Active").select_related("game", "owner").prefetch_related("memberships").order_by("name")
     if request.GET.get("q"):
         teams = teams.filter(name__icontains=request.GET["q"])
     page = Paginator(teams, 12).get_page(request.GET.get("page"))
@@ -39,6 +39,7 @@ def team_invitation_action(request, invitation_id, action):
         _, created = TeamMembership.objects.get_or_create(team=invitation.team, player=profile, defaults={"role": "Member"})
         messages.success(request, "You joined the team." if created else "You are already a team member.")
         invitation.status = "Accepted"
+        notify(invitation.inviter, profile, "team", f"{profile.gamer_tag} joined {invitation.team.name}", f"/teams/{invitation.team.slug}/")
     else:
         invitation.status = "Declined"
         messages.success(request, "Team invitation declined.")

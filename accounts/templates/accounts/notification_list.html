@@ -1,3 +1,18 @@
 {% extends "base.html" %}
-{% block title %}Updates | GGs{% endblock %}
-{% block content %}<main class="page-shell utility-page"><div class="section-heading"><div><p class="eyebrow">Your updates</p><h1>Stay in the loop.</h1><p class="lede">Activity from your GGz community, all in one place.</p></div>{% if unread_count %}<form method="post" action="{% url 'notifications_read_all' %}">{% csrf_token %}<button class="button alt" type="submit">Mark all read</button></form>{% endif %}</div><section class="notification-list page-section">{% for notification in notifications %}<a class="notification-item{% if not notification.is_read %} is-unread{% endif %}" href="{% url 'notification_read' notification.id %}"><span class="notification-icon">{% if notification.is_read %}○{% else %}●{% endif %}</span><span><strong>{{ notification.message }}</strong><small>{{ notification.created_at|timesince }} ago</small></span></a>{% empty %}<div class="empty-state"><h2>No updates yet.</h2><p class="muted">Community activity will appear here.</p></div>{% endfor %}</section></main>{% endblock %}
+{% block title %}Notifications | GGs{% endblock %}
+{% block content %}
+<main class="page-shell utility-page notification-page">
+    <div class="section-heading"><div><p class="eyebrow">Your activity</p><h1>Notifications.</h1><p class="lede">Stay close to the people and matches that matter.</p></div>{% if unread_count %}<form method="post" action="{% url 'notifications_read_all' %}">{% csrf_token %}<button class="button alt" type="submit">Mark all read</button></form>{% endif %}</div>
+    <section class="notification-list page-section">
+        {% for notification in notifications %}
+            <article class="notification-item{% if not notification.is_read %} is-unread{% endif %}">
+                <a class="notification-main" href="{% url 'notification_read' notification.id %}">
+                    {% if notification.actor.avatar %}<span class="avatar avatar-post"><img src="{{ notification.actor.avatar.url }}" alt="{{ notification.actor.gamer_tag }} avatar"></span>{% else %}<span class="avatar avatar-post avatar-fallback">{{ notification.actor.gamer_tag|default:"G"|slice:":1"|upper }}</span>{% endif %}
+                    <span class="notification-copy"><strong>{{ notification.actor.gamer_tag|default:"GGz" }}</strong><span class="notification-action"><span class="notification-type notification-{{ notification.notification_type }}" aria-hidden="true">{% if notification.notification_type == "message" %}✉{% elif notification.notification_type == "like" %}♥{% elif notification.notification_type == "respect" %}★{% elif notification.notification_type == "friend_request" or notification.notification_type == "friend_accept" %}♣{% elif notification.notification_type == "match" %}◆{% else %}•{% endif %}</span>{{ notification.message|cut:notification.actor.gamer_tag }}</span><small>{{ notification.created_at|timesince }} ago</small></span>
+                </a>
+                {% if notification.is_read %}<form method="post" action="{% url 'notification_unread' notification.id %}">{% csrf_token %}<button class="text-button" type="submit">Mark unread</button></form>{% endif %}
+            </article>
+        {% empty %}<div class="empty-state"><h2>No notifications yet.</h2><p class="muted">Community activity will appear here.</p></div>{% endfor %}
+    </section>
+</main>
+{% endblock %}

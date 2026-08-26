@@ -4,7 +4,7 @@ from django.urls import reverse
 
 from games.models import Game
 
-from .models import Follow, FriendRequest, Friendship, GamerProfile, Post, PostLike, RespectTransaction
+from .models import Conversation, ConversationParticipant, Follow, FriendRequest, Friendship, GamerProfile, Message, Notification, Post, PostLike, RespectTransaction
 
 
 class GamerProfileWorkflowTests(TestCase):
@@ -188,3 +188,51 @@ class RespectTests(TestCase):
 		for score, level in ((0, "Rookie"), (50, "Player"), (200, "Pro"), (500, "Veteran"), (1000, "Elite"), (2500, "Legend")):
 			self.profile.respect_points = score
 			self.assertEqual(self.profile.respect_level, level)
+
+
+class NotificationAndMessagingTests(TestCase):
+	def setUp(self):
+		self.user = User.objects.create_user(username="sender", password="pass")
+		self.sender = GamerProfile.objects.create(user=self.user, gamer_tag="Sender")
+		self.recipient_user = User.objects.create_user(username="recipient", password="pass")
+		self.recipient = GamerProfile.objects.create(user=self.recipient_user, gamer_tag="Recipient")
+
+	def test_notification_page_has_actor_and_mark_unread_workflow(self):
+		notification = Notification.objects.create(recipient=self.recipient, actor=self.sender, notification_type="follow", message="Sender followed you", target_url="/profiles/Sender/")
+		self.client.login(username="recipient", password="pass")
+		self.assertContains(self.client.get(reverse("notification_list")), "Sender")
+		self.client.get(reverse("notification_read", args=(notification.id,)))
+		notification.refresh_from_db()
+		self.assertTrue(notification.is_read)
+		self.client.post(reverse("notification_unread", args=(notification.id,)))
+		notification.refresh_from_db()
+		self.assertFalse(notification.is_read)
+
+	def test_message_creates_notification_and_clear_is_per_user(self):
+		conversation = Conversation.objects.create()
+		ConversationParticipant.objects.create(conversation=conversation, profile=self.sender)
+		ConversationParticipant.objects.create(conversation=conversation, profile=self.recipient)
+		self.client.login(username="sender", password="pass")
+		self.client.post(reverse("conversation_detail", args=(conversation.id,)), {"body": "Hello"})
+		self.assertTrue(Notification.objects.filter(recipient=self.recipient, notification_type="message").exists())
+		self.client.login(username="recipient", password="pass")
+		self.client.post(reverse("conversation_detail", args=(conversation.id,)), {"action": "clear"})
+		self.assertContains(self.client.get(reverse("conversation_detail", args=(conversation.id,))), "No messages yet")
+		self.assertTrue(Message.objects.exists())
+
+
+class SearchAndRankTests(TestCase):
+	def test_search_categories_paginate_independently_and_preserve_query(self):
+		for index in range(11):
+			user = User.objects.create_user(username=f"search{index}")
+			GamerProfile.objects.create(user=user, gamer_tag=f"Tekken{index}", rank="Gold")
+		response = self.client.get(reverse("global_search"), {"q": "Tekken", "gamers_page": 2, "games_page": 4})
+		self.assertContains(response, "Page 2 of 2")
+		self.assertContains(response, "gamers_page=1")
+		self.assertContains(response, "games_page=4")
+
+	def test_rank_display_uses_model_choice_label(self):
+		user = User.objects.create_user(username="ranked")
+		profile = GamerProfile.objects.create(user=user, gamer_tag="Ranked", rank="Diamond")
+		self.assertEqual(profile.get_rank_display(), "Diamond")
+		self.assertContains(self.client.get(reverse("profile_detail", args=(profile.gamer_tag,))), "Diamond")

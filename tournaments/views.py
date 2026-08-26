@@ -8,9 +8,9 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.text import slugify
 
-from accounts.models import GamerProfile, Notification
+from accounts.models import GamerProfile, Notification, notify
 
-from .forms import ChallengeForm, MatchCreateForm, MatchResultForm, TournamentForm
+from .forms import ChallengeForm, MatchCreateForm, MatchResultForm, MatchScheduleForm, TournamentForm
 from .models import Challenge, Tournament, TournamentMatch, TournamentRegistration
 
 
@@ -49,6 +49,17 @@ def tournament_my(request):
 def tournament_manage(request, slug):
 	tournament = get_object_or_404(Tournament.objects.prefetch_related("registrations__player", "matches__player_one", "matches__player_two"), slug=slug, organizer__user=request.user)
 	return render(request, "tournaments/tournament_manage.html", {"tournament": tournament})
+
+
+@login_required
+def match_schedule(request, match_id):
+	match = get_object_or_404(TournamentMatch, id=match_id, tournament__organizer__user=request.user)
+	form = MatchScheduleForm(request.POST or None, instance=match)
+	if form.is_valid():
+		form.save()
+		messages.success(request, "Match schedule updated.")
+		return redirect("tournament_manage", slug=match.tournament.slug)
+	return render(request, "tournaments/match_form.html", {"form": form, "match": match, "schedule_only": True})
 
 
 @login_required
@@ -130,7 +141,7 @@ def registration_action(request, registration_id, action):
 	else:
 		registration.status = "Registered" if action == "approve" else "Disqualified"
 		registration.save(update_fields=("status",))
-		Notification.objects.create(recipient=registration.player, notification_type="tournament", message=f"Your registration for {registration.tournament.name} was updated", target_url=f"/tournaments/{registration.tournament.slug}/")
+		notify(registration.player, request.user.gamer_profile, "tournament", f"Your registration for {registration.tournament.name} was updated", f"/tournaments/{registration.tournament.slug}/")
 	return redirect("tournament_manage", slug=registration.tournament.slug)
 
 
@@ -161,7 +172,7 @@ def tournament_register(request, slug):
 	if tournament.participant_count >= tournament.max_participants:
 		return HttpResponseForbidden("This tournament is full.")
 	TournamentRegistration.objects.get_or_create(tournament=tournament, player=player, defaults={"status": "Registered"})
-	Notification.objects.create(recipient=tournament.organizer, actor=player, notification_type="tournament", message=f"{player.gamer_tag} registered for {tournament.name}", target_url=f"/tournaments/{tournament.slug}/manage/")
+	notify(tournament.organizer, player, "tournament", f"{player.gamer_tag} registered for {tournament.name}", f"/tournaments/{tournament.slug}/manage/")
 	messages.success(request, "You joined the tournament.")
 	return redirect("tournament_detail", slug=slug)
 
@@ -187,6 +198,7 @@ def challenge_create(request, slug):
 			form.add_error("opponent", "You cannot challenge yourself.")
 		else:
 			challenge.save()
+			notify(challenge.opponent, challenge.challenger, "challenge", f"{challenge.challenger.gamer_tag} challenged you", f"/tournaments/{tournament.slug}/")
 			messages.success(request, "Challenge sent.")
 			return redirect("tournament_detail", slug=tournament.slug)
 	return render(request, "tournaments/tournament_detail.html", {"tournament": tournament, "challenge_form": form})
@@ -200,6 +212,8 @@ def challenge_action(request, challenge_id, action):
 		return HttpResponseForbidden("You cannot update this challenge.")
 	challenge.status = {"accept": "Accepted", "decline": "Declined", "cancel": "Cancelled"}.get(action, "Pending")
 	challenge.save(update_fields=("status",))
+	if challenge.status == "Accepted":
+		notify(challenge.challenger, player, "challenge", f"{player.gamer_tag} accepted your challenge", f"/tournaments/{challenge.tournament.slug}/" if challenge.tournament else "/tournaments/")
 	return redirect("tournament_detail", slug=challenge.tournament.slug) if challenge.tournament else redirect("tournament_list")
 
 
@@ -215,7 +229,7 @@ def match_result(request, match_id):
 		match = form.save()
 		_advance_winner(match)
 		if match.status == "Completed" and match.winner:
-			Notification.objects.get_or_create(recipient=match.winner, actor=player, notification_type="match", message=f"You advanced in {match.tournament.name}", target_url=f"/tournaments/{match.tournament.slug}/")
+			notify(match.winner, player, "match", f"You advanced in {match.tournament.name}", f"/tournaments/{match.tournament.slug}/")
 			if not match.next_match:
 				match.tournament.status = "Completed"
 				match.tournament.save(update_fields=("status",))

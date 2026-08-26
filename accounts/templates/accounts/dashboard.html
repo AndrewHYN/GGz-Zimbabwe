@@ -10,7 +10,7 @@
     <div class="dashboard-grid">
         <section class="dashboard-summary">
             {% if profile.avatar %}<span class="avatar avatar-profile"><img src="{{ profile.avatar.url }}" alt="{{ profile.gamer_tag }} avatar"></span>{% else %}<span class="avatar avatar-profile avatar-fallback">{{ profile.gamer_tag|slice:":1"|upper }}</span>{% endif %}
-            <div><p class="eyebrow">Player profile</p><h2>{{ profile.gamer_tag }}</h2><p class="muted">{{ profile.location|default:"Zimbabwe" }} · {{ profile.rank }}</p><div class="actions"><a class="button" href="{% url 'profile_detail' profile.gamer_tag %}">View profile</a><a class="button alt" href="{% url 'profile_edit' profile.gamer_tag %}">Edit profile</a></div></div>
+            <div><p class="eyebrow">Player profile</p><h2>{{ profile.gamer_tag }}</h2><p class="muted">{{ profile.location|default:"Zimbabwe" }} · {{ profile.get_rank_display }}</p><div class="actions"><a class="button" href="{% url 'profile_detail' profile.gamer_tag %}">View profile</a><a class="button alt" href="{% url 'profile_edit' profile.gamer_tag %}">Edit profile</a></div></div>
         </section>
         <section class="dashboard-stats"><div class="stat"><span class="stat-label">Respect points</span><span class="stat-value">{{ profile.respect_points }}</span></div><div class="stat"><span class="stat-label">Games played</span><span class="stat-value">{{ game_count }}</span></div><div class="stat"><span class="stat-label">Gamers to discover</span><span class="stat-value">{{ gamer_count }}</span></div></section>
     </div>

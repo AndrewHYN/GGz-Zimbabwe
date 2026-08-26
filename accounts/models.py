@@ -318,6 +318,16 @@ class Notification(models.Model):
         ordering = ("-created_at",)
 
 
+def notify(recipient, actor, notification_type, message, target_url=""):
+    if recipient is None or recipient == actor:
+        return
+    try:
+        if not Notification.objects.filter(recipient=recipient, actor=actor, notification_type=notification_type, message=message, target_url=target_url, is_read=False).exists():
+            Notification.objects.create(recipient=recipient, actor=actor, notification_type=notification_type, message=message, target_url=target_url)
+    except Exception:
+        return
+
+
 class Conversation(models.Model):
     participants = models.ManyToManyField(GamerProfile, through="ConversationParticipant", related_name="conversations")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -328,6 +338,7 @@ class ConversationParticipant(models.Model):
     conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name="participant_links")
     profile = models.ForeignKey(GamerProfile, on_delete=models.CASCADE, related_name="conversation_links")
     last_read_at = models.DateTimeField(null=True, blank=True)
+    cleared_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=("conversation", "profile"), name="unique_conversation_participant")]

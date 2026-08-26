@@ -70,3 +70,12 @@ class TournamentTests(TestCase):
 		self.assertEqual(match.status, "Completed")
 		self.assertEqual(match.winner, self.player)
 		self.assertEqual(TournamentMatch.objects.get(id=match.next_match_id).player_one, self.player)
+
+	def test_match_schedule_requires_tournament_owner(self):
+		match = TournamentMatch.objects.create(tournament=self.tournament, game=self.game, player_one=self.player, player_two=self.organizer)
+		self.client.login(username="organizer", password="pass-12345")
+		self.assertEqual(self.client.post(reverse("match_schedule", args=(match.id,)), {"scheduled_at": "2030-01-01T10:00"}).status_code, 302)
+		match.refresh_from_db()
+		self.assertIsNotNone(match.scheduled_at)
+		self.client.login(username="player", password="pass-12345")
+		self.assertEqual(self.client.post(reverse("match_schedule", args=(match.id,)), {"scheduled_at": "2030-01-02T10:00"}).status_code, 404)

@@ -31,7 +31,11 @@ def leaderboard(request):
 def global_search(request):
     query = request.GET.get("q", "").strip()
     def page(queryset, key):
-        return Paginator(queryset, 10).get_page(request.GET.get(f"{key}_page"))
+        return Paginator(queryset.order_by("pk"), 10).get_page(request.GET.get(f"{key}_page"))
+    def params_for(key):
+        params = request.GET.copy()
+        params.pop(f"{key}_page", None)
+        return params.urlencode()
     return render(request, "search.html", {
         "query": query,
         "gamers": page(GamerProfile.objects.filter(Q(gamer_tag__icontains=query) | Q(user__username__icontains=query)), "gamers") if query else [],
@@ -41,4 +45,5 @@ def global_search(request):
         "tournaments": page(Tournament.objects.filter(name__icontains=query).select_related("game"), "tournaments") if query else [],
         "teams": page(Team.objects.filter(name__icontains=query), "teams") if query else [],
         "events": page(Event.objects.filter(name__icontains=query), "events") if query else [],
+        "search_params": {key: params_for(key) for key in ("gamers", "games", "listings", "tournaments", "teams", "events")},
     })

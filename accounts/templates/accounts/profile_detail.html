@@ -21,7 +21,7 @@
     <dl class="details">
         <div class="detail"><dt>Location</dt><dd>{{ profile.location|default:"Zimbabwe" }}</dd></div>
         <div class="detail"><dt>Platform</dt><dd>{{ profile.platform|default:"Not set" }}</dd></div>
-        <div class="detail"><dt>Rank</dt><dd>{{ profile.rank }}</dd></div>
+        <div class="detail"><dt>Rank</dt><dd>{{ profile.get_rank_display }}</dd></div>
         <div class="detail"><dt>Availability</dt><dd>{{ profile.get_availability_display }}</dd></div>
     </dl>
     <div class="stats"><div class="stat"><span class="stat-label">Respect points</span><span class="stat-value">{{ profile.respect_points }}</span><span class="badge">{{ profile.respect_level }}</span></div><div class="stat"><span class="stat-label">People giving respect</span><span class="stat-value">{{ respect_giver_count }}</span></div><div class="stat"><span class="stat-label">Tournament wins</span><span class="stat-value">{{ profile.tournament_wins }}</span></div></div>
