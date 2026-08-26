@@ -1,6 +1,6 @@
 from django.shortcuts import render
 
-from accounts.models import GamerProfile
+from accounts.models import Block, GamerProfile
 from games.models import Game
 from accounts.models import Post
 from marketplace.models import Listing
@@ -30,6 +30,9 @@ def leaderboard(request):
 
 def global_search(request):
     query = request.GET.get("q", "").strip()
+    viewer = getattr(request.user, "gamer_profile", None)
+    blocked_ids = Block.objects.filter(Q(blocker=viewer) | Q(blocked=viewer)).values_list("blocker_id", "blocked_id") if viewer else []
+    blocked_profile_ids = {value for pair in blocked_ids for value in pair}
     def page(queryset, key):
         return Paginator(queryset.order_by("pk"), 10).get_page(request.GET.get(f"{key}_page"))
     def params_for(key):
@@ -38,9 +41,9 @@ def global_search(request):
         return params.urlencode()
     return render(request, "search.html", {
         "query": query,
-        "gamers": page(GamerProfile.objects.filter(Q(gamer_tag__icontains=query) | Q(user__username__icontains=query)), "gamers") if query else [],
+        "gamers": page(GamerProfile.objects.filter(Q(gamer_tag__icontains=query) | Q(user__username__icontains=query)).exclude(id__in=blocked_profile_ids), "gamers") if query else [],
         "games": page(Game.objects.filter(name__icontains=query), "games") if query else [],
-        "posts": page(Post.objects.filter(body__icontains=query).select_related("author"), "posts") if query else [],
+        "posts": page(Post.objects.filter(body__icontains=query).exclude(author_id__in=blocked_profile_ids).select_related("author"), "posts") if query else [],
         "listings": page(Listing.objects.filter(title__icontains=query).select_related("seller"), "listings") if query else [],
         "tournaments": page(Tournament.objects.filter(name__icontains=query).select_related("game"), "tournaments") if query else [],
         "teams": page(Team.objects.filter(name__icontains=query), "teams") if query else [],

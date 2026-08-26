@@ -11,11 +11,18 @@ from django.utils import timezone
 from games.models import Game
 
 from .forms import CommentForm, GamerProfileForm, PostForm, SignupForm
-from .models import Block, Comment, Conversation, ConversationParticipant, Follow, FriendRequest, Friendship, GamerProfile, Message, Notification, Post, PostLike, Report, RespectTransaction, notify
+from .models import Block, Comment, Conversation, ConversationParticipant, Follow, FriendRequest, Friendship, GamerProfile, Message, MessageRequest, Notification, Post, PostLike, Report, RespectTransaction, notify
 
 
 def _notify(recipient, actor, notification_type, message, target_url=""):
 	notify(recipient, actor, notification_type, message, target_url)
+
+
+def _can_message(sender, recipient):
+	if sender == recipient or Block.objects.filter(Q(blocker=sender, blocked=recipient) | Q(blocker=recipient, blocked=sender)).exists():
+		return False
+	first, second = sorted((sender.id, recipient.id))
+	return Friendship.objects.filter(profile_one_id=first, profile_two_id=second).exists() or (Follow.objects.filter(follower=sender, following=recipient).exists() and Follow.objects.filter(follower=recipient, following=sender).exists()) or MessageRequest.objects.filter(sender=sender, recipient=recipient, status="Accepted").exists()
 
 
 def gamer_discovery(request):
@@ -41,6 +48,10 @@ def gamer_discovery(request):
 		profiles = profiles.filter(availability=availability)
 	if game_id:
 		profiles = profiles.filter(games__id=game_id)
+	viewer = getattr(request.user, "gamer_profile", None)
+	if viewer:
+		blocked_ids = Block.objects.filter(Q(blocker=viewer) | Q(blocked=viewer)).values_list("blocker_id", "blocked_id")
+		profiles = profiles.exclude(id__in={value for pair in blocked_ids for value in pair})
 
 	page = Paginator(profiles.order_by("gamer_tag"), 12).get_page(
 		request.GET.get("page")
@@ -84,6 +95,8 @@ def profile_detail(request, gamer_tag):
 	friend_request = None
 	is_following = False
 	is_blocked = False
+	message_request = None
+	message_request_incoming = None
 	if viewer and viewer != profile:
 		first, second = sorted((viewer.id, profile.id))
 		friendship = Friendship.objects.filter(
@@ -95,6 +108,8 @@ def profile_detail(request, gamer_tag):
 		).first()
 		is_following = Follow.objects.filter(follower=viewer, following=profile).exists()
 		is_blocked = Block.objects.filter(blocker=viewer, blocked=profile).exists()
+		message_request = MessageRequest.objects.filter(sender=viewer, recipient=profile).first()
+		message_request_incoming = MessageRequest.objects.filter(sender=profile, recipient=viewer).first()
 	return render(
 		request,
 		"accounts/profile_detail.html",
@@ -104,6 +119,8 @@ def profile_detail(request, gamer_tag):
 			"friend_request": friend_request,
 			"is_following": is_following,
 			"is_blocked": is_blocked,
+			"message_request": message_request,
+			"message_request_incoming": message_request_incoming,
 			"follower_count": profile.followers.count(),
 			"following_count": profile.following.count(),
 			"friend_count": Friendship.objects.filter(
@@ -123,7 +140,7 @@ def connection_action(request, gamer_tag, action):
 	if target == viewer:
 		return HttpResponseForbidden("You cannot interact with your own profile.")
 	if action == "follow":
-		if not Block.objects.filter(blocker=target, blocked=viewer).exists():
+		if not Block.objects.filter(Q(blocker=target, blocked=viewer) | Q(blocker=viewer, blocked=target)).exists():
 			created = Follow.objects.get_or_create(follower=viewer, following=target)[1]
 			if created:
 				_notify(target, viewer, "follow", f"{viewer.gamer_tag} followed you", f"/profiles/{viewer.gamer_tag}/")
@@ -303,6 +320,8 @@ def notification_list(request):
 
 @login_required
 def notification_read(request, notification_id):
+	if request.method != "POST":
+		return HttpResponseForbidden("This action requires POST.")
 	profile = get_object_or_404(GamerProfile, user=request.user)
 	notification = get_object_or_404(Notification, id=notification_id, recipient=profile)
 	notification.is_read = True
@@ -343,6 +362,9 @@ def conversation_detail(request, conversation_id):
 	profile = get_object_or_404(GamerProfile, user=request.user)
 	conversation = get_object_or_404(Conversation.objects.prefetch_related("participants", "messages__sender"), id=conversation_id, participants=profile)
 	participant = get_object_or_404(ConversationParticipant, conversation=conversation, profile=profile)
+	other = conversation.participants.exclude(id=profile.id).first()
+	if other and Block.objects.filter(Q(blocker=profile, blocked=other) | Q(blocker=other, blocked=profile)).exists():
+		return HttpResponseForbidden("You cannot access this conversation.")
 	if request.method == "POST":
 		if request.POST.get("action") == "clear":
 			participant.cleared_at = timezone.now()
@@ -366,13 +388,51 @@ def conversation_detail(request, conversation_id):
 def conversation_start(request, gamer_tag):
 	profile = get_object_or_404(GamerProfile, user=request.user)
 	other = get_object_or_404(GamerProfile, gamer_tag=gamer_tag)
-	if profile == other or Block.objects.filter(Q(blocker=profile, blocked=other) | Q(blocker=other, blocked=profile)).exists():
+	if request.method != "POST":
+		return HttpResponseForbidden("This action requires POST.")
+	if not _can_message(profile, other):
 		return HttpResponseForbidden("You cannot message this gamer.")
 	conversation = Conversation.objects.filter(participants=profile).filter(participants=other).first()
 	if not conversation:
 		conversation = Conversation.objects.create()
 		ConversationParticipant.objects.bulk_create([ConversationParticipant(conversation=conversation, profile=profile), ConversationParticipant(conversation=conversation, profile=other)])
 	return redirect("conversation_detail", conversation_id=conversation.id)
+
+
+@login_required
+def message_request_action(request, gamer_tag, action):
+	if request.method != "POST" or action not in ("send", "accept", "decline", "delete"):
+		return HttpResponseForbidden("Invalid message request action.")
+	profile = get_object_or_404(GamerProfile, user=request.user)
+	other = get_object_or_404(GamerProfile, gamer_tag=gamer_tag)
+	if profile == other or Block.objects.filter(Q(blocker=profile, blocked=other) | Q(blocker=other, blocked=profile)).exists():
+		return HttpResponseForbidden("You cannot message this player.")
+	if action == "send":
+		request_row = MessageRequest.objects.filter(sender=profile, recipient=other).first()
+		created = request_row is None
+		if created:
+			request_row = MessageRequest.objects.create(sender=profile, recipient=other)
+		elif request_row.status == "Declined":
+			request_row.status = "Pending"
+			request_row.save(update_fields=("status",))
+		if created or request_row.status == "Pending":
+			_notify(other, profile, "message_request", f"{profile.gamer_tag} sent you a message request", f"/profiles/{profile.gamer_tag}/")
+	elif action == "delete":
+		request_row = get_object_or_404(MessageRequest, Q(sender=profile, recipient=other) | Q(sender=other, recipient=profile))
+		request_row.delete()
+		return redirect("profile_detail", gamer_tag=other.gamer_tag)
+	else:
+		request_row = get_object_or_404(MessageRequest, sender=other, recipient=profile)
+		if action == "accept":
+			request_row.status = "Accepted"
+			_notify(other, profile, "message_request", f"{profile.gamer_tag} accepted your message request", f"/profiles/{profile.gamer_tag}/")
+		elif action == "decline":
+			request_row.status = "Declined"
+		else:
+			request_row.delete()
+			return redirect("profile_detail", gamer_tag=other.gamer_tag)
+		request_row.save(update_fields=("status",))
+	return redirect("profile_detail", gamer_tag=other.gamer_tag)
 
 
 @login_required

@@ -1,6 +1,8 @@
 from django.shortcuts import get_object_or_404, render
 
 from marketplace.models import Listing
+from accounts.models import Block
+from django.db.models import Q
 from tournaments.models import Tournament
 
 from .models import Game
@@ -21,13 +23,15 @@ def game_detail(request, game_id):
 		),
 		id=game_id,
 	)
+	viewer = getattr(request.user, "gamer_profile", None)
+	blocked_ids = {value for pair in Block.objects.filter(Q(blocker=viewer) | Q(blocked=viewer)).values_list("blocker_id", "blocked_id") for value in pair} if viewer else set()
 	return render(
 		request,
 		"games/game_detail.html",
 		{
 			"game": game,
 			"available_players": game.players.filter(availability="Available"),
-			"community_posts": game.posts.all()[:5],
+			"community_posts": game.posts.exclude(author_id__in=blocked_ids)[:5],
 			"upcoming_tournaments": Tournament.objects.filter(game=game, status__in=("Registration Open", "Registration Closed")).select_related("organizer")[:4],
 			"related_listings": Listing.objects.filter(game=game, status__in=("Available", "Reserved")).select_related("seller").prefetch_related("images")[:4],
 		},

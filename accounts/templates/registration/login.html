@@ -4,7 +4,7 @@
 
 {% block content %}
 <main class="page-shell form-page">
-    <a class="back-link" href="/">&larr; Back to GGs</a>
+    <a class="back-link" href="{% url 'index' %}">&larr; Back to GGz</a>
     <div class="form-card"><p class="eyebrow">Welcome back</p><h1>Return to the lobby.</h1><form method="post">{% csrf_token %}{{ form.as_p }}<input type="hidden" name="next" value="{{ next }}"><button class="button" type="submit">Log in</button></form><p class="muted">New to GGs? <a href="{% url 'signup' %}">Create an account</a></p></div>
 </main>
 {% endblock %}

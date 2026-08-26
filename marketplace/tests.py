@@ -2,7 +2,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 
-from accounts.models import GamerProfile, Report
+from accounts.models import Block, GamerProfile, Report
 from games.models import Game
 
 from .models import Listing, SavedListing
@@ -39,3 +39,9 @@ class MarketplaceTests(TestCase):
 		self.assertFalse(SavedListing.objects.exists())
 		self.client.post(reverse("listing_report", args=[self.listing.id]))
 		self.assertTrue(Report.objects.filter(reported_listing_id=self.listing.id).exists())
+
+	def test_blocked_buyer_cannot_contact_seller(self):
+		Block.objects.create(blocker=self.buyer, blocked=self.seller)
+		self.client.login(username="buyer", password="pass-12345")
+		response = self.client.post(reverse("contact_seller", args=(self.listing.id,)))
+		self.assertEqual(response.status_code, 403)

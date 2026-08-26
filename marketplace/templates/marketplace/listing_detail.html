@@ -20,7 +20,7 @@
                 <div class="detail"><dt>Platform</dt><dd>{{ listing.platform|default:"Not specified" }}</dd></div>
             </dl>
             <div class="actions">
-                {% if request.user.is_authenticated and request.user != listing.seller.user %}<a class="button" href="{% url 'contact_seller' listing.id %}">Contact seller</a>{% endif %}
+                {% if request.user.is_authenticated and request.user != listing.seller.user %}<form class="inline-action" method="post" action="{% url 'contact_seller' listing.id %}">{% csrf_token %}<button class="button" type="submit">Contact seller</button></form>{% endif %}
                 {% if request.user.is_authenticated %}<form class="inline-action" method="post" action="{% url 'listing_save' listing.id %}">{% csrf_token %}<button class="button alt" type="submit">{% if is_saved %}Unsave listing{% else %}Save listing{% endif %}</button></form>{% if request.user != listing.seller.user %}<form class="inline-action" method="post" action="{% url 'listing_report' listing.id %}">{% csrf_token %}<button class="text-button" type="submit">Report listing</button></form>{% endif %}{% endif %}
             </div>
         </div>

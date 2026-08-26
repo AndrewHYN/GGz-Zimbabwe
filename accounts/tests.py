@@ -4,7 +4,7 @@ from django.urls import reverse
 
 from games.models import Game
 
-from .models import Conversation, ConversationParticipant, Follow, FriendRequest, Friendship, GamerProfile, Message, Notification, Post, PostLike, RespectTransaction
+from .models import Block, Conversation, ConversationParticipant, Follow, FriendRequest, Friendship, GamerProfile, Message, MessageRequest, Notification, Post, PostLike, RespectTransaction
 
 
 class GamerProfileWorkflowTests(TestCase):
@@ -201,7 +201,8 @@ class NotificationAndMessagingTests(TestCase):
 		notification = Notification.objects.create(recipient=self.recipient, actor=self.sender, notification_type="follow", message="Sender followed you", target_url="/profiles/Sender/")
 		self.client.login(username="recipient", password="pass")
 		self.assertContains(self.client.get(reverse("notification_list")), "Sender")
-		self.client.get(reverse("notification_read", args=(notification.id,)))
+		self.assertEqual(self.client.get(reverse("notification_read", args=(notification.id,))).status_code, 403)
+		self.client.post(reverse("notification_read", args=(notification.id,)))
 		notification.refresh_from_db()
 		self.assertTrue(notification.is_read)
 		self.client.post(reverse("notification_unread", args=(notification.id,)))
@@ -219,6 +220,22 @@ class NotificationAndMessagingTests(TestCase):
 		self.client.post(reverse("conversation_detail", args=(conversation.id,)), {"action": "clear"})
 		self.assertContains(self.client.get(reverse("conversation_detail", args=(conversation.id,))), "No messages yet")
 		self.assertTrue(Message.objects.exists())
+
+	def test_message_requests_and_privacy_rules(self):
+		self.client.login(username="sender", password="pass")
+		start_url = reverse("conversation_start", args=(self.recipient.gamer_tag,))
+		self.assertEqual(self.client.get(start_url).status_code, 403)
+		self.assertEqual(self.client.post(start_url).status_code, 403)
+		self.client.post(reverse("message_request_action", args=(self.recipient.gamer_tag, "send")))
+		self.assertEqual(MessageRequest.objects.count(), 1)
+		self.client.post(reverse("message_request_action", args=(self.recipient.gamer_tag, "send")))
+		self.assertEqual(MessageRequest.objects.count(), 1)
+		self.client.login(username="recipient", password="pass")
+		self.client.post(reverse("message_request_action", args=(self.sender.gamer_tag, "accept")))
+		self.client.login(username="sender", password="pass")
+		self.assertEqual(self.client.post(start_url).status_code, 302)
+		Block.objects.create(blocker=self.sender, blocked=self.recipient)
+		self.assertEqual(self.client.post(start_url).status_code, 403)
 
 
 class SearchAndRankTests(TestCase):

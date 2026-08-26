@@ -70,6 +70,14 @@ class TournamentTests(TestCase):
 		self.assertEqual(match.status, "Completed")
 		self.assertEqual(match.winner, self.player)
 		self.assertEqual(TournamentMatch.objects.get(id=match.next_match_id).player_one, self.player)
+		final = self.tournament.matches.filter(round=2).first()
+		final.player_one = self.player
+		final.player_two = self.organizer
+		final.save(update_fields=("player_one", "player_two"))
+		self.client.post(reverse("match_result", args=(final.id,)), {"winner": self.player.id, "score": "2-1", "status": "Completed"})
+		self.organizer.refresh_from_db()
+		self.player.refresh_from_db()
+		self.assertEqual(self.player.tournament_wins, 1)
 
 	def test_match_schedule_requires_tournament_owner(self):
 		match = TournamentMatch.objects.create(tournament=self.tournament, game=self.game, player_one=self.player, player_two=self.organizer)

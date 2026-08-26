@@ -14,6 +14,7 @@ urlpatterns = [
 	path("messages/", views.conversation_list, name="conversation_list"),
 	path("messages/<int:conversation_id>/", views.conversation_detail, name="conversation_detail"),
 	path("messages/start/<str:gamer_tag>/", views.conversation_start, name="conversation_start"),
+	path("messages/request/<str:gamer_tag>/<str:action>/", views.message_request_action, name="message_request_action"),
 	path("<str:gamer_tag>/edit/", views.profile_edit, name="profile_edit"),
 	path("<str:gamer_tag>/<str:action>/", views.connection_action, name="connection_action"),
     path("<str:gamer_tag>/", views.profile_detail, name="profile_detail"),

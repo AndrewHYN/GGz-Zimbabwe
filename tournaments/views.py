@@ -2,7 +2,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import F, Q
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -90,6 +90,10 @@ def _advance_winner(match):
 		next_match.status = "Completed"
 		next_match.score = "Bye"
 		next_match.save(update_fields=("winner", "status", "score"))
+		if not next_match.next_match_id:
+			GamerProfile.objects.filter(id=next_match.winner_id).update(tournament_wins=F("tournament_wins") + 1)
+			next_match.tournament.status = "Completed"
+			next_match.tournament.save(update_fields=("status",))
 		_advance_winner(next_match)
 
 
@@ -171,7 +175,10 @@ def tournament_register(request, slug):
 		return HttpResponseForbidden("Registration is closed.")
 	if tournament.participant_count >= tournament.max_participants:
 		return HttpResponseForbidden("This tournament is full.")
-	TournamentRegistration.objects.get_or_create(tournament=tournament, player=player, defaults={"status": "Registered"})
+	registration, _ = TournamentRegistration.objects.get_or_create(tournament=tournament, player=player, defaults={"status": "Registered"})
+	if registration.status in ("Withdrawn", "Waitlisted"):
+		registration.status = "Registered"
+		registration.save(update_fields=("status",))
 	notify(tournament.organizer, player, "tournament", f"{player.gamer_tag} registered for {tournament.name}", f"/tournaments/{tournament.slug}/manage/")
 	messages.success(request, "You joined the tournament.")
 	return redirect("tournament_detail", slug=slug)
@@ -194,9 +201,12 @@ def challenge_create(request, slug):
 	if form.is_valid():
 		challenge = form.save(commit=False)
 		challenge.challenger = get_object_or_404(GamerProfile, user=request.user)
+		challenge.tournament = tournament
+		if challenge.game_id != tournament.game_id:
+			form.add_error("game", "Challenges must use this tournament's game.")
 		if challenge.opponent == challenge.challenger:
 			form.add_error("opponent", "You cannot challenge yourself.")
-		else:
+		if not form.errors:
 			challenge.save()
 			notify(challenge.opponent, challenge.challenger, "challenge", f"{challenge.challenger.gamer_tag} challenged you", f"/tournaments/{tournament.slug}/")
 			messages.success(request, "Challenge sent.")
@@ -208,7 +218,7 @@ def challenge_create(request, slug):
 def challenge_action(request, challenge_id, action):
 	challenge = get_object_or_404(Challenge, id=challenge_id)
 	player = get_object_or_404(GamerProfile, user=request.user)
-	if request.method != "POST" or (action == "accept" and challenge.opponent != player) or (action == "cancel" and challenge.challenger != player):
+	if action not in ("accept", "decline", "cancel") or request.method != "POST" or (action in ("accept", "decline") and challenge.opponent != player) or (action == "cancel" and challenge.challenger != player):
 		return HttpResponseForbidden("You cannot update this challenge.")
 	challenge.status = {"accept": "Accepted", "decline": "Declined", "cancel": "Cancelled"}.get(action, "Pending")
 	challenge.save(update_fields=("status",))
@@ -231,6 +241,7 @@ def match_result(request, match_id):
 		if match.status == "Completed" and match.winner:
 			notify(match.winner, player, "match", f"You advanced in {match.tournament.name}", f"/tournaments/{match.tournament.slug}/")
 			if not match.next_match:
+				GamerProfile.objects.filter(id=match.winner_id).update(tournament_wins=F("tournament_wins") + 1)
 				match.tournament.status = "Completed"
 				match.tournament.save(update_fields=("status",))
 		return redirect("tournament_detail", slug=match.tournament.slug)

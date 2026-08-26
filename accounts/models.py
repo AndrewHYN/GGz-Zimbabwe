@@ -352,3 +352,18 @@ class Message(models.Model):
 
     class Meta:
         ordering = ("created_at",)
+
+
+class MessageRequest(models.Model):
+    STATUS_CHOICES = [(value, value) for value in ("Pending", "Accepted", "Declined")]
+    sender = models.ForeignKey(GamerProfile, on_delete=models.CASCADE, related_name="message_requests_sent")
+    recipient = models.ForeignKey(GamerProfile, on_delete=models.CASCADE, related_name="message_requests_received")
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="Pending")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=("sender", "recipient"), name="unique_message_request"),
+            models.CheckConstraint(condition=~Q(sender=models.F("recipient")), name="message_request_no_self"),
+        ]
+        ordering = ("-created_at",)

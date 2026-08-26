@@ -5,7 +5,7 @@ from django.db.models import Q
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 
-from accounts.models import GamerProfile, Notification, Report, notify
+from accounts.models import Block, Conversation, ConversationParticipant, GamerProfile, MessageRequest, Notification, Report, notify
 from games.models import Game
 
 from .forms import ListingForm, ListingImageForm
@@ -117,10 +117,20 @@ def listing_report(request, listing_id):
 @login_required
 def contact_seller(request, listing_id):
 	listing = get_object_or_404(Listing, id=listing_id)
+	if request.method != "POST":
+		return HttpResponseForbidden("This action requires POST.")
 	if listing.seller.user_id == request.user.id:
 		return redirect("listing_detail", listing_id=listing.id)
-	notify(listing.seller, getattr(request.user, "gamer_profile", None), "marketplace", f"Someone contacted you about {listing.title}", f"/marketplace/listing/{listing.id}/")
-	return redirect("conversation_start", gamer_tag=listing.seller.gamer_tag)
+	viewer = get_object_or_404(GamerProfile, user=request.user)
+	if Block.objects.filter(Q(blocker=viewer, blocked=listing.seller) | Q(blocker=listing.seller, blocked=viewer)).exists():
+		return HttpResponseForbidden("You cannot contact this seller.")
+	conversation = Conversation.objects.filter(participants=viewer).filter(participants=listing.seller).first()
+	if conversation:
+		notify(listing.seller, viewer, "marketplace", f"Someone contacted you about {listing.title}", f"/marketplace/listing/{listing.id}/")
+		return redirect("conversation_detail", conversation_id=conversation.id)
+	MessageRequest.objects.update_or_create(sender=viewer, recipient=listing.seller, defaults={"status": "Pending"})
+	notify(listing.seller, viewer, "marketplace", f"{viewer.gamer_tag} wants to discuss {listing.title}", f"/marketplace/listing/{listing.id}/")
+	return redirect("profile_detail", gamer_tag=listing.seller.gamer_tag)
 
 
 @login_required

@@ -3,10 +3,12 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.text import slugify
 
 from accounts.models import GamerProfile, notify
 
 from .models import Team, TeamInvitation, TeamMembership
+from .forms import TeamForm
 
 
 def team_list(request):
@@ -49,11 +51,13 @@ def team_invitation_action(request, invitation_id, action):
 
 @login_required
 def team_create(request):
-    if request.method == "POST":
-        profile = get_object_or_404(GamerProfile, user=request.user)
-        name = request.POST.get("name", "").strip()
-        if name:
-            team = Team.objects.create(owner=profile, name=name, tag=request.POST.get("tag", "GGZ"), slug=name.lower().replace(" ", "-"), description=request.POST.get("description", ""))
-            TeamMembership.objects.create(team=team, player=profile, role="Captain")
-            return redirect("team_detail", slug=team.slug)
-    return render(request, "teams/team_form.html")
+    form = TeamForm(request.POST or None)
+    if form.is_valid():
+        team = form.save(commit=False)
+        team.owner = get_object_or_404(GamerProfile, user=request.user)
+        team.slug = slugify(team.name)
+        team.save()
+        TeamMembership.objects.create(team=team, player=team.owner, role="Captain")
+        messages.success(request, "Your team was created.")
+        return redirect("team_detail", slug=team.slug)
+    return render(request, "teams/team_form.html", {"form": form})
