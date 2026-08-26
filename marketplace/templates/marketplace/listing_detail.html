@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}{{ listing.title }} | Marketplace{% endblock %}
+{% block content %}
+<main class="page-shell marketplace-page">
+    <a class="back-link" href="{% url 'listing_list' %}">&larr; Back to marketplace</a>
+    {% if messages %}<div class="flash-stack">{% for message in messages %}<div class="flash flash-{{ message.tags }}">{{ message }}</div>{% endfor %}</div>{% endif %}
+    <section class="listing-detail">
+        <div class="listing-gallery">
+            {% for image in listing.images.all %}<img class="listing-detail-image" src="{{ image.image.url }}" alt="{{ listing.title }}">{% empty %}<div class="listing-detail-image listing-image-fallback">GGz</div>{% endfor %}
+        </div>
+        <div>
+            <p class="eyebrow">{{ listing.category }} · {{ listing.status }}</p>
+            <h1>{{ listing.title }}</h1>
+            <strong class="detail-price">{{ listing.price }}</strong>
+            <p class="lede">{{ listing.description }}</p>
+            <dl class="details">
+                <div class="detail"><dt>Condition</dt><dd>{{ listing.condition }}</dd></div>
+                <div class="detail"><dt>Location</dt><dd>{{ listing.location }}</dd></div>
+                {% if listing.game %}<div class="detail"><dt>Game</dt><dd><a href="{% url 'game_detail' listing.game.id %}">{{ listing.game.name }}</a></dd></div>{% endif %}
+                <div class="detail"><dt>Platform</dt><dd>{{ listing.platform|default:"Not specified" }}</dd></div>
+            </dl>
+            <div class="actions">
+                {% if request.user.is_authenticated and request.user != listing.seller.user %}<a class="button" href="{% url 'contact_seller' listing.id %}">Contact seller</a>{% endif %}
+                {% if request.user.is_authenticated %}<form class="inline-action" method="post" action="{% url 'listing_save' listing.id %}">{% csrf_token %}<button class="button alt" type="submit">{% if is_saved %}Unsave listing{% else %}Save listing{% endif %}</button></form>{% if request.user != listing.seller.user %}<form class="inline-action" method="post" action="{% url 'listing_report' listing.id %}">{% csrf_token %}<button class="text-button" type="submit">Report listing</button></form>{% endif %}{% endif %}
+            </div>
+        </div>
+    </section>
+    <section class="seller-panel page-section"><p class="eyebrow">Seller</p><a class="post-author" href="{% url 'profile_detail' listing.seller.gamer_tag %}"><span class="avatar avatar-post avatar-fallback">{{ listing.seller.gamer_tag|slice:":1"|upper }}</span><span><strong>{{ listing.seller.gamer_tag }}</strong><small>{{ listing.seller.location|default:"Zimbabwe" }} · {{ listing.seller.respect_level }} · {{ listing.seller.respect_points }} respect</small></span></a><p class="muted">Contact the seller through a private GGz conversation.</p><a class="text-link" href="{% url 'profile_detail' listing.seller.gamer_tag %}">View seller profile</a></section>
+    {% if request.user == listing.seller.user %}<section class="actions owner-actions"><a class="button alt" href="{% url 'listing_edit' listing.id %}">Edit listing</a><form class="inline-action" method="post" action="{% url 'listing_status' listing.id 'Reserved' %}">{% csrf_token %}<button class="button alt" type="submit">Mark reserved</button></form><form class="inline-action" method="post" action="{% url 'listing_status' listing.id 'Sold' %}">{% csrf_token %}<button class="button alt" type="submit">Mark sold</button></form><form class="inline-action" method="post" action="{% url 'listing_delete' listing.id %}">{% csrf_token %}<button class="text-button" type="submit">Delete listing</button></form></section>{% endif %}
+</main>
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Find Gamers | GGs{% endblock %}
+
+{% block content %}
+<main class="page-shell gamer-discovery-page">
+    <a class="back-link" href="/">&larr; Back to GGs</a>
+    <p class="eyebrow">The community</p>
+    <h1>Find your <em>people.</em></h1>
+    <p class="lede">Search Zimbabwean gamers by game, city, rank, platform, or when they are ready to play.</p>
+
+    <form class="filter-bar" method="get">
+        <p><label for="id_q">Search</label><input id="id_q" name="q" value="{{ query }}" placeholder="Username or gamer tag"></p>
+        <p><label for="id_location">City</label><input id="id_location" name="location" value="{{ request.GET.location }}" placeholder="Harare, Bulawayo..."></p>
+        <p><label for="id_platform">Platform</label><select id="id_platform" name="platform"><option value="">Any platform</option>{% for value, label in platform_choices %}<option value="{{ value }}"{% if request.GET.platform == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></p>
+        <p><label for="id_rank">Rank</label><select id="id_rank" name="rank"><option value="">Any rank</option>{% for value, label in rank_choices %}<option value="{{ value }}"{% if request.GET.rank == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></p>
+        <p><label for="id_availability">Availability</label><select id="id_availability" name="availability"><option value="">Any availability</option>{% for value, label in availability_choices %}<option value="{{ value }}"{% if request.GET.availability == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></p>
+        <p><label for="id_game">Game</label><select id="id_game" name="game"><option value="">Any game</option>{% for game in game_choices %}<option value="{{ game.id }}"{% if request.GET.game == game.id|stringformat:"s" %} selected{% endif %}>{{ game.name }}</option>{% endfor %}</select></p>
+        <button class="button" type="submit">Search gamers</button>
+        {% if query or request.GET.location or request.GET.platform or request.GET.rank or request.GET.availability or request.GET.game %}<a class="clear-filters" href="{% url 'gamer_discovery' %}">Clear filters</a>{% endif %}
+    </form>
+
+    <section class="gamer-grid page-section">
+        {% for gamer in page %}
+            <article class="gamer-card">
+                <div class="gamer-card-head">{% if gamer.avatar %}<span class="avatar avatar-medium"><img src="{{ gamer.avatar.url }}" alt="{{ gamer.gamer_tag }} avatar"></span>{% else %}<span class="avatar avatar-medium avatar-fallback">{{ gamer.gamer_tag|slice:":1"|upper }}</span>{% endif %}<div><h2>{{ gamer.gamer_tag }}</h2><p class="muted">{{ gamer.location|default:"Zimbabwe" }}</p></div></div>
+                <div class="gamer-meta"><span class="rank-tag">{{ gamer.rank }}</span><span>{{ gamer.platform|default:"Platform open" }}</span><span class="status-dot">{{ gamer.get_availability_display }}</span></div>
+                <p class="gamer-games">{% for game in gamer.games.all|slice:":2" %}{{ game.name }}{% if not forloop.last %}, {% endif %}{% empty %}Games not listed yet{% endfor %}</p>
+                <div class="gamer-card-foot"><span class="respect-label">{{ gamer.respect_points }} respect</span><a class="button alt" href="{% url 'profile_detail' gamer.gamer_tag %}">View profile</a></div>
+            </article>
+        {% empty %}<p class="muted empty-state">No gamers match those filters yet.</p>{% endfor %}
+    </section>
+    {% if page.has_other_pages %}<nav class="pagination" aria-label="Gamer pages">{% if page.has_previous %}<a href="?{{ request.GET.urlencode }}&page={{ page.previous_page_number }}">Previous</a>{% endif %}<span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>{% if page.has_next %}<a href="?{{ request.GET.urlencode }}&page={{ page.next_page_number }}">Next</a>{% endif %}</nav>{% endif %}
+</main>
+{% endblock %}

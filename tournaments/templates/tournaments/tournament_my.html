@@ -1,0 +1,3 @@
+{% extends "base.html" %}
+{% block title %}My Tournaments | GGs{% endblock %}
+{% block content %}<main class="page-shell utility-page"><p class="eyebrow">Organizer workspace</p><h1>My <em>tournaments.</em></h1><section class="listing-grid page-section">{% for tournament in tournaments %}<article class="player-card"><a class="text-link" href="{% url 'tournament_manage' tournament.slug %}">{{ tournament.name }}</a><p class="muted">{{ tournament.status }} · {{ tournament.matches.count }} matches</p><small>{{ tournament.registrations.count }} registrations</small></article>{% empty %}<div class="empty-state"><h2>No tournaments created yet.</h2><p class="muted">Your organizer workspace will appear here.</p></div>{% endfor %}</section></main>{% endblock %}

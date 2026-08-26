@@ -1,3 +1,52 @@
-from django.test import TestCase
+from datetime import timedelta
 
-# Create your tests here.
+from django.contrib.auth.models import User
+from django.test import TestCase
+from django.urls import reverse
+from django.utils import timezone
+
+from accounts.models import GamerProfile
+from games.models import Game
+
+from .models import Challenge, Tournament, TournamentMatch, TournamentRegistration
+
+
+class TournamentTests(TestCase):
+	def setUp(self):
+		self.user = User.objects.create_user(username="organizer", password="pass-12345")
+		self.organizer = GamerProfile.objects.create(user=self.user, gamer_tag="OrganizerZW")
+		self.player_user = User.objects.create_user(username="player", password="pass-12345")
+		self.player = GamerProfile.objects.create(user=self.player_user, gamer_tag="PlayerZW")
+		self.game = Game.objects.create(name="Valorant")
+		now = timezone.now()
+		self.tournament = Tournament.objects.create(organizer=self.organizer, game=self.game, name="GGz Cup", slug="ggz-cup", description="A cup", format="1v1", max_participants=1, start_date=now + timedelta(days=2), registration_deadline=now + timedelta(days=1), status="Registration Open")
+
+	def test_tournament_list_and_detail_are_real(self):
+		self.assertContains(self.client.get(reverse("tournament_list")), "GGz Cup")
+		self.assertContains(self.client.get(reverse("tournament_detail", args=[self.tournament.slug])), "OrganizerZW")
+
+	def test_registration_and_duplicate_prevention(self):
+		self.client.login(username="player", password="pass-12345")
+		url = reverse("tournament_register", args=[self.tournament.slug])
+		self.client.post(url)
+		self.client.post(url)
+		self.assertEqual(TournamentRegistration.objects.count(), 1)
+
+	def test_cancelled_tournament_cannot_be_joined(self):
+		self.tournament.status = "Cancelled"
+		self.tournament.save(update_fields=("status",))
+		self.client.login(username="player", password="pass-12345")
+		response = self.client.post(reverse("tournament_register", args=[self.tournament.slug]))
+		self.assertEqual(response.status_code, 403)
+
+	def test_challenge_cannot_target_self(self):
+		self.client.login(username="organizer", password="pass-12345")
+		response = self.client.post(reverse("challenge_create", args=[self.tournament.slug]), {"opponent": self.organizer.id, "game": self.game.id, "tournament": self.tournament.id})
+		self.assertEqual(response.status_code, 200)
+		self.assertFalse(Challenge.objects.exists())
+
+	def test_match_result_requires_participant_or_organizer(self):
+		outsider = GamerProfile.objects.create(user=User.objects.create_user(username="outsider", password="pass-12345"), gamer_tag="OutsiderZW")
+		match = TournamentMatch.objects.create(tournament=self.tournament, game=self.game, player_one=self.player, player_two=self.organizer)
+		self.client.login(username="outsider", password="pass-12345")
+		self.assertEqual(self.client.get(reverse("match_result", args=[match.id])).status_code, 403)

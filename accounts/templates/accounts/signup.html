@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block title %}Join GGs{% endblock %}
+
+{% block content %}
+<main class="page-shell form-page">
+    <a class="back-link" href="/">&larr; Back to GGs</a>
+    <div class="form-card"><p class="eyebrow">Enter the lobby</p><h1>Make your mark.</h1><p class="muted">Create your account and claim a profile in the community.</p><form method="post">{% csrf_token %}{{ form.as_p }}<button class="button" type="submit">Create account</button></form><p class="muted">Already a member? <a href="{% url 'login' %}">Log in</a></p></div>
+</main>
+{% endblock %}

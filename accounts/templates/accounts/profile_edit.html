@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}Edit {{ profile.gamer_tag }} | GGs{% endblock %}
+
+{% block content %}
+<main class="page-shell form-page">
+    <a class="back-link" href="{% url 'profile_detail' profile.gamer_tag %}">&larr; Back to profile</a>
+    <div class="form-card">
+        <p class="eyebrow">Your identity</p>
+        <h1>Edit profile</h1>
+        <p class="muted">Keep your presence current. Upload a player icon, update your details, or clear the image whenever you like.</p>
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            {{ form.non_field_errors }}
+            {% for field in form %}<p><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}</p>{% endfor %}
+            <button class="button" type="submit">Save changes</button>
+        </form>
+    </div>
+</main>
+{% endblock %}

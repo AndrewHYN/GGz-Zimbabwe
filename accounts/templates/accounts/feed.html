@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Feed | GGs{% endblock %}
+
+{% block content %}
+<main class="page-shell feed-page">
+    {% if messages %}<div class="flash-stack" aria-live="polite">{% for message in messages %}<div class="flash flash-{{ message.tags }}">{{ message }}</div>{% endfor %}</div>{% endif %}
+    <div class="section-heading"><div><p class="eyebrow">The community</p><h1>What’s happening.</h1><p class="lede">Gaming talk, achievements, and calls for a squad from across Zimbabwe.</p></div></div>
+    {% if request.user.is_authenticated %}<section class="post-composer"><p class="eyebrow">Share an update</p><form method="post" action="{% url 'post_create' %}" enctype="multipart/form-data">{% csrf_token %}<input type="hidden" name="next" value="/feed/">{{ post_form.as_p }}<button class="button" type="submit">Publish post</button></form></section>{% endif %}
+    <nav class="feed-tabs" aria-label="Feed views"><a class="{% if tab == 'for-you' %}active{% endif %}" href="?tab=for-you">For you</a><a class="{% if tab == 'following' %}active{% endif %}" href="?tab=following">Following</a><a class="{% if tab == 'latest' %}active{% endif %}" href="?tab=latest">Latest</a></nav>
+    <section class="post-list page-section">{% for post in page %}{% include "accounts/post_card.html" with post=post %}{% empty %}<div class="empty-state"><h2>No posts here yet.</h2><p class="muted">Be the first gamer to share something with the community.</p></div>{% endfor %}</section>
+    {% if page.has_other_pages %}<nav class="pagination" aria-label="Feed pages">{% if page.has_previous %}<a href="?tab={{ tab }}&page={{ page.previous_page_number }}">Previous</a>{% endif %}<span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>{% if page.has_next %}<a href="?tab={{ tab }}&page={{ page.next_page_number }}">Next</a>{% endif %}</nav>{% endif %}
+</main>
+{% endblock %}

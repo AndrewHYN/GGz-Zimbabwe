@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | GGs{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <p class="eyebrow">Your home base</p>
+    <h1>Welcome back, <em>{{ profile.gamer_tag }}.</em></h1>
+    <p class="lede">Keep your identity current, see what you play, and find the next session.</p>
+    <div class="dashboard-grid">
+        <section class="dashboard-summary">
+            {% if profile.avatar %}<span class="avatar avatar-profile"><img src="{{ profile.avatar.url }}" alt="{{ profile.gamer_tag }} avatar"></span>{% else %}<span class="avatar avatar-profile avatar-fallback">{{ profile.gamer_tag|slice:":1"|upper }}</span>{% endif %}
+            <div><p class="eyebrow">Player profile</p><h2>{{ profile.gamer_tag }}</h2><p class="muted">{{ profile.location|default:"Zimbabwe" }} · {{ profile.rank }}</p><div class="actions"><a class="button" href="{% url 'profile_detail' profile.gamer_tag %}">View profile</a><a class="button alt" href="{% url 'profile_edit' profile.gamer_tag %}">Edit profile</a></div></div>
+        </section>
+        <section class="dashboard-stats"><div class="stat"><span class="stat-label">Respect points</span><span class="stat-value">{{ profile.respect_points }}</span></div><div class="stat"><span class="stat-label">Games played</span><span class="stat-value">{{ game_count }}</span></div><div class="stat"><span class="stat-label">Gamers to discover</span><span class="stat-value">{{ gamer_count }}</span></div></section>
+    </div>
+    <section class="dashboard-section"><div class="section-heading"><div><p class="eyebrow">Next move</p><h2>Find a better session.</h2></div><a class="button alt" href="{% url 'gamer_discovery' %}">Find gamers</a></div><p class="muted">Your dashboard will grow with tournaments, events, messages, and activity as those community features come online.</p></section>
+</main>
+{% endblock %}

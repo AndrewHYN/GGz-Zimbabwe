@@ -25,14 +25,21 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config("SECRET_KEY", default='')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config("DEBUG", default=True)
+DEBUG = config("DEBUG", default=True, cast=bool)
 
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='').split(',')
+
+CSRF_TRUSTED_ORIGINS = [
+    'https://localhost:8000',
+    'http://localhost:8000',
+]
 
 if 'CODESPACE_NAME' in os.environ:
     codespace_name = config("CODESPACE_NAME")
     codespace_domain = config("GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN")
-    CSRF_TRUSTED_ORIGINS = [f'https://{codespace_name}-8000.{codespace_domain}']
+    CSRF_TRUSTED_ORIGINS.append(
+        f'https://{codespace_name}-8000.{codespace_domain}'
+    )
 
 # Application definition
 
@@ -50,6 +57,7 @@ INSTALLED_APPS = [
     "tournaments",
     "marketplace",
     "events",
+    "teams",
 ]
 
 MIDDLEWARE = [
@@ -63,9 +71,30 @@ MIDDLEWARE = [
     "django_browser_reload.middleware.BrowserReloadMiddleware",
 ]
 
-X_FRAME_OPTIONS = "ALLOW-FROM preview.app.github.dev"
+X_FRAME_OPTIONS = config("X_FRAME_OPTIONS", default="DENY")
 
 ROOT_URLCONF = "hello_world.urls"
+
+LOGIN_REDIRECT_URL = "/"
+LOGIN_URL = "/accounts/login/"
+LOGOUT_REDIRECT_URL = "/accounts/login/"
+
+# Keep local development usable while hardening session and CSRF cookies.
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = "same-origin"
+SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=not DEBUG, cast=bool)
+SECURE_HSTS_SECONDS = config(
+    "SECURE_HSTS_SECONDS",
+    default=31536000 if not DEBUG else 0,
+    cast=int,
+)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
+SECURE_HSTS_PRELOAD = not DEBUG
 
 TEMPLATES = [
     {
