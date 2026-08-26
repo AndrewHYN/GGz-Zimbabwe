@@ -45,5 +45,5 @@ def global_search(request):
         "tournaments": page(Tournament.objects.filter(name__icontains=query).select_related("game"), "tournaments") if query else [],
         "teams": page(Team.objects.filter(name__icontains=query), "teams") if query else [],
         "events": page(Event.objects.filter(name__icontains=query), "events") if query else [],
-        "search_params": {key: params_for(key) for key in ("gamers", "games", "listings", "tournaments", "teams", "events")},
+        "search_params": {key: params_for(key) for key in ("gamers", "games", "posts", "listings", "tournaments", "teams", "events")},
     })

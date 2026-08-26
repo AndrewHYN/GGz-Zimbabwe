@@ -26,7 +26,7 @@ from events import views as event_views
 from hello_world.core import views as core_views
 
 urlpatterns = [
-    path("", core_views.index),
+    path("", core_views.index, name="index"),
     path("leaderboards/", core_views.leaderboard, name="leaderboard"),
     path("search/", core_views.global_search, name="global_search"),
     path("admin/", admin.site.urls),

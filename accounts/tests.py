@@ -41,7 +41,7 @@ class GamerProfileWorkflowTests(TestCase):
 		self.client.login(username="tendai", password="strong-password-123")
 		response = self.client.get(reverse("dashboard"))
 		self.assertContains(response, "TendaiZW")
-		self.assertContains(response, "Gamers to discover")
+		self.assertContains(response, "Players to discover")
 
 	def test_discovery_filters_by_location_and_platform(self):
 		response = self.client.get(

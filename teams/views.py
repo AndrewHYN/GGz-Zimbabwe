@@ -13,7 +13,7 @@ def team_list(request):
     teams = Team.objects.filter(status="Active").select_related("game", "owner").prefetch_related("memberships").order_by("name")
     if request.GET.get("q"):
         teams = teams.filter(name__icontains=request.GET["q"])
-    page = Paginator(teams, 12).get_page(request.GET.get("page"))
+    page = Paginator(teams.order_by("name"), 12).get_page(request.GET.get("page"))
     return render(request, "teams/team_list.html", {"page": page})
 
 

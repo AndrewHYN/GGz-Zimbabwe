@@ -3,7 +3,7 @@ from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import F, Q
-from django.http import HttpResponseForbidden
+from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -185,6 +185,8 @@ def connection_action(request, gamer_tag, action):
 	else:
 		return HttpResponseForbidden("Unknown connection action.")
 	messages.success(request, "Your community action was updated.")
+	if request.headers.get("x-requested-with") == "XMLHttpRequest":
+		return JsonResponse({"ok": True, "action": action})
 	return redirect("profile_detail", gamer_tag=target.gamer_tag)
 
 
@@ -277,6 +279,8 @@ def post_like(request, post_id):
 			like.delete()
 		elif post.author != profile:
 			_notify(post.author, profile, "like", f"{profile.gamer_tag} liked your post", f"/feed/posts/{post.id}/")
+	if request.headers.get("x-requested-with") == "XMLHttpRequest":
+		return JsonResponse({"ok": True, "liked": created, "count": post.likes.count()})
 	return redirect(request.POST.get("next") or "feed")
 
 

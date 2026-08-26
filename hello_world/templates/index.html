@@ -13,7 +13,7 @@
                 <div class="actions"><a class="button" href="{% url 'profile_detail' user_profile.gamer_tag %}">Open my profile</a><a class="button alt" href="{% url 'game_list' %}">Browse games</a></div>
             {% else %}
                 <h1>Find your <em>people.</em></h1>
-                <p class="lede">GGs is where gamers show up, find their next rival, and build a reputation that travels with them.</p>
+                <p class="lede">GGs is where players show up, find their next rival, and build a reputation that travels with them.</p>
                 <div class="actions"><a class="button" href="{% url 'signup' %}">Create your profile</a><a class="button alt" href="{% url 'game_list' %}">Explore games</a></div>
             {% endif %}
         </div>
@@ -21,7 +21,7 @@
             <div class="welcome-label">The lobby is open</div>
             <h2>Play with intent.</h2>
             <p>Find players, share what you play, and make your next session count.</p>
-            <div class="stats"><div class="stat"><span class="stat-label">Gamers</span><span class="stat-value">{{ profile_count }}</span></div><div class="stat"><span class="stat-label">Games</span><span class="stat-value">{{ game_count }}</span></div></div>
+            <div class="stats"><div class="stat"><span class="stat-label">Players</span><span class="stat-value">{{ profile_count }}</span></div><div class="stat"><span class="stat-label">Games</span><span class="stat-value">{{ game_count }}</span></div></div>
         </aside>
     </section>
     <section class="features" aria-label="GGs features">

@@ -66,6 +66,7 @@
   }
 
   .nav-links { gap: 24px; color: var(--muted); font-size: .88rem; }
+  .mobile-menu-toggle { display: none; border: 1px solid var(--line); padding: 8px 11px; background: transparent; color: var(--ink); cursor: pointer; }
   .nav-links a { text-decoration: none; }
   .nav-links a { transition: color .18s ease; }
   .nav-links a:hover, .nav-login { color: var(--ink); }
@@ -135,8 +136,8 @@
   .username { margin: -6px 0 0; color: var(--muted); font-size: .92rem; }
   .muted, .lede { color: var(--muted); line-height: 1.65; }
   .lede { max-width: 590px; font-size: 1.08rem; }
-  .back-link { display: inline-block; margin-bottom: 52px; color: var(--muted); text-decoration: none; }
-  .back-link:hover { color: var(--ink); }
+  .back-link { display: inline-block; margin-bottom: 52px; border: 1px solid var(--line); border-radius: 4px; padding: 9px 13px; background: rgba(17, 23, 24, .7); color: var(--muted); text-decoration: none; transition: border-color .18s ease, color .18s ease, background-color .18s ease; }
+  .back-link:hover { border-color: var(--lime); background: rgba(200, 241, 105, .08); color: var(--ink); }
 
   .button {
     display: inline-block;
@@ -249,6 +250,7 @@
   .flash-stack { display: grid; gap: 8px; margin-bottom: 22px; }
   .flash { border-left: 3px solid var(--lime); padding: 12px 14px; background: rgba(200, 241, 105, .08); color: var(--ink); font-size: .9rem; }
   .flash-error { border-color: var(--coral); background: rgba(255, 118, 95, .08); }
+  .global-flashes { margin-top: 18px; }
   .dashboard-grid { display: grid; grid-template-columns: 1.4fr .9fr; gap: 14px; }
   .dashboard-summary { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 28px; border: 1px solid var(--line); padding: 30px; background: var(--panel); }
   .dashboard-summary h2 { margin-bottom: 8px; font-size: 2rem; }
@@ -321,8 +323,13 @@
   :focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; }
 
   @media (max-width: 760px) {
-    .nav-links { gap: 12px; }
-    .nav-optional { display: none; }
+    .site-nav { position: relative; }
+    .mobile-menu-toggle { display: inline-block; margin-left: auto; }
+    .nav-links { position: absolute; z-index: 10; top: calc(100% + 8px); right: 0; display: none; grid-template-columns: 1fr 1fr; gap: 0; min-width: 230px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); }
+    .nav-links.is-open { display: grid; }
+    .nav-links > a, .nav-links > .account-menu { padding: 13px 15px; }
+    .nav-links .nav-optional { display: block; }
+    .nav-links .account-menu { grid-column: 1 / -1; }
     .home-hero { grid-template-columns: 1fr; gap: 40px; padding: 64px 0; }
     .features { grid-template-columns: repeat(2, 1fr); }
     .profile-hero { grid-template-columns: 1fr; }
@@ -359,6 +366,24 @@
   .nav-icon-link { position: relative; display: inline-grid; place-items: center; width: 30px; height: 32px; color: var(--muted); font-size: 1.35rem; text-decoration: none; }
   .nav-icon-link svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
   .nav-icon-link:hover { color: var(--lime); }
+  .nav-more { position: relative; color: var(--muted); }
+  .nav-more summary { cursor: pointer; list-style: none; }
+  .nav-more summary::-webkit-details-marker { display: none; }
+  .nav-more summary::after { margin-left: 5px; content: "▾"; font-size: .7rem; }
+  .nav-more .menu-panel { top: calc(100% + 14px); right: -10px; }
+  .search-form { display: grid; grid-template-columns: 1fr auto; gap: 10px; max-width: 760px; margin-top: 30px; }
+  .search-results { display: grid; gap: 28px; max-width: 760px; margin-top: 38px; }
+  .search-results section { display: grid; gap: 8px; }
+  .search-results h2 { margin-bottom: 5px; font-size: 1.35rem; }
+  .result-row { display: flex; justify-content: space-between; gap: 14px; border: 1px solid var(--line); padding: 14px 16px; background: var(--panel); color: var(--ink); text-decoration: none; transition: border-color .18s ease, transform .18s ease; }
+  .result-row:hover { border-color: var(--lime); transform: translateX(2px); }
+  .result-row span { color: var(--muted); font-size: .82rem; text-align: right; }
+  .leaderboard { display: grid; gap: 8px; }
+  .leader-row { display: grid; grid-template-columns: 42px 40px 1fr auto; align-items: center; gap: 18px; border: 1px solid var(--line); padding: 16px 18px; background: var(--panel); color: var(--ink); text-decoration: none; transition: border-color .18s ease, background-color .18s ease, transform .18s ease; }
+  .leader-row:hover { border-color: var(--lime); background: #151d1e; transform: translateX(2px); }
+  .leader-row > strong { color: var(--coral); font-size: 1.2rem; }
+  .leader-row > span:nth-child(3) { display: grid; gap: 4px; }
+  .leader-row > span:nth-child(3) small, .leader-row > span:nth-child(4) { color: var(--muted); font-size: .82rem; }
   .notification-badge { position: absolute; top: -5px; right: -8px; min-width: 17px; border-radius: 9px; padding: 1px 4px; background: var(--coral); color: var(--night); font-size: .65rem; font-weight: bold; text-align: center; }
   .notification-list, .conversation-list { display: grid; gap: 10px; max-width: 760px; }
   .notification-item, .conversation-item { display: flex; align-items: center; gap: 14px; border: 1px solid var(--line); padding: 15px; background: var(--panel); color: var(--ink); text-decoration: none; transition: border-color .18s ease, background-color .18s ease; }
@@ -383,10 +408,14 @@
   .message-form { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 10px; max-width: 760px; border-top: 1px solid var(--line); padding-top: 18px; }
   .message-form textarea { min-height: 48px; resize: vertical; }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+  .async-error { color: var(--coral); font-size: .75rem; }
 
   @media (max-width: 480px) {
     .message-form { grid-template-columns: 1fr; }
     .message-form .button { width: 100%; }
+    .search-form { grid-template-columns: 1fr; }
+    .leader-row { grid-template-columns: 34px 40px 1fr; gap: 10px; }
+    .leader-row > span:nth-child(4) { grid-column: 3; }
     .message { max-width: 88%; }
     .conversation-header { align-items: flex-start; flex-wrap: wrap; }
     .conversation-header form { width: 100%; margin-left: 0; }

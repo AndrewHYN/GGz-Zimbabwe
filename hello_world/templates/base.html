@@ -4,22 +4,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="GGs is a home for gamers to discover, compete, and build reputation.">
+    <meta name="description" content="GGs is a home for players to discover, compete, and build reputation.">
     <title>{% block title %}GGs | Gaming, with intent{% endblock %}</title>
     <link rel="stylesheet" href="{% static 'main.css' %}">
 </head>
 <body>
     <div class="site-shell">
         <nav class="site-nav" aria-label="Main navigation">
-            <a class="brand" href="/">GGs<span>/</span></a>
-            <div class="nav-links">
+            <a class="brand" href="{% url 'index' %}">GGs<span>/</span></a>
+            <button class="mobile-menu-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation" title="Open navigation"><span aria-hidden="true">☰</span><span class="sr-only">Open navigation</span></button>
+            <div class="nav-links" id="primary-navigation">
+                <a class="nav-home" href="/">Home</a>
+                <a href="{% url 'gamer_discovery' %}">Players</a>
                 <a href="{% url 'game_list' %}">Games</a>
-                <a href="{% url 'gamer_discovery' %}">Gamers</a>
-                <a href="{% url 'feed' %}">Feed</a>
-                <a class="nav-optional" href="{% url 'tournament_list' %}">Tournaments</a>
-                <a class="nav-optional" href="{% url 'event_list' %}">Events</a>
-                <a class="nav-optional" href="{% url 'listing_list' %}">Marketplace</a>
-                <a class="nav-optional" href="{% url 'leaderboard' %}">Ranks</a>
+                <a href="{% url 'tournament_list' %}">Tournaments</a>
+                <a href="{% url 'listing_list' %}">Marketplace</a>
+                <a href="{% url 'event_list' %}">Events</a>
+                <details class="nav-more"><summary>More</summary><div class="menu-panel"><a href="{% url 'feed' %}">Community feed</a><a href="{% url 'leaderboard' %}">Rankings</a></div></details>
                 <a class="nav-icon-link" href="{% url 'global_search' %}" aria-label="Search" title="Search"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 5 5"></path></svg></a>
                 {% if request.user.is_authenticated %}<a class="notification-link nav-icon-link" href="{% url 'notification_list' %}" aria-label="Notifications{% if unread_notification_count %}, {{ unread_notification_count }} unread{% endif %}" title="Notifications"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"></path></svg>{% if unread_notification_count %}<span class="notification-badge">{{ unread_notification_count }}</span>{% endif %}</a>{% endif %}
                 {% if request.user.is_authenticated %}
@@ -54,7 +55,9 @@
                 {% endif %}
             </div>
         </nav>
+        {% if messages %}<div class="flash-stack global-flashes" aria-live="polite">{% for message in messages %}<div class="flash flash-{{ message.tags }}">{{ message }}</div>{% endfor %}</div>{% endif %}
         {% block content %}{% endblock %}
     </div>
+    <script src="{% static 'main.js' %}" defer></script>
 </body>
 </html>

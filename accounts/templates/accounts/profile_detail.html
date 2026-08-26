@@ -4,7 +4,6 @@
 
 {% block content %}
 <main class="page-shell">
-    {% if messages %}<div class="flash-stack" aria-live="polite">{% for message in messages %}<div class="flash flash-{{ message.tags }}">{{ message }}</div>{% endfor %}</div>{% endif %}
     <a class="back-link" href="/">&larr; Back to GGs</a>
     <header class="profile-hero">
         {% if profile.avatar %}<span class="avatar avatar-profile"><img src="{{ profile.avatar.url }}" alt="{{ profile.gamer_tag }} avatar"></span>{% else %}<span class="avatar avatar-profile avatar-fallback">{{ profile.gamer_tag|slice:":1"|upper }}</span>{% endif %}
