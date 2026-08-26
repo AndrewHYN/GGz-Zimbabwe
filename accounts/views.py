@@ -260,6 +260,8 @@ def post_detail(request, post_id):
 			comment.post = post
 			comment.author = get_object_or_404(GamerProfile, user=request.user)
 			comment.save()
+			if comment.post.author != comment.author:
+				_notify(comment.post.author, comment.author, "comment", f"{comment.author.gamer_tag} commented on your post", f"/feed/posts/{comment.post.id}/")
 			return redirect("post_detail", post_id=post.id)
 	viewer = getattr(request.user, "gamer_profile", None)
 	liked_post_ids = {post.id} if viewer and PostLike.objects.filter(post=post, user=viewer).exists() else set()

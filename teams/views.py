@@ -1,5 +1,7 @@
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 
 from accounts.models import GamerProfile
@@ -18,6 +20,30 @@ def team_list(request):
 def team_detail(request, slug):
     team = get_object_or_404(Team.objects.select_related("owner", "game").prefetch_related("memberships__player"), slug=slug)
     return render(request, "teams/team_detail.html", {"team": team})
+
+
+@login_required
+def team_invitations(request):
+    profile = get_object_or_404(GamerProfile, user=request.user)
+    invitations = TeamInvitation.objects.filter(invitee=profile, status="Pending").select_related("team", "inviter")
+    return render(request, "teams/invitations.html", {"invitations": invitations})
+
+
+@login_required
+def team_invitation_action(request, invitation_id, action):
+    profile = get_object_or_404(GamerProfile, user=request.user)
+    invitation = get_object_or_404(TeamInvitation.objects.select_related("team"), id=invitation_id, invitee=profile, status="Pending")
+    if request.method != "POST" or action not in ("accept", "decline"):
+        return HttpResponseForbidden("Invalid invitation action.")
+    if action == "accept":
+        _, created = TeamMembership.objects.get_or_create(team=invitation.team, player=profile, defaults={"role": "Member"})
+        messages.success(request, "You joined the team." if created else "You are already a team member.")
+        invitation.status = "Accepted"
+    else:
+        invitation.status = "Declined"
+        messages.success(request, "Team invitation declined.")
+    invitation.save(update_fields=("status",))
+    return redirect("team_invitations")
 
 
 @login_required

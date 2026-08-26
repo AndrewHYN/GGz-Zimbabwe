@@ -1,5 +1,6 @@
 from django.shortcuts import render
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect
 from django.core.paginator import Paginator
@@ -44,7 +45,8 @@ def event_create(request):
 		event = form.save(commit=False)
 		event.organizer = get_object_or_404(GamerProfile, user=request.user)
 		event.save()
-	return redirect("event_detail", event_id=event.id)
+		messages.success(request, "Your event was created.")
+		return redirect("event_detail", event_id=event.id)
 	return render(request, "events/event_form.html", {"form": form, "title": "Create event"})
 
 
@@ -54,6 +56,7 @@ def event_edit(request, event_id):
 	form = EventForm(request.POST or None, request.FILES or None, instance=event)
 	if form.is_valid():
 		form.save()
+		messages.success(request, "Your event was updated.")
 		return redirect("event_detail", event_id=event.id)
 	return render(request, "events/event_form.html", {"form": form, "title": "Edit event", "event": event})
 
@@ -64,4 +67,5 @@ def event_cancel(request, event_id):
 	if request.method == "POST":
 		event.status = "Cancelled"
 		event.save(update_fields=("status",))
+		messages.success(request, "Your event was cancelled.")
 	return redirect("event_detail", event_id=event.id)

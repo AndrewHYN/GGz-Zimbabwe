@@ -50,3 +50,23 @@ class TournamentTests(TestCase):
 		match = TournamentMatch.objects.create(tournament=self.tournament, game=self.game, player_one=self.player, player_two=self.organizer)
 		self.client.login(username="outsider", password="pass-12345")
 		self.assertEqual(self.client.get(reverse("match_result", args=[match.id])).status_code, 403)
+
+	def test_single_elimination_bracket_and_winner_advancement(self):
+		players = [self.player]
+		for index in range(3):
+			players.append(GamerProfile.objects.create(user=User.objects.create_user(username=f"p{index}"), gamer_tag=f"P{index}"))
+		for player in players:
+			TournamentRegistration.objects.create(tournament=self.tournament, player=player)
+		self.tournament.max_participants = 4
+		self.tournament.save(update_fields=("max_participants",))
+		self.client.login(username="organizer", password="pass-12345")
+		self.client.post(reverse("generate_bracket", args=(self.tournament.slug,)))
+		self.assertEqual(self.tournament.matches.count(), 3)
+		self.assertEqual(self.tournament.matches.filter(round=2).count(), 1)
+		match = self.tournament.matches.filter(round=1, player_one=self.player, status="Scheduled").first()
+		response = self.client.post(reverse("match_result", args=(match.id,)), {"winner": self.player.id, "score": "2-0", "status": "Completed"})
+		self.assertEqual(response.status_code, 302)
+		match.refresh_from_db()
+		self.assertEqual(match.status, "Completed")
+		self.assertEqual(match.winner, self.player)
+		self.assertEqual(TournamentMatch.objects.get(id=match.next_match_id).player_one, self.player)

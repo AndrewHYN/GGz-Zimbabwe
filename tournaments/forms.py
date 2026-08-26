@@ -22,6 +22,15 @@ class MatchResultForm(forms.ModelForm):
         model = TournamentMatch
         fields = ("winner", "score", "status")
 
+    def clean(self):
+        cleaned = super().clean()
+        winner = cleaned.get("winner")
+        if winner and winner not in (self.instance.player_one, self.instance.player_two):
+            self.add_error("winner", "Winner must be one of the match participants.")
+        if cleaned.get("status") == "Completed" and (not winner or not cleaned.get("score")):
+            raise forms.ValidationError("A completed match requires a winner and score.")
+        return cleaned
+
 class MatchCreateForm(forms.ModelForm):
     class Meta:
         model = TournamentMatch

@@ -8,6 +8,7 @@ from tournaments.models import Tournament
 from teams.models import Team
 from events.models import Event
 from django.db.models import Q
+from django.core.paginator import Paginator
 
 
 def index(request):
@@ -29,13 +30,15 @@ def leaderboard(request):
 
 def global_search(request):
     query = request.GET.get("q", "").strip()
+    def page(queryset, key):
+        return Paginator(queryset, 10).get_page(request.GET.get(f"{key}_page"))
     return render(request, "search.html", {
         "query": query,
-        "gamers": GamerProfile.objects.filter(Q(gamer_tag__icontains=query) | Q(user__username__icontains=query))[:10] if query else [],
-        "games": Game.objects.filter(name__icontains=query)[:10] if query else [],
-        "posts": Post.objects.filter(body__icontains=query).select_related("author")[:10] if query else [],
-        "listings": Listing.objects.filter(title__icontains=query).select_related("seller")[:10] if query else [],
-        "tournaments": Tournament.objects.filter(name__icontains=query).select_related("game")[:10] if query else [],
-        "teams": Team.objects.filter(name__icontains=query)[:10] if query else [],
-        "events": Event.objects.filter(name__icontains=query)[:10] if query else [],
+        "gamers": page(GamerProfile.objects.filter(Q(gamer_tag__icontains=query) | Q(user__username__icontains=query)), "gamers") if query else [],
+        "games": page(Game.objects.filter(name__icontains=query), "games") if query else [],
+        "posts": page(Post.objects.filter(body__icontains=query).select_related("author"), "posts") if query else [],
+        "listings": page(Listing.objects.filter(title__icontains=query).select_related("seller"), "listings") if query else [],
+        "tournaments": page(Tournament.objects.filter(name__icontains=query).select_related("game"), "tournaments") if query else [],
+        "teams": page(Team.objects.filter(name__icontains=query), "teams") if query else [],
+        "events": page(Event.objects.filter(name__icontains=query), "events") if query else [],
     })

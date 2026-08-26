@@ -69,8 +69,8 @@ class TournamentMatch(models.Model):
 	STATUS_CHOICES = [(value, value) for value in ("Scheduled", "Live", "Completed", "Cancelled")]
 	tournament = models.ForeignKey(Tournament, on_delete=models.CASCADE, related_name="matches")
 	game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="matches")
-	player_one = models.ForeignKey(GamerProfile, on_delete=models.CASCADE, related_name="matches_as_one")
-	player_two = models.ForeignKey(GamerProfile, on_delete=models.CASCADE, related_name="matches_as_two")
+	player_one = models.ForeignKey(GamerProfile, on_delete=models.CASCADE, null=True, blank=True, related_name="matches_as_one")
+	player_two = models.ForeignKey(GamerProfile, on_delete=models.CASCADE, null=True, blank=True, related_name="matches_as_two")
 	winner = models.ForeignKey(GamerProfile, on_delete=models.SET_NULL, blank=True, null=True, related_name="matches_won")
 	round = models.PositiveIntegerField(default=1)
 	scheduled_at = models.DateTimeField(blank=True, null=True)

@@ -119,6 +119,7 @@ def contact_seller(request, listing_id):
 	listing = get_object_or_404(Listing, id=listing_id)
 	if listing.seller.user_id == request.user.id:
 		return redirect("listing_detail", listing_id=listing.id)
+	Notification.objects.get_or_create(recipient=listing.seller, actor=getattr(request.user, "gamer_profile", None), notification_type="marketplace", message=f"Someone contacted you about {listing.title}", target_url=f"/marketplace/listing/{listing.id}/")
 	return redirect("conversation_start", gamer_tag=listing.seller.gamer_tag)
 
 
