@@ -14,7 +14,7 @@ def event_list(request):
 	events = Event.objects.filter(status__in=("Upcoming", "Live")).select_related("organizer", "game").prefetch_related("rsvps")
 	if request.GET.get("q"):
 		events = events.filter(name__icontains=request.GET["q"])
-	page = Paginator(events, 12).get_page(request.GET.get("page"))
+	page = Paginator(events.order_by("start_date", "id"), 12).get_page(request.GET.get("page"))
 	return render(request, "events/event_list.html", {"page": page})
 
 

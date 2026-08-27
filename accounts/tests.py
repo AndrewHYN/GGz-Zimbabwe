@@ -234,8 +234,32 @@ class NotificationAndMessagingTests(TestCase):
 		self.client.post(reverse("message_request_action", args=(self.sender.gamer_tag, "accept")))
 		self.client.login(username="sender", password="pass")
 		self.assertEqual(self.client.post(start_url).status_code, 302)
+		self.client.login(username="recipient", password="pass")
+		self.assertEqual(self.client.post(reverse("conversation_start", args=(self.sender.gamer_tag,))).status_code, 302)
 		Block.objects.create(blocker=self.sender, blocked=self.recipient)
+		self.client.login(username="sender", password="pass")
 		self.assertEqual(self.client.post(start_url).status_code, 403)
+
+	def test_blocked_users_cannot_follow_in_either_direction(self):
+		Block.objects.create(blocker=self.recipient, blocked=self.sender)
+		self.client.login(username="sender", password="pass")
+		self.client.post(reverse("connection_action", args=(self.recipient.gamer_tag, "follow")))
+		self.assertFalse(Follow.objects.exists())
+
+	def test_blocked_profile_hides_social_actions_and_posts(self):
+		post = Post.objects.create(author=self.recipient, body="Private post")
+		Block.objects.create(blocker=self.sender, blocked=self.recipient)
+		self.client.login(username="sender", password="pass")
+		response = self.client.get(reverse("profile_detail", args=(self.recipient.gamer_tag,)))
+		self.assertNotContains(response, "Give respect")
+		self.assertNotContains(response, "Private post")
+
+	def test_blocked_users_cannot_comment_on_visible_post(self):
+		post = Post.objects.create(author=self.sender, body="Open post")
+		Block.objects.create(blocker=self.sender, blocked=self.recipient)
+		self.client.login(username="recipient", password="pass")
+		self.client.post(reverse("post_detail", args=(post.id,)), {"body": "Not allowed"})
+		self.assertFalse(post.comments.exists())
 
 
 class SearchAndRankTests(TestCase):

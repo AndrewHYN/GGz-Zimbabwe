@@ -22,7 +22,7 @@ def _can_message(sender, recipient):
 	if sender == recipient or Block.objects.filter(Q(blocker=sender, blocked=recipient) | Q(blocker=recipient, blocked=sender)).exists():
 		return False
 	first, second = sorted((sender.id, recipient.id))
-	return Friendship.objects.filter(profile_one_id=first, profile_two_id=second).exists() or (Follow.objects.filter(follower=sender, following=recipient).exists() and Follow.objects.filter(follower=recipient, following=sender).exists()) or MessageRequest.objects.filter(sender=sender, recipient=recipient, status="Accepted").exists()
+	return Friendship.objects.filter(profile_one_id=first, profile_two_id=second).exists() or (Follow.objects.filter(follower=sender, following=recipient).exists() and Follow.objects.filter(follower=recipient, following=sender).exists()) or MessageRequest.objects.filter(Q(sender=sender, recipient=recipient) | Q(sender=recipient, recipient=sender), status="Accepted").exists()
 
 
 def gamer_discovery(request):
@@ -97,6 +97,7 @@ def profile_detail(request, gamer_tag):
 	is_blocked = False
 	message_request = None
 	message_request_incoming = None
+	profile_posts = profile.posts.all()
 	if viewer and viewer != profile:
 		first, second = sorted((viewer.id, profile.id))
 		friendship = Friendship.objects.filter(
@@ -107,9 +108,11 @@ def profile_detail(request, gamer_tag):
 			status="pending",
 		).first()
 		is_following = Follow.objects.filter(follower=viewer, following=profile).exists()
-		is_blocked = Block.objects.filter(blocker=viewer, blocked=profile).exists()
+		is_blocked = Block.objects.filter(Q(blocker=viewer, blocked=profile) | Q(blocker=profile, blocked=viewer)).exists()
 		message_request = MessageRequest.objects.filter(sender=viewer, recipient=profile).first()
 		message_request_incoming = MessageRequest.objects.filter(sender=profile, recipient=viewer).first()
+		if is_blocked:
+			profile_posts = Post.objects.none()
 	return render(
 		request,
 		"accounts/profile_detail.html",
@@ -121,6 +124,7 @@ def profile_detail(request, gamer_tag):
 			"is_blocked": is_blocked,
 			"message_request": message_request,
 			"message_request_incoming": message_request_incoming,
+			"profile_posts": profile_posts,
 			"follower_count": profile.followers.count(),
 			"following_count": profile.following.count(),
 			"friend_count": Friendship.objects.filter(
@@ -277,6 +281,8 @@ def post_detail(request, post_id):
 			comment = form.save(commit=False)
 			comment.post = post
 			comment.author = get_object_or_404(GamerProfile, user=request.user)
+			if Block.objects.filter(Q(blocker=comment.author, blocked=post.author) | Q(blocker=post.author, blocked=comment.author)).exists():
+				return redirect("post_detail", post_id=post.id)
 			comment.save()
 			if comment.post.author != comment.author:
 				_notify(comment.post.author, comment.author, "comment", f"{comment.author.gamer_tag} commented on your post", f"/feed/posts/{comment.post.id}/")
