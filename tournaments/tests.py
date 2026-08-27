@@ -87,3 +87,21 @@ class TournamentTests(TestCase):
 		self.assertIsNotNone(match.scheduled_at)
 		self.client.login(username="player", password="pass-12345")
 		self.assertEqual(self.client.post(reverse("match_schedule", args=(match.id,)), {"scheduled_at": "2030-01-02T10:00"}).status_code, 404)
+
+	def test_match_creation_and_result_require_registered_players(self):
+		outsider = GamerProfile.objects.create(user=User.objects.create_user(username="unregistered"), gamer_tag="Unregistered")
+		self.client.login(username="organizer", password="pass-12345")
+		response = self.client.post(reverse("match_create", args=(self.tournament.slug,)), {"game": self.game.id, "player_one": self.player.id, "player_two": outsider.id, "round": 1, "status": "Scheduled"})
+		self.assertEqual(response.status_code, 200)
+		self.assertFalse(TournamentMatch.objects.exists())
+
+	def test_cleared_conversation_is_not_counted_as_unread(self):
+		from accounts.models import Conversation, ConversationParticipant, Message
+		from django.utils import timezone
+		conversation = Conversation.objects.create()
+		ConversationParticipant.objects.create(conversation=conversation, profile=self.organizer)
+		ConversationParticipant.objects.create(conversation=conversation, profile=self.player)
+		Message.objects.create(conversation=conversation, sender=self.player, body="Hi")
+		self.client.login(username="organizer", password="pass-12345")
+		self.client.post(reverse("conversation_detail", args=(conversation.id,)), {"action": "clear"})
+		self.assertNotContains(self.client.get(reverse("conversation_list")), "Hi")

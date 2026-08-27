@@ -213,6 +213,8 @@ class NotificationAndMessagingTests(TestCase):
 		conversation = Conversation.objects.create()
 		ConversationParticipant.objects.create(conversation=conversation, profile=self.sender)
 		ConversationParticipant.objects.create(conversation=conversation, profile=self.recipient)
+		first, second = sorted((self.sender.id, self.recipient.id))
+		Friendship.objects.create(profile_one_id=first, profile_two_id=second)
 		self.client.login(username="sender", password="pass")
 		self.client.post(reverse("conversation_detail", args=(conversation.id,)), {"body": "Hello"})
 		self.assertTrue(Notification.objects.filter(recipient=self.recipient, notification_type="message").exists())

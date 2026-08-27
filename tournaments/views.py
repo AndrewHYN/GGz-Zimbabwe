@@ -235,7 +235,15 @@ def match_result(request, match_id):
 		return HttpResponseForbidden("You cannot submit this result.")
 	form = MatchResultForm(request.POST or None, instance=match)
 	was_completed = match.status == "Completed" and match.winner_id
-	if form.is_valid() and not was_completed:
+	registered_ids = set(TournamentRegistration.objects.filter(tournament=match.tournament, status="Registered").values_list("player_id", flat=True))
+	valid_players = {player_id for player_id in (match.player_one_id, match.player_two_id) if player_id}
+	if form.is_valid() and was_completed:
+		form.add_error(None, "This match already has a recorded result.")
+	if form.is_valid() and not was_completed and not valid_players.issubset(registered_ids):
+		form.add_error(None, "Both match players must be registered in this tournament.")
+	if form.is_valid() and not was_completed and match.game_id != match.tournament.game_id:
+		form.add_error(None, "This match must use the tournament game.")
+	if form.is_valid() and not was_completed and valid_players.issubset(registered_ids) and match.game_id == match.tournament.game_id:
 		match = form.save()
 		_advance_winner(match)
 		if match.status == "Completed" and match.winner:
@@ -254,9 +262,15 @@ def match_create(request, slug):
 	if form.is_valid():
 		match = form.save(commit=False)
 		match.tournament = tournament
-		match.save()
-		messages.success(request, "Match scheduled.")
-		return redirect("tournament_detail", slug=slug)
+		registered_ids = set(TournamentRegistration.objects.filter(tournament=tournament, status="Registered").values_list("player_id", flat=True))
+		if match.player_one_id not in registered_ids or match.player_two_id not in registered_ids:
+			form.add_error(None, "Both match players must be registered in this tournament.")
+		elif match.game_id != tournament.game_id:
+			form.add_error("game", "Matches must use this tournament's game.")
+		else:
+			match.save()
+			messages.success(request, "Match scheduled.")
+			return redirect("tournament_detail", slug=slug)
 	return render(request, "tournaments/match_form.html", {"form": form, "tournament": tournament})
 
 # Create your views here.

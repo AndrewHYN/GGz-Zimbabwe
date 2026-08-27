@@ -357,9 +357,11 @@ def conversation_list(request):
 	conversations = Conversation.objects.filter(participants=profile).prefetch_related("participants", "messages", "participant_links")
 	for conversation in conversations:
 		conversation.other = conversation.participants.exclude(id=profile.id).first()
-		conversation.last_message = conversation.messages.last()
 		participant = conversation.participant_links.get(profile=profile)
-		conversation.unread_count = conversation.messages.filter(created_at__gt=participant.last_read_at).exclude(sender=profile).count() if participant.last_read_at else conversation.messages.exclude(sender=profile).count()
+		visible_messages = conversation.messages.filter(created_at__gt=participant.cleared_at) if participant.cleared_at else conversation.messages.all()
+		conversation.last_message = visible_messages.last()
+		unread_messages = visible_messages.exclude(sender=profile)
+		conversation.unread_count = unread_messages.filter(created_at__gt=participant.last_read_at).count() if participant.last_read_at else unread_messages.count()
 	return render(request, "accounts/conversation_list.html", {"conversations": conversations, "profile": profile})
 
 
@@ -380,7 +382,7 @@ def conversation_detail(request, conversation_id):
 			return redirect("conversation_detail", conversation_id=conversation.id)
 		body = request.POST.get("body", "").strip()
 		other = conversation.participants.exclude(id=profile.id).first()
-		if body and other and not Block.objects.filter(Q(blocker=profile, blocked=other) | Q(blocker=other, blocked=profile)).exists():
+		if body and other and _can_message(profile, other):
 			Message.objects.create(conversation=conversation, sender=profile, body=body)
 			conversation.save(update_fields=("updated_at",))
 			_notify(other, profile, "message", f"{profile.gamer_tag} sent you a message", f"/messages/{conversation.id}/")
