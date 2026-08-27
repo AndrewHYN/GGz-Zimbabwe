@@ -22,8 +22,15 @@
   }
 
   document.querySelectorAll('.account-menu, .nav-more').forEach((menu) => {
-    menu.addEventListener('mouseleave', () => { menu.removeAttribute('open'); });
     menu.addEventListener('click', (event) => event.stopPropagation());
+    menu.addEventListener('toggle', () => {
+      const summary = menu.querySelector('summary');
+      if (summary) summary.setAttribute('aria-expanded', String(menu.open));
+      if (!menu.open) return;
+      document.querySelectorAll('.account-menu, .nav-more').forEach((otherMenu) => {
+        if (otherMenu !== menu) otherMenu.removeAttribute('open');
+      });
+    });
   });
   document.addEventListener('click', () => {
     document.querySelectorAll('.account-menu, .nav-more').forEach((menu) => menu.removeAttribute('open'));

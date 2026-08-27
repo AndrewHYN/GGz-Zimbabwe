@@ -239,6 +239,14 @@ class NotificationAndMessagingTests(TestCase):
 
 
 class SearchAndRankTests(TestCase):
+	def test_navigation_dropdowns_render_accessible_triggers(self):
+		response = self.client.get(reverse("index"))
+		self.assertContains(response, 'class="nav-more"')
+		self.assertContains(response, 'aria-haspopup="true"')
+		self.assertContains(response, 'aria-expanded="false"')
+		self.assertContains(response, "Community feed")
+		self.assertContains(response, "Rankings")
+
 	def test_search_categories_paginate_independently_and_preserve_query(self):
 		for index in range(11):
 			user = User.objects.create_user(username=f"search{index}")

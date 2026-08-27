@@ -97,14 +97,23 @@
   .menu-panel {
     position: absolute;
     z-index: 5;
-    top: calc(100% + 16px);
+    top: calc(100% + 4px);
     right: 0;
     display: grid;
     min-width: 220px;
     border: 1px solid var(--line);
     background: #101516;
     box-shadow: var(--shadow);
+    border-radius: 6px;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-4px);
+    transition: opacity .14s ease, transform .14s ease, visibility .14s ease;
+    visibility: hidden;
   }
+
+  details[open] > .menu-panel { opacity: 1; pointer-events: auto; transform: translateY(0); visibility: visible; }
+  .menu-panel::before { position: absolute; top: -8px; right: 0; left: 0; height: 8px; content: ""; }
 
   .menu-panel a, .menu-panel button {
     display: block;
@@ -378,6 +387,7 @@
   .nav-more summary::-webkit-details-marker { display: none; }
   .nav-more summary::after { margin-left: 5px; content: "▾"; font-size: .7rem; }
   .nav-more .menu-panel { top: calc(100% + 14px); right: -10px; }
+  .nav-more .menu-panel { top: calc(100% + 4px); }
   .search-form { display: grid; grid-template-columns: 1fr auto; gap: 10px; max-width: 760px; margin-top: 30px; }
   .search-results { display: grid; gap: 28px; max-width: 760px; margin-top: 38px; }
   .search-results section { display: grid; gap: 8px; }
