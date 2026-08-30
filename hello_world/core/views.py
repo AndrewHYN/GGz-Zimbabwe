@@ -1,3 +1,4 @@
+from django.http import JsonResponse
 from django.shortcuts import render
 
 from accounts.models import Block, GamerProfile, Post
@@ -8,6 +9,10 @@ from teams.models import Team
 from events.models import Event
 from django.db.models import Q
 from django.core.paginator import Paginator
+
+
+def health_check(request):
+    return JsonResponse({"status": "ok", "service": "GGz"})
 
 
 def index(request):

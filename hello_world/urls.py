@@ -27,6 +27,7 @@ from hello_world.core import views as core_views
 
 urlpatterns = [
     path("", core_views.index, name="index"),
+    path("health/", core_views.health_check, name="health_check"),
     path("leaderboards/", core_views.leaderboard, name="leaderboard"),
     path("search/", core_views.global_search, name="global_search"),
     path("admin/", admin.site.urls),

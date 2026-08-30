@@ -7,6 +7,19 @@ from games.models import Game
 from .models import Block, Conversation, ConversationParticipant, Follow, FriendRequest, Friendship, GamerProfile, Message, MessageRequest, Notification, Post, PostLike, RespectTransaction
 
 
+class HealthAndConfigTests(TestCase):
+	def test_health_check_endpoint_is_public_and_healthy(self):
+		response = self.client.get(reverse("health_check"))
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.json()["status"], "ok")
+
+	def test_homepage_loads_and_uses_ggz_branding(self):
+		response = self.client.get(reverse("index"))
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "GGz")
+		self.assertNotContains(response, "GGs")
+
+
 class GamerProfileWorkflowTests(TestCase):
 	def setUp(self):
 		self.user = User.objects.create_user(

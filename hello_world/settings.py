@@ -12,7 +12,13 @@ https://docs.djangoproject.com/en/5.0/topics/settings/
 
 import os
 from pathlib import Path
+
 from decouple import config
+
+
+def comma_separated(value):
+    return [item.strip() for item in value.split(",") if item.strip()]
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -22,24 +28,36 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = config("SECRET_KEY", default='')
+SECRET_KEY = config(
+    "SECRET_KEY",
+    default="dev-secret-key-change-me-for-local-ggz-development-2026-!",
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config("DEBUG", default=True, cast=bool)
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='').split(',')
+ALLOWED_HOSTS = config(
+    "ALLOWED_HOSTS",
+    default="localhost,127.0.0.1,[::1]",
+    cast=comma_separated,
+)
 
-CSRF_TRUSTED_ORIGINS = [
-    'https://localhost:8000',
-    'http://localhost:8000',
-]
+CSRF_TRUSTED_ORIGINS = config(
+    "CSRF_TRUSTED_ORIGINS",
+    default="http://localhost:8000,http://127.0.0.1:8000,https://localhost:8000,https://127.0.0.1:8000",
+    cast=comma_separated,
+)
 
-if 'CODESPACE_NAME' in os.environ:
+if "CODESPACE_NAME" in os.environ:
     codespace_name = config("CODESPACE_NAME")
-    codespace_domain = config("GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN")
-    CSRF_TRUSTED_ORIGINS.append(
-        f'https://{codespace_name}-8000.{codespace_domain}'
-    )
+    codespace_domain = config("GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN", default="")
+    if codespace_domain:
+        codespace_host = f"{codespace_name}-8000.{codespace_domain}"
+        ALLOWED_HOSTS.append(codespace_host)
+        CSRF_TRUSTED_ORIGINS.append(f"https://{codespace_host}")
+
+ALLOWED_HOSTS = list(dict.fromkeys(ALLOWED_HOSTS))
+CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(CSRF_TRUSTED_ORIGINS))
 
 # Application definition
 
@@ -72,6 +90,7 @@ MIDDLEWARE = [
 ]
 
 X_FRAME_OPTIONS = config("X_FRAME_OPTIONS", default="DENY")
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 ROOT_URLCONF = "hello_world.urls"
 
@@ -95,6 +114,7 @@ SECURE_HSTS_SECONDS = config(
 )
 SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
 SECURE_HSTS_PRELOAD = not DEBUG
+SECURE_BROWSER_XSS_FILTER = not DEBUG
 
 TEMPLATES = [
     {
@@ -121,8 +141,18 @@ WSGI_APPLICATION = "hello_world.wsgi.application"
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "ENGINE": config(
+            "DB_ENGINE",
+            default="django.db.backends.sqlite3",
+        ),
+        "NAME": config(
+            "DB_NAME",
+            default=str(BASE_DIR / "db.sqlite3"),
+        ),
+        "USER": config("DB_USER", default=""),
+        "PASSWORD": config("DB_PASSWORD", default=""),
+        "HOST": config("DB_HOST", default=""),
+        "PORT": config("DB_PORT", default=""),
     }
 }
 
@@ -165,11 +195,11 @@ STATICFILES_DIRS = [
     BASE_DIR / "hello_world" / "static",
 ]
 
-STATIC_URL = "static/"
-STATIC_ROOT = BASE_DIR / "hello_world" / "staticfiles"
+STATIC_URL = config("STATIC_URL", default="static/")
+STATIC_ROOT = Path(config("STATIC_ROOT", default=str(BASE_DIR / "staticfiles")))
 
-MEDIA_URL = "media/"
-MEDIA_ROOT = BASE_DIR / "hello_world" / "media"
+MEDIA_URL = config("MEDIA_URL", default="media/")
+MEDIA_ROOT = Path(config("MEDIA_ROOT", default=str(BASE_DIR / "hello_world" / "media")))
 
 
 # Default primary key field type
