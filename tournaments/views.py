@@ -59,7 +59,7 @@ def match_schedule(request, match_id):
 		form.save()
 		messages.success(request, "Match schedule updated.")
 		return redirect("tournament_manage", slug=match.tournament.slug)
-	return render(request, "tournaments/match_form.html", {"form": form, "match": match, "schedule_only": True})
+	return render(request, "tournaments/match_form.html", {"form": form, "match": match, "tournament": match.tournament, "schedule_only": True})
 
 
 @login_required
@@ -253,7 +253,7 @@ def match_result(request, match_id):
 				match.tournament.status = "Completed"
 				match.tournament.save(update_fields=("status",))
 		return redirect("tournament_detail", slug=match.tournament.slug)
-	return render(request, "tournaments/match_form.html", {"form": form, "match": match})
+	return render(request, "tournaments/match_form.html", {"form": form, "match": match, "tournament": match.tournament})
 
 @login_required
 def match_create(request, slug):
@@ -271,6 +271,6 @@ def match_create(request, slug):
 			match.save()
 			messages.success(request, "Match scheduled.")
 			return redirect("tournament_detail", slug=slug)
-	return render(request, "tournaments/match_form.html", {"form": form, "tournament": tournament})
+	return render(request, "tournaments/match_form.html", {"form": form, "match": None, "tournament": tournament})
 
 # Create your views here.

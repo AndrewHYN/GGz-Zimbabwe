@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} | GGs{% endblock %}
+{% block content %}
+<main class="page-shell utility-page">
+    <a class="back-link" href="{% url 'profile_detail' profile.gamer_tag %}">&larr; Back to profile</a>
+    <p class="eyebrow">Social graph</p>
+    <h1>{{ mode|title }}</h1>
+    <p class="lede">{{ profile.gamer_tag }}{% if mode == 'followers' %}'s followers{% elif mode == 'following' %} is following{% else %}'s friends{% endif %}</p>
+    <section class="gamer-grid page-section">
+        {% for person in items %}
+            <article class="gamer-card">
+                <div class="gamer-card-head">
+                    {% if person.avatar %}
+                        <span class="avatar avatar-medium"><img src="{{ person.avatar.url }}" alt="{{ person.gamer_tag }} avatar"></span>
+                    {% else %}
+                        <span class="avatar avatar-medium avatar-fallback">{{ person.gamer_tag|slice:":1"|upper }}</span>
+                    {% endif %}
+                    <div>
+                        <h2>{{ person.gamer_tag }}</h2>
+                        <p class="muted">{{ person.location|default:"Zimbabwe" }}</p>
+                    </div>
+                </div>
+                <div class="gamer-meta">
+                    <span class="rank-tag">{{ person.get_rank_display }}</span>
+                    <span>{{ person.platform|default:"Platform open" }}</span>
+                </div>
+                <p class="gamer-games">{% for game in person.games.all|slice:":2" %}{{ game.name }}{% if not forloop.last %}, {% endif %}{% empty %}Games not listed yet{% endfor %}</p>
+                <div class="gamer-card-foot">
+                    <span class="respect-label">{{ person.respect_points }} respect</span>
+                    <a class="button alt" href="{% url 'profile_detail' person.gamer_tag %}">View profile</a>
+                </div>
+            </article>
+        {% empty %}
+            <div class="empty-state">
+                <h2>No {{ mode }} yet.</h2>
+                <p class="muted">This social connection list is empty right now.</p>
+            </div>
+        {% endfor %}
+    </section>
+</main>
+{% endblock %}

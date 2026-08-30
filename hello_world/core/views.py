@@ -1,8 +1,7 @@
 from django.shortcuts import render
 
-from accounts.models import Block, GamerProfile
+from accounts.models import Block, GamerProfile, Post
 from games.models import Game
-from accounts.models import Post
 from marketplace.models import Listing
 from tournaments.models import Tournament
 from teams.models import Team
@@ -15,6 +14,10 @@ def index(request):
     context = {
         "profile_count": GamerProfile.objects.count(),
         "game_count": Game.objects.count(),
+        "recent_posts": Post.objects.select_related("author__user", "game").prefetch_related("comments", "likes")[:3],
+        "featured_games": Game.objects.order_by("-popularity", "name")[:4],
+        "upcoming_tournaments": Tournament.objects.select_related("game", "organizer__user").filter(status__in=("Registration Open", "Live")).order_by("start_date")[:3],
+        "upcoming_events": Event.objects.select_related("game", "organizer__user").filter(status__in=("Upcoming", "Live")).order_by("start_date")[:3],
     }
 
     if request.user.is_authenticated:

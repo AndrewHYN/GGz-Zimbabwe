@@ -30,5 +30,87 @@
         <article class="feature"><span>03</span><h3>Connect</h3><p>Keep the local gaming community within reach.</p></article>
         <article class="feature"><span>04</span><h3>Build status</h3><p>Let respect points tell the story over time.</p></article>
     </section>
+
+    <section class="community-pulse page-section" aria-label="GGz community pulse">
+        <div class="section-heading">
+            <div>
+                <p class="eyebrow">Community pulse</p>
+                <h2>What the GGz scene is doing.</h2>
+            </div>
+            <a class="button alt" href="{% url 'feed' %}">Open feed</a>
+        </div>
+
+        <div class="community-grid">
+            <article class="community-panel">
+                <p class="eyebrow">Recent posts</p>
+                <div class="community-list">
+                    {% for post in recent_posts %}
+                        <a class="community-item" href="{% url 'post_detail' post.id %}">
+                            <div class="community-item-header">
+                                {% if post.author.avatar %}
+                                    <span class="avatar avatar-post"><img src="{{ post.author.avatar.url }}" alt="{{ post.author.gamer_tag }} avatar"></span>
+                                {% else %}
+                                    <span class="avatar avatar-post avatar-fallback">{{ post.author.gamer_tag|slice:":1"|upper }}</span>
+                                {% endif %}
+                                <div>
+                                    <strong>{{ post.author.gamer_tag }}</strong>
+                                    <small>{{ post.created_at|timesince }} ago</small>
+                                </div>
+                            </div>
+                            <p>{{ post.body|truncatewords:18 }}</p>
+                            {% if post.game %}<span class="community-tag">{{ post.game.name }}</span>{% endif %}
+                        </a>
+                    {% empty %}
+                        <div class="empty-state">
+                            <h3>No community posts yet.</h3>
+                            <p class="muted">The first GGz post will appear here.</p>
+                        </div>
+                    {% endfor %}
+                </div>
+            </article>
+
+            <article class="community-panel">
+                <p class="eyebrow">Popular games</p>
+                <div class="community-list compact-list">
+                    {% for game in featured_games %}
+                        <a class="community-item mini" href="{% url 'game_detail' game.id %}">
+                            <strong>{{ game.name }}</strong>
+                            <span>{{ game.player_count|default:"Community" }} players</span>
+                        </a>
+                    {% empty %}
+                        <div class="empty-state">
+                            <h3>No games tracked yet.</h3>
+                            <p class="muted">Games will appear here as the platform grows.</p>
+                        </div>
+                    {% endfor %}
+                </div>
+            </article>
+
+            <article class="community-panel">
+                <p class="eyebrow">Upcoming</p>
+                <div class="community-list compact-list">
+                    {% for tournament in upcoming_tournaments %}
+                        <a class="community-item mini" href="{% url 'tournament_detail' tournament.slug %}">
+                            <strong>{{ tournament.name }}</strong>
+                            <span>{{ tournament.start_date|date:"M j" }} · {{ tournament.game.name }}</span>
+                        </a>
+                    {% empty %}
+                        <div class="empty-state">
+                            <h3>No active tournaments.</h3>
+                            <p class="muted">Check back soon for bracket action.</p>
+                        </div>
+                    {% endfor %}
+                    {% for event in upcoming_events %}
+                        <a class="community-item mini" href="{% url 'event_detail' event.id %}">
+                            <strong>{{ event.name }}</strong>
+                            <span>{{ event.start_date|date:"M j" }} · {{ event.location|default:"Online" }}</span>
+                        </a>
+                    {% empty %}
+                        {% if not upcoming_tournaments %}<div class="empty-state"><h3>No upcoming events.</h3><p class="muted">There are no live community events right now.</p></div>{% endif %}
+                    {% endfor %}
+                </div>
+            </article>
+        </div>
+    </section>
 </main>
 {% endblock %}

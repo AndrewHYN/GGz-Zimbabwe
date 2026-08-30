@@ -85,6 +85,18 @@ def dashboard(request):
 	)
 
 
+def _profile_connection_list(profile, relation_name):
+	if relation_name == "followers":
+		return GamerProfile.objects.filter(following__following=profile).select_related("user").prefetch_related("games").order_by("gamer_tag")
+	if relation_name == "following":
+		return GamerProfile.objects.filter(followers__follower=profile).select_related("user").prefetch_related("games").order_by("gamer_tag")
+	if relation_name == "friends":
+		return GamerProfile.objects.filter(
+			Q(friendships_as_one__profile_two=profile) | Q(friendships_as_two__profile_one=profile)
+		).select_related("user").prefetch_related("games").order_by("gamer_tag").distinct()
+	return GamerProfile.objects.none()
+
+
 def profile_detail(request, gamer_tag):
 	profile = get_object_or_404(
 		GamerProfile.objects.select_related("user").prefetch_related("games", "posts__game"),
@@ -133,6 +145,24 @@ def profile_detail(request, gamer_tag):
 			"respect_giver_count": profile.respect_received.count(),
 		},
 	)
+
+
+def profile_followers(request, gamer_tag):
+	profile = get_object_or_404(GamerProfile.objects.select_related("user"), gamer_tag=gamer_tag)
+	items = _profile_connection_list(profile, "followers")
+	return render(request, "accounts/profile_connections.html", {"profile": profile, "items": items, "mode": "followers", "title": f"{profile.gamer_tag}'s followers"})
+
+
+def profile_following(request, gamer_tag):
+	profile = get_object_or_404(GamerProfile.objects.select_related("user"), gamer_tag=gamer_tag)
+	items = _profile_connection_list(profile, "following")
+	return render(request, "accounts/profile_connections.html", {"profile": profile, "items": items, "mode": "following", "title": f"{profile.gamer_tag} is following"})
+
+
+def profile_friends(request, gamer_tag):
+	profile = get_object_or_404(GamerProfile.objects.select_related("user"), gamer_tag=gamer_tag)
+	items = _profile_connection_list(profile, "friends")
+	return render(request, "accounts/profile_connections.html", {"profile": profile, "items": items, "mode": "friends", "title": f"{profile.gamer_tag}'s friends"})
 
 
 @login_required

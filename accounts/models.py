@@ -321,9 +321,22 @@ class Notification(models.Model):
 def notify(recipient, actor, notification_type, message, target_url=""):
     if recipient is None or recipient == actor:
         return
+    normalized_target = (target_url or "").strip()
     try:
-        if not Notification.objects.filter(recipient=recipient, actor=actor, notification_type=notification_type, message=message, target_url=target_url, is_read=False).exists():
-            Notification.objects.create(recipient=recipient, actor=actor, notification_type=notification_type, message=message, target_url=target_url)
+        if not Notification.objects.filter(
+            recipient=recipient,
+            actor=actor,
+            notification_type=notification_type,
+            message=message,
+            target_url=normalized_target,
+        ).exists():
+            Notification.objects.create(
+                recipient=recipient,
+                actor=actor,
+                notification_type=notification_type,
+                message=message,
+                target_url=normalized_target,
+            )
     except Exception:
         return
 

@@ -104,6 +104,17 @@ class GamerProfileWorkflowTests(TestCase):
 		self.assertTrue(User.objects.filter(username="nyasha").exists())
 		self.assertTrue(GamerProfile.objects.filter(gamer_tag="NyashaZW").exists())
 
+	def test_profile_connection_pages_are_available(self):
+		followed = self.profile
+		follower = GamerProfile.objects.get(gamer_tag="RudoZW")
+		Follow.objects.create(follower=follower, following=followed)
+		response = self.client.get(reverse("profile_followers", args=[followed.gamer_tag]))
+		self.assertContains(response, "RudoZW")
+		self.assertContains(response, "Followers")
+		response = self.client.get(reverse("profile_following", args=[follower.gamer_tag]))
+		self.assertContains(response, "TendaiZW")
+		self.assertContains(response, "Following")
+
 
 class GamerProfileGameTests(TestCase):
 	def test_profile_games_are_visible_on_game_detail(self):
@@ -287,3 +298,12 @@ class SearchAndRankTests(TestCase):
 		profile = GamerProfile.objects.create(user=user, gamer_tag="Ranked", rank="Diamond")
 		self.assertEqual(profile.get_rank_display(), "Diamond")
 		self.assertContains(self.client.get(reverse("profile_detail", args=(profile.gamer_tag,))), "Diamond")
+
+	def test_index_shows_live_community_hub_with_real_data(self):
+		game = Game.objects.create(name="Apex Legends")
+		profile = GamerProfile.objects.create(user=User.objects.create_user(username="pulseuser"), gamer_tag="PulseZW")
+		Post.objects.create(author=profile, game=game, body="Looking for a few teammates this weekend.")
+		self.client.get(reverse("index"))
+		response = self.client.get(reverse("index"))
+		self.assertContains(response, "Community pulse")
+		self.assertContains(response, "Looking for a few teammates this weekend.")
