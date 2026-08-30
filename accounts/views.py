@@ -309,34 +309,24 @@ def profile_detail(request, gamer_tag):
 		if is_blocked:
 			profile_posts = Post.objects.none()
 
-	from tournaments.models import TournamentMatch
+	from games.views import _compute_game_stats
 	game_stats = []
 	for game in profile.games.all():
-		# Count only completed matches where this player participated
-		matches = TournamentMatch.objects.filter(
-			game=game,
-			status="Completed"
-		).filter(
-			Q(player_one=profile) | Q(player_two=profile)
-		).count()
-
-		# Count only wins in completed matches (and verify winner is this player)
-		wins = TournamentMatch.objects.filter(
-			game=game,
-			status="Completed",
-			winner=profile
-		).filter(
-			Q(player_one=profile) | Q(player_two=profile)
-		).count()
-
-		win_rate = (wins / matches * 100) if matches > 0 else 0
-		if matches > 0:  # Only include games with completed matches
-			game_stats.append({
-				"game": game,
-				"wins": wins,
-				"matches": matches,
-				"win_rate": round(win_rate, 1),
-			})
+		leaderboard = _compute_game_stats(game)
+		player_entry = next((entry for entry in leaderboard if entry[0].id == profile.id), None)
+		if not player_entry:
+			continue
+		position = next((index + 1 for index, entry in enumerate(leaderboard) if entry[0].id == profile.id), None)
+		profile_wins = player_entry[1]
+		profile_matches = player_entry[2]
+		profile_win_rate = player_entry[3]
+		game_stats.append({
+			"game": game,
+			"wins": profile_wins,
+			"matches": profile_matches,
+			"win_rate": profile_win_rate,
+			"leaderboard_position": position,
+		})
 
 	return render(
 		request,
@@ -383,24 +373,49 @@ def player_match_history(request, gamer_tag):
 	"""Show completed matches for a player, ordered by date (most recent first)."""
 	profile = get_object_or_404(GamerProfile.objects.select_related("user"), gamer_tag=gamer_tag)
 
-	# Get all completed matches where this player participated
+	from games.views import _compute_game_stats
 	from tournaments.models import TournamentMatch
 	matches = TournamentMatch.objects.filter(
-		status="Completed"
+		status="Completed",
 	).filter(
 		Q(player_one=profile) | Q(player_two=profile)
-	).select_related("game", "tournament", "player_one__user", "player_two__user", "winner__user").order_by("-id")
+	).select_related(
+		"game",
+		"tournament",
+		"player_one__user",
+		"player_two__user",
+		"winner__user",
+	).order_by("-scheduled_at", "-created_at")
 
-	# Add computed fields for display
+	profile_game_record = {}
+	for game in profile.games.all():
+		stats = _compute_game_stats(game)
+		profile_stat = next((entry for entry in stats if entry[0].id == profile.id), None)
+		if profile_stat:
+			profile_game_record[game.id] = {
+				"wins": profile_stat[1],
+				"matches": profile_stat[2],
+				"win_rate": profile_stat[3],
+			}
+
 	match_data = []
 	for match in matches:
-		opponent = match.player_two if match.player_one == profile else match.player_one
-		won = match.winner == profile
+		if match.player_one_id is None or match.player_two_id is None:
+			continue
+		valid_winners = {match.player_one_id, match.player_two_id}
+		if match.winner_id not in valid_winners:
+			continue
+		opponent = match.player_two if match.player_one_id == profile.id else match.player_one
+		won = match.winner_id == profile.id
+		record = profile_game_record.get(match.game_id, {"wins": 0, "matches": 0, "win_rate": 0})
 		match_data.append({
 			"match": match,
 			"opponent": opponent,
 			"won": won,
-			"score": match.score if hasattr(match, "score") else "No score recorded",
+			"result_label": "Win" if won else "Loss",
+			"score": match.score or "No score recorded",
+			"record": record,
+			"record_label": f"{record['wins']}-{record['matches'] - record['wins']} ({record['win_rate']}%)",
 		})
 
 	return render(

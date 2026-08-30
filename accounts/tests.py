@@ -285,6 +285,44 @@ class GamerProfileGameTests(TestCase):
 		self.assertContains(response, "Street Fighter 6")
 		self.assertContains(response, "1")  # 1 win
 
+	def test_player_match_history_page_renders_completed_matches(self):
+		from tournaments.models import Tournament, TournamentMatch
+
+		user = User.objects.create_user(username="historychamp", password="pass")
+		profile = GamerProfile.objects.create(user=user, gamer_tag="HistoryChampZW")
+		game = Game.objects.create(name="Tekken 8")
+		profile.games.add(game)
+		opponent_user = User.objects.create_user(username="opponent", password="pass")
+		opponent = GamerProfile.objects.create(user=opponent_user, gamer_tag="OpponentZW")
+		organizer_user = User.objects.create_user(username="historyorg", password="pass")
+		organizer = GamerProfile.objects.create(user=organizer_user, gamer_tag="HistoryOrgZW")
+		tournament = Tournament.objects.create(
+			organizer=organizer,
+			game=game,
+			name="History Cup",
+			slug="history-cup",
+			description="Match history test",
+			format="1v1",
+			start_date="2026-12-15T18:00:00Z",
+			registration_deadline="2026-12-14T18:00:00Z",
+			status="Completed"
+		)
+		TournamentMatch.objects.create(
+			tournament=tournament, game=game, player_one=profile, player_two=opponent,
+			winner=profile, status="Completed", score="3-1"
+		)
+		TournamentMatch.objects.create(
+			tournament=tournament, game=game, player_one=profile, player_two=opponent,
+			winner=opponent, status="Scheduled", score="Pending"
+		)
+
+		response = self.client.get(reverse("player_match_history", args=[profile.gamer_tag]))
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "History Cup")
+		self.assertContains(response, "3-1")
+		self.assertContains(response, "Win")
+		self.assertNotContains(response, "Pending")
+
 
 class SocialPostTests(TestCase):
 	def setUp(self):

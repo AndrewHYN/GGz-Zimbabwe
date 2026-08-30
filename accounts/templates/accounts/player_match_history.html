@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}{{ profile.gamer_tag }} match history | GGz{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <a class="back-link" href="{% url 'profile_detail' profile.gamer_tag %}">&larr; Back to {{ profile.gamer_tag }}</a>
+    <p class="eyebrow">Competitive record</p>
+    <h1>{{ profile.gamer_tag }} match history</h1>
+    <p class="lede">Completed matches for this player on GGz.</p>
+
+    {% if match_data %}
+    <section class="page-section">
+        <div class="leaderboard-table">
+            <table role="table" aria-label="{{ profile.gamer_tag }} match history">
+                <thead>
+                    <tr>
+                        <th>Game</th>
+                        <th>Opponent</th>
+                        <th>Tournament</th>
+                        <th>Result</th>
+                        <th>Score</th>
+                        <th>Date</th>
+                        <th>Record</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in match_data %}
+                    <tr>
+                        <td><a class="text-link" href="{% url 'game_detail' item.match.game.id %}">{{ item.match.game.name }}</a></td>
+                        <td>{% if item.opponent %}<a class="text-link" href="{% url 'profile_detail' item.opponent.gamer_tag %}">{{ item.opponent.gamer_tag }}</a>{% else %}—{% endif %}</td>
+                        <td>{% if item.match.tournament %}<a class="text-link" href="{% url 'tournament_detail' item.match.tournament.slug %}">{{ item.match.tournament.name }}</a>{% else %}—{% endif %}</td>
+                        <td>{% if item.won %}Win{% else %}Loss{% endif %}</td>
+                        <td>{{ item.score }}</td>
+                        <td>{{ item.match.scheduled_at|date:"M j, Y"|default:item.match.created_at|date:"M j, Y" }}</td>
+                        <td>{{ item.record_label }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {% else %}
+    <section class="page-section">
+        <p class="muted empty-state">No completed competitive matches yet. This player has an empty match history.</p>
+    </section>
+    {% endif %}
+</main>
+{% endblock %}

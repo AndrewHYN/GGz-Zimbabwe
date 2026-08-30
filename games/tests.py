@@ -243,3 +243,37 @@ class GameHubTests(TestCase):
 		# Only profile1 should appear (profile2 has 0 matches)
 		self.assertEqual(len(stats), 1)
 		self.assertEqual(stats[0][0].id, profile1.id)
+
+	def test_leaderboard_prefers_larger_sample_when_wins_tie(self):
+		"""A larger competitive sample should outrank an identical win total with a tiny sample."""
+		game = Game.objects.create(name="Street Fighter 6")
+		organizer_user = User.objects.create_user(username="organizer2", password="pass")
+		organizer = GamerProfile.objects.create(user=organizer_user, gamer_tag="Org2ZW")
+		player_a_user = User.objects.create_user(username="tiny-sample", password="pass")
+		player_a = GamerProfile.objects.create(user=player_a_user, gamer_tag="TinySampleZW")
+		player_a.games.add(game)
+		player_b_user = User.objects.create_user(username="bigger-sample", password="pass")
+		player_b = GamerProfile.objects.create(user=player_b_user, gamer_tag="BiggerSampleZW")
+		player_b.games.add(game)
+		tournament = Tournament.objects.create(
+			organizer=organizer, game=game, name="Sample Test", slug="sample-test",
+			description="Test", format="1v1", start_date="2026-12-15T18:00:00Z",
+			registration_deadline="2026-12-14T18:00:00Z", status="Completed"
+		)
+
+		# Player A: 1 win in 1 match
+		TournamentMatch.objects.create(
+			tournament=tournament, game=game, player_one=player_a, player_two=player_b,
+			winner=player_a, status="Completed"
+		)
+		# Player B: 1 win in 5 matches, so B outranks A despite the same win total.
+		for winner in (player_b, player_b, player_b, player_b, player_b):
+			TournamentMatch.objects.create(
+				tournament=tournament, game=game, player_one=player_b, player_two=player_a,
+				winner=winner, status="Completed"
+			)
+
+		from games.views import _compute_game_stats
+		stats = _compute_game_stats(game)
+		self.assertEqual(stats[0][0].id, player_b.id)
+		self.assertEqual(stats[1][0].id, player_a.id)

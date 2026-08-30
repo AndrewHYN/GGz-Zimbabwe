@@ -26,6 +26,7 @@
                 <div class="gamer-card-head">{% if gamer.avatar %}<span class="avatar avatar-medium"><img src="{{ gamer.avatar.url }}" alt="{{ gamer.gamer_tag }} avatar"></span>{% else %}<span class="avatar avatar-medium avatar-fallback">{{ gamer.gamer_tag|slice:":1"|upper }}</span>{% endif %}<div><h2>{{ gamer.gamer_tag }}</h2><p class="muted">{{ gamer.location|default:"Zimbabwe" }}</p></div></div>
                 <div class="gamer-meta"><span class="rank-tag">{{ gamer.get_rank_display }}</span><span>{{ gamer.platform|default:"Platform open" }}</span><span class="status-dot">{{ gamer.get_availability_display }}</span></div>
                 <p class="gamer-games">{% for game in gamer.games.all|slice:":2" %}{{ game.name }}{% if not forloop.last %}, {% endif %}{% empty %}Games not listed yet{% endfor %}</p>
+                <p class="muted">{{ gamer.games.count }} game{% if gamer.games.count != 1 %}s{% endif %} · Competitive profile ready</p>
                 <div class="gamer-card-foot"><span class="respect-label">{{ gamer.respect_points }} respect</span><a class="button alt" href="{% url 'profile_detail' gamer.gamer_tag %}">View profile</a></div>
             </article>
         {% empty %}<p class="muted empty-state">No players match those filters yet.</p>{% endfor %}

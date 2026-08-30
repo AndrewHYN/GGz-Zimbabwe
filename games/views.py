@@ -10,36 +10,35 @@ from .models import Game
 
 
 def _compute_game_stats(game):
-	"""
-	Return a list of (profile, wins, matches, win_rate) for all players of this game.
-	Ranked by wins (descending), with win_rate as tiebreaker.
-	Only counts completed matches where the player participated and won.
-	"""
+	"""Return (profile, wins, matches, win_rate) for players with at least one valid completed match."""
 	stats = []
-	for profile in game.players.all():
-		# Count only completed matches where this player participated
-		matches = TournamentMatch.objects.filter(
-			game=game,
-			status="Completed"
-		).filter(
-			Q(player_one=profile) | Q(player_two=profile)
-		).count()
-
-		# Count only wins in completed matches (and verify winner is this player)
-		wins = TournamentMatch.objects.filter(
+	for profile in game.players.all().order_by("gamer_tag"):
+		matches = 0
+		wins = 0
+		completed_matches = TournamentMatch.objects.filter(
 			game=game,
 			status="Completed",
-			winner=profile
 		).filter(
 			Q(player_one=profile) | Q(player_two=profile)
-		).count()
+		).select_related("player_one", "player_two", "winner")
 
-		win_rate = (wins / matches * 100) if matches > 0 else 0.0
+		for match in completed_matches:
+			if match.player_one_id is None or match.player_two_id is None:
+				continue
+			valid_winners = {match.player_one_id, match.player_two_id}
+			if match.winner_id not in valid_winners:
+				continue
+			matches += 1
+			if match.winner_id == profile.id:
+				wins += 1
+
+		if matches == 0:
+			continue
+
+		win_rate = (wins / matches * 100) if matches else 0.0
 		stats.append((profile, wins, matches, round(win_rate, 1)))
 
-	# Sort by wins descending, then by win_rate descending
-	# Players with no matches are excluded from ranking
-	return sorted([s for s in stats if s[1] > 0], key=lambda x: (-x[1], -x[3]))
+	return sorted(stats, key=lambda x: (-x[1], -x[2], -x[3], x[0].gamer_tag.lower()))
 
 
 def game_list(request):
