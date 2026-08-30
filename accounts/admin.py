@@ -1,5 +1,11 @@
 from django.contrib import admin
-from .models import Block, Comment, Conversation, ConversationParticipant, Follow, FriendRequest, Friendship, GamerProfile, Message, Notification, Post, PostLike, Report, RespectTransaction
+from .models import Block, Comment, Conversation, ConversationParticipant, Follow, FriendRequest, Friendship, GamerProfile, Message, Notification, Post, PostLike, Report, RespectTransaction, Venue
+
+
+@admin.register(Venue)
+class VenueAdmin(admin.ModelAdmin):
+    list_display = ("name", "category", "city", "phone", "website")
+    search_fields = ("name", "city", "address", "category")
 
 
 @admin.register(GamerProfile)

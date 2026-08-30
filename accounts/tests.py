@@ -4,7 +4,8 @@ from django.urls import reverse
 
 from games.models import Game
 
-from .models import Block, Conversation, ConversationParticipant, Follow, FriendRequest, Friendship, GamerProfile, Message, MessageRequest, Notification, Post, PostLike, RespectTransaction
+from .models import Block, Conversation, ConversationParticipant, Follow, FriendRequest, Friendship, GamerProfile, Message, MessageRequest, Notification, Post, PostLike, RespectTransaction, Venue
+from events.models import Event
 
 
 class HealthAndConfigTests(TestCase):
@@ -128,6 +129,115 @@ class GamerProfileWorkflowTests(TestCase):
 		self.assertContains(response, "TendaiZW")
 		self.assertContains(response, "Following")
 
+	def test_geo_discovery_focuses_on_nearby_players_and_events(self):
+		venue = Venue.objects.create(
+			name="The Gamer Hub",
+			city="Harare",
+			province="Harare Metropolitan",
+			country="Zimbabwe",
+			latitude=-17.8252,
+			longitude=31.0335,
+		)
+		nearby_profile = GamerProfile.objects.create(
+			user=User.objects.create_user(username="nearby", password="strong-password-123"),
+			gamer_tag="NearZW",
+			location="Harare",
+			city="Harare",
+			province="Harare Metropolitan",
+			country="Zimbabwe",
+			latitude=-17.8245,
+			longitude=31.0340,
+		)
+		Event.objects.create(
+			organizer=self.profile,
+			game=Game.objects.create(name="Valorant"),
+			name="Harare Night Clash",
+			description="Local LAN night.",
+			start_date="2026-12-15T18:00:00Z",
+			location="Harare",
+			venue=venue,
+			status="Upcoming",
+		)
+
+		response = self.client.get(reverse("geo_discovery"), {"lat": -17.8252, "lng": 31.0335, "radius": 30})
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "NearZW")
+		self.assertContains(response, "Harare Night Clash")
+
+	def test_geo_discovery_filters_by_game_platform_and_hides_private_profiles(self):
+		nearby_game = Game.objects.create(name="Tekken 8")
+		public_profile = GamerProfile.objects.create(
+			user=User.objects.create_user(username="public1", password="strong-password-123"),
+			gamer_tag="Public1ZW",
+			city="Harare",
+			country="Zimbabwe",
+			platform="PC",
+			availability="Available",
+			rank="Platinum",
+			latitude=-17.8230,
+			longitude=31.0310,
+			location_public=True,
+		)
+		public_profile.games.add(nearby_game)
+		private_profile = GamerProfile.objects.create(
+			user=User.objects.create_user(username="private1", password="strong-password-123"),
+			gamer_tag="Private1ZW",
+			city="Harare",
+			country="Zimbabwe",
+			platform="PC",
+			availability="Available",
+			latitude=-17.8230,
+			longitude=31.0310,
+			location_public=False,
+		)
+		private_profile.games.add(nearby_game)
+
+		response = self.client.get(reverse("geo_discovery"), {"lat": -17.8252, "lng": 31.0335, "radius": 20, "game": nearby_game.id, "platform": "PC", "availability": "Available"})
+		self.assertContains(response, "Public1ZW")
+		self.assertNotContains(response, "Private1ZW")
+
+	def test_venue_discovery_shows_public_business_details(self):
+		venue = Venue.objects.create(
+			name="Pixel Forge",
+			category="Gaming Lounge",
+			city="Harare",
+			province="Harare Metropolitan",
+			country="Zimbabwe",
+			address="5 Samora Machel Ave",
+			description="LAN nights and tournaments.",
+			phone="+263771000000",
+			website="https://example.com",
+			social_link="https://instagram.com/pixelforge",
+			opening_hours="10:00-22:00",
+			latitude=-17.8240,
+			longitude=31.0310,
+		)
+		response = self.client.get(reverse("geo_discovery"), {"lat": -17.8252, "lng": 31.0335, "radius": 20, "category": "Gaming Lounge"})
+		self.assertContains(response, "Pixel Forge")
+		self.assertContains(response, "Gaming Lounge")
+		self.assertContains(response, "Samora Machel Ave")
+
+	def test_nearby_offline_tournaments_are_in_discovery(self):
+		tournament = self.profile.organized_tournaments.create(
+			game=Game.objects.create(name="Street Fighter 6"),
+			name="Harare Cup",
+			slug="harare-cup",
+			description="Local bracket.",
+			format="1v1",
+			start_date="2026-12-01T18:00:00Z",
+			registration_deadline="2026-11-30T18:00:00Z",
+			location="Harare",
+			city="Harare",
+			province="Harare Metropolitan",
+			country="Zimbabwe",
+			mode="offline",
+			latitude=-17.8245,
+			longitude=31.0340,
+			status="Registration Open",
+		)
+		response = self.client.get(reverse("geo_discovery"), {"lat": -17.8252, "lng": 31.0335, "radius": 20, "tournament_mode": "offline"})
+		self.assertContains(response, "Harare Cup")
+
 
 class GamerProfileGameTests(TestCase):
 	def test_profile_games_are_visible_on_game_detail(self):
@@ -138,6 +248,42 @@ class GamerProfileGameTests(TestCase):
 
 		response = self.client.get(reverse("game_detail", args=[game.id]))
 		self.assertContains(response, "SimbaZW")
+
+	def test_profile_detail_shows_competitive_stats_per_game(self):
+		from tournaments.models import Tournament, TournamentMatch
+
+		user = User.objects.create_user(username="champ", password="pass-12345")
+		profile = GamerProfile.objects.create(user=user, gamer_tag="ChampZW")
+		game = Game.objects.create(name="Street Fighter 6")
+		profile.games.add(game)
+
+		org_user = User.objects.create_user(username="org", password="pass")
+		org_profile = GamerProfile.objects.create(user=org_user, gamer_tag="OrgZW")
+
+		tournament = Tournament.objects.create(
+			organizer=org_profile,
+			game=game,
+			name="Tournament",
+			slug="tournament",
+			description="Test",
+			format="1v1",
+			start_date="2026-12-15T18:00:00Z",
+			registration_deadline="2026-12-14T18:00:00Z",
+			status="Completed"
+		)
+
+		other_user = User.objects.create_user(username="other", password="pass")
+		other_profile = GamerProfile.objects.create(user=other_user, gamer_tag="OtherZW")
+
+		# Create match where profile wins
+		TournamentMatch.objects.create(
+			tournament=tournament, game=game, player_one=profile, player_two=other_profile, winner=profile, status="Completed"
+		)
+
+		response = self.client.get(reverse("profile_detail", args=[profile.gamer_tag]))
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Street Fighter 6")
+		self.assertContains(response, "1")  # 1 win
 
 
 class SocialPostTests(TestCase):

@@ -4,6 +4,40 @@ from django.db import models
 from django.db.models import Q
 
 
+class Venue(models.Model):
+    CATEGORY_CHOICES = [
+        ("Gaming Lounge", "Gaming Lounge"),
+        ("Esports Venue", "Esports Venue"),
+        ("LAN Center", "LAN Center"),
+        ("PC Gaming Shop", "PC Gaming Shop"),
+        ("Console Shop", "Console Shop"),
+        ("Gaming Cafe", "Gaming Cafe"),
+        ("Computer/Tech Shop", "Computer/Tech Shop"),
+        ("Tournament Venue", "Tournament Venue"),
+    ]
+
+    name = models.CharField(max_length=200)
+    category = models.CharField(max_length=40, choices=CATEGORY_CHOICES, default="Gaming Lounge")
+    city = models.CharField(max_length=120, blank=True)
+    province = models.CharField(max_length=120, blank=True)
+    country = models.CharField(max_length=100, default="Zimbabwe")
+    address = models.CharField(max_length=255, blank=True)
+    description = models.TextField(blank=True)
+    phone = models.CharField(max_length=30, blank=True)
+    website = models.URLField(blank=True)
+    social_link = models.URLField(blank=True)
+    opening_hours = models.CharField(max_length=160, blank=True)
+    latitude = models.FloatField(blank=True, null=True)
+    longitude = models.FloatField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("name",)
+
+    def __str__(self):
+        return self.name
+
+
 class GamerProfile(models.Model):
     PLATFORM_CHOICES = [
         ("PC", "PC"),
@@ -37,6 +71,12 @@ class GamerProfile(models.Model):
     avatar = models.ImageField(upload_to="avatars/", blank=True, null=True)
     bio = models.TextField(blank=True)
     location = models.CharField(max_length=100, blank=True)
+    city = models.CharField(max_length=120, blank=True)
+    province = models.CharField(max_length=120, blank=True)
+    country = models.CharField(max_length=100, blank=True, default="Zimbabwe")
+    latitude = models.FloatField(blank=True, null=True)
+    longitude = models.FloatField(blank=True, null=True)
+    location_public = models.BooleanField(default=True)
 
     platform = models.CharField(
         max_length=20,
@@ -75,6 +115,16 @@ class GamerProfile(models.Model):
 
     def __str__(self):
         return self.gamer_tag
+
+    @property
+    def geo_label(self):
+        return self.city or self.location or self.province or self.country or "Zimbabwe"
+
+    @property
+    def public_location_label(self):
+        if not self.location_public:
+            return "Location hidden"
+        return self.geo_label
 
     @property
     def respect_level(self):

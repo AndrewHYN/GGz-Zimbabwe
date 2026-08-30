@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}GGz Nearby | Gaming discovery{% endblock %}
+
+{% block content %}
+<main class="page-shell gamer-discovery-page">
+    <a class="back-link" href="{% url 'index' %}">&larr; Back to GGz</a>
+    <p class="eyebrow">GGz Nearby</p>
+    <h1>Find gamers, places and activities around you.</h1>
+    <p class="lede">Discover nearby players, gaming venues, events and tournaments without exposing exact private coordinates.</p>
+
+    <form class="filter-bar" method="get" action="{% url 'geo_discovery' %}">
+        <p><label for="id_q">Search</label><input id="id_q" name="q" value="{{ query }}" placeholder="Gamer, city, venue, event"></p>
+        <p><label for="id_lat">Latitude</label><input id="id_lat" name="lat" value="{{ lat }}" placeholder="-17.8252"></p>
+        <p><label for="id_lng">Longitude</label><input id="id_lng" name="lng" value="{{ lng }}" placeholder="31.0335"></p>
+        <p><label for="id_radius">Radius (km)</label><input id="id_radius" name="radius" type="number" min="1" max="500" value="{{ radius|default:50 }}"></p>
+        <p><label for="id_platform">Platform</label><select id="id_platform" name="platform"><option value="">Any platform</option>{% for value, label in platform_choices %}<option value="{{ value }}"{% if selected_platform == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></p>
+        <p><label for="id_rank">Rank</label><select id="id_rank" name="rank"><option value="">Any rank</option>{% for value, label in rank_choices %}<option value="{{ value }}"{% if selected_rank == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></p>
+        <p><label for="id_availability">Availability</label><select id="id_availability" name="availability"><option value="">Any availability</option>{% for value, label in availability_choices %}<option value="{{ value }}"{% if selected_availability == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></p>
+        <p><label for="id_game">Game</label><select id="id_game" name="game"><option value="">Any game</option>{% for game in game_choices %}<option value="{{ game.id }}"{% if selected_game == game.id|stringformat:"s" %} selected{% endif %}>{{ game.name }}</option>{% endfor %}</select></p>
+        <p><label for="id_category">Venue type</label><select id="id_category" name="category"><option value="">Any venue type</option>{% for value, label in venue_category_choices %}<option value="{{ value }}"{% if selected_category == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></p>
+        <p><label for="id_tournament_mode">Tournament mode</label><select id="id_tournament_mode" name="tournament_mode"><option value="">Any tournament mode</option><option value="offline"{% if selected_tournament_mode == "offline" %} selected{% endif %}>Offline</option><option value="online"{% if selected_tournament_mode == "online" %} selected{% endif %}>Online</option></select></p>
+        <button class="button" type="submit">Search nearby</button>
+        {% if query or lat or lng or platform or rank or availability or game or category or tournament_mode %}<a class="clear-filters" href="{% url 'geo_discovery' %}">Clear filters</a>{% endif %}
+    </form>
+
+    {% if map_embed_url %}
+    <section class="page-section">
+        <h2>Map view</h2>
+        <iframe title="GGz nearby map" width="100%" height="320" style="border:0; border-radius:10px;" loading="lazy" allowfullscreen src="{{ map_embed_url }}"></iframe>
+    </section>
+    {% endif %}
+
+    <section class="page-section">
+        <h2>Nearby gamers</h2>
+        <div class="gamer-grid">
+            {% for gamer in page %}
+                <article class="gamer-card">
+                    <div class="gamer-card-head">
+                        {% if gamer.avatar %}<span class="avatar avatar-medium"><img src="{{ gamer.avatar.url }}" alt="{{ gamer.gamer_tag }} avatar"></span>{% else %}<span class="avatar avatar-medium avatar-fallback">{{ gamer.gamer_tag|slice:":1"|upper }}</span>{% endif %}
+                        <div>
+                            <h3>{{ gamer.gamer_tag }}</h3>
+                            <p class="muted">{{ gamer.public_location_label }}{% if gamer.distance_label %} · {{ gamer.distance_label }}{% endif %}</p>
+                        </div>
+                    </div>
+                    <div class="gamer-meta">
+                        <span class="rank-tag">{{ gamer.get_rank_display }}</span>
+                        <span>{{ gamer.platform|default:"Platform open" }}</span>
+                        <span class="status-dot">{{ gamer.get_availability_display }}</span>
+                    </div>
+                    <div class="gamer-card-foot">
+                        <span class="respect-label">{{ gamer.respect_points }} respect</span>
+                        <a class="button alt" href="{% url 'profile_detail' gamer.gamer_tag %}">View profile</a>
+                    </div>
+                </article>
+            {% empty %}
+                <p class="muted empty-state">No nearby gamers match this search yet.</p>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="page-section">
+        <h2>Places</h2>
+        <div class="listing-grid">
+            {% for venue in venues %}
+                <article class="listing-card">
+                    <p class="eyebrow">{{ venue.category }}</p>
+                    <h3>{{ venue.name }}</h3>
+                    <p>{{ venue.address|default:venue.city }}</p>
+                    {% if venue.distance_label %}<p class="muted">{{ venue.distance_label }}</p>{% endif %}
+                    {% if venue.phone %}<p class="muted">Phone: {{ venue.phone }}</p>{% endif %}
+                    {% if venue.opening_hours %}<p class="muted">Hours: {{ venue.opening_hours }}</p>{% endif %}
+                    {% if venue.website %}<a class="text-link" href="{{ venue.website }}" target="_blank" rel="noreferrer">Website</a>{% endif %}
+                    {% if venue.social_link %}<a class="text-link" href="{{ venue.social_link }}" target="_blank" rel="noreferrer">Social</a>{% endif %}
+                </article>
+            {% empty %}
+                <p class="muted empty-state">No venues match this discovery filter.</p>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="page-section">
+        <h2>Activities</h2>
+        <div class="listing-grid">
+            {% for event in nearby_events %}
+                <article class="listing-card">
+                    <p class="eyebrow">Event · {{ event.start_date|date:"M j, Y" }}</p>
+                    <h3>{{ event.name }}</h3>
+                    <p>{{ event.location|default:"Venue to be confirmed" }}</p>
+                    {% if event.venue %}<p class="muted">{{ event.venue.name }}{% if event.distance_label %} · {{ event.distance_label }}{% endif %}</p>{% endif %}
+                    <a class="button alt" href="{% url 'event_detail' event.id %}">View event</a>
+                </article>
+            {% empty %}
+                <p class="muted empty-state">No nearby events in this radius.</p>
+            {% endfor %}
+            {% for tournament in nearby_tournaments %}
+                <article class="listing-card">
+                    <p class="eyebrow">Tournament · {{ tournament.mode|title }}</p>
+                    <h3>{{ tournament.name }}</h3>
+                    <p>{{ tournament.location|default:tournament.city|default:"Online" }}</p>
+                    {% if tournament.distance_label %}<p class="muted">{{ tournament.distance_label }}</p>{% endif %}
+                    <a class="button alt" href="{% url 'tournament_detail' tournament.slug %}">View tournament</a>
+                </article>
+            {% empty %}
+                {% if not nearby_events %}<p class="muted empty-state">No nearby tournaments in this radius.</p>{% endif %}
+            {% endfor %}
+        </div>
+    </section>
+</main>
+{% endblock %}

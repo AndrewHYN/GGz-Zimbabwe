@@ -18,9 +18,34 @@
             {% if game.genre or game.platform %}<p class="game-meta">{{ game.genre }}{% if game.genre and game.platform %} | {% endif %}{{ game.platform }}</p>{% endif %}
             {% if game.description %}<p class="lede">{{ game.description }}</p>{% endif %}
             <dl class="details game-facts">{% if game.developer %}<div class="detail"><dt>Developer</dt><dd>{{ game.developer }}</dd></div>{% endif %}{% if game.publisher %}<div class="detail"><dt>Publisher</dt><dd>{{ game.publisher }}</dd></div>{% endif %}{% if game.release_year %}<div class="detail"><dt>Released</dt><dd>{{ game.release_year }}</dd></div>{% endif %}{% if game.player_count %}<div class="detail"><dt>Players</dt><dd>{{ game.player_count }}</dd></div>{% endif %}<div class="detail"><dt>GGz players</dt><dd>{{ game.players.count }}</dd></div></dl>
-            <div class="actions"><a class="button" href="{% url 'gamer_discovery' %}?game={{ game.id }}">Find players</a><a class="button alt" href="#community">Community</a></div>
+            <div class="actions"><a class="button" href="{% url 'gamer_discovery' %}?game={{ game.id }}">Find players</a><a class="button alt" href="#community">Community</a><a class="button alt" href="{% url 'game_leaderboard' game.id %}">Leaderboard</a></div>
         </div>
     </section>
+    {% if leaderboard %}
+    <section class="page-section">
+        <p class="eyebrow">Competitive rankings</p>
+        <h2>Top {{ game.name }} players</h2>
+        <div class="leaderboard-table">
+            <table role="table" aria-label="Top players at {{ game.name }}">
+                <thead>
+                    <tr><th>Rank</th><th>Player</th><th>Wins</th><th>Matches</th><th>Win rate</th></tr>
+                </thead>
+                <tbody>
+                    {% for player, wins, matches, win_rate in leaderboard %}
+                    <tr>
+                        <td class="rank-cell">{{ forloop.counter }}</td>
+                        <td><a class="text-link" href="{% url 'profile_detail' player.gamer_tag %}">{{ player.gamer_tag }}</a></td>
+                        <td class="number">{{ wins }}</td>
+                        <td class="number">{{ matches }}</td>
+                        <td class="number">{{ win_rate }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <a class="button" href="{% url 'game_leaderboard' game.id %}">View full leaderboard</a>
+    </section>
+    {% endif %}
     <section id="community" class="page-section community-hub"><p class="eyebrow">The community</p><h2>GGz players</h2><div class="player-grid">{% for player in game.players.all|slice:":8" %}<article class="player-card"><a class="post-author" href="{% url 'profile_detail' player.gamer_tag %}">{% if player.avatar %}<span class="avatar avatar-post"><img src="{{ player.avatar.url }}" alt="{{ player.gamer_tag }} avatar"></span>{% else %}<span class="avatar avatar-post avatar-fallback">{{ player.gamer_tag|slice:":1"|upper }}</span>{% endif %}<span><strong>{{ player.gamer_tag }}</strong><small>{{ player.location|default:"Zimbabwe" }}</small></span></a><div class="gamer-meta"><span>{{ player.rank }}</span><span>{{ player.get_availability_display }}</span></div></article>{% empty %}<p class="muted empty-state">No players found yet. Be the first GGz gamer to join this game.</p>{% endfor %}</div>
     <h2 class="community-subheading">Looking for players</h2><div class="player-grid">{% for player in available_players|slice:":4" %}<article class="player-card"><a class="text-link" href="{% url 'profile_detail' player.gamer_tag %}">{{ player.gamer_tag }}</a><p class="muted">{{ player.location|default:"Zimbabwe" }} · {{ player.platform|default:"Any platform" }}</p><span class="status-dot">Available to play</span></article>{% empty %}<p class="muted empty-state">No one is looking for players right now. Check back soon.</p>{% endfor %}</div>
     <h2 class="community-subheading">Recent posts</h2><div class="post-list">{% for post in community_posts %}{% include "accounts/post_card.html" with post=post %}{% empty %}<p class="muted empty-state">No community posts yet. Create the first post.</p>{% endfor %}</div>

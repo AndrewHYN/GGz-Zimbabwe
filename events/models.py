@@ -13,6 +13,7 @@ class Event(models.Model):
 	banner = models.ImageField(upload_to="events/", blank=True, null=True)
 	start_date = models.DateTimeField()
 	location = models.CharField(max_length=160, blank=True)
+	venue = models.ForeignKey("accounts.Venue", on_delete=models.SET_NULL, null=True, blank=True, related_name="events")
 	mode = models.CharField(max_length=10, choices=(("online", "Online"), ("offline", "Offline")), default="offline")
 	capacity = models.PositiveIntegerField(blank=True, null=True)
 	status = models.CharField(max_length=15, choices=STATUS_CHOICES, default="Upcoming")

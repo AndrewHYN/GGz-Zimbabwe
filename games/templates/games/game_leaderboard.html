@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}{{ game.name }} leaderboard | GGz{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <a class="back-link" href="{% url 'game_detail' game.id %}">&larr; Back to {{ game.name }}</a>
+    <p class="eyebrow">Competitive rankings</p>
+    <h1>{{ game.name }} leaderboard</h1>
+    <p class="lede">Top players competing at {{ game.name }} on GGz.</p>
+
+    {% if leaderboard %}
+    <div class="leaderboard-table">
+        <table role="table" aria-label="{{ game.name }} leaderboard">
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Player</th>
+                    <th>Wins</th>
+                    <th>Matches</th>
+                    <th>Win rate</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for player, wins, matches, win_rate in leaderboard %}
+                {% with rank_position=page.start_index|add:forloop.counter|add:"-1" %}
+                <tr>
+                    <td class="rank-cell">
+                        {% if rank_position == 1 %}
+                            <span class="rank-badge rank-gold" title="1st place">🏆</span>
+                        {% elif rank_position == 2 %}
+                            <span class="rank-badge rank-silver" title="2nd place">🥈</span>
+                        {% elif rank_position == 3 %}
+                            <span class="rank-badge rank-bronze" title="3rd place">🥉</span>
+                        {% else %}
+                            {{ rank_position }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a class="text-link" href="{% url 'profile_detail' player.gamer_tag %}">{{ player.gamer_tag }}</a>
+                        {% if player.location %}<br><small class="muted">{{ player.location }}</small>{% endif %}
+                    </td>
+                    <td class="number">{{ wins }}</td>
+                    <td class="number">{{ matches }}</td>
+                    <td class="number">{{ win_rate }}%</td>
+                    <td>
+                        <a class="button micro" href="{% url 'profile_detail' player.gamer_tag %}">View</a>
+                    </td>
+                </tr>
+                {% endwith %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if page.has_other_pages %}
+    <div class="pagination">
+        {% if page.has_previous %}
+            <a href="?page=1" class="button micro">« First</a>
+            <a href="?page={{ page.previous_page_number }}" class="button micro">‹ Previous</a>
+        {% else %}
+            <button class="button micro" disabled>« First</button>
+            <button class="button micro" disabled>‹ Previous</button>
+        {% endif %}
+
+        <span class="pagination-info">
+            Page {{ page.number }} of {{ page.paginator.num_pages }}
+        </span>
+
+        {% if page.has_next %}
+            <a href="?page={{ page.next_page_number }}" class="button micro">Next ›</a>
+            <a href="?page={{ page.paginator.num_pages }}" class="button micro">Last »</a>
+        {% else %}
+            <button class="button micro" disabled>Next ›</button>
+            <button class="button micro" disabled>Last »</button>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <p class="muted empty-state">No competitive matches yet. Be the first to compete at {{ game.name }}!</p>
+    {% endif %}
+</main>
+{% endblock %}

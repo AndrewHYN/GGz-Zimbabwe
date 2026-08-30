@@ -30,6 +30,7 @@ urlpatterns = [
     path("health/", core_views.health_check, name="health_check"),
     path("leaderboards/", core_views.leaderboard, name="leaderboard"),
     path("search/", core_views.global_search, name="global_search"),
+    path("discover/", account_views.geo_discovery, name="geo_discovery"),
     path("admin/", admin.site.urls),
     path("profiles/", include("accounts.urls")),
     path("games/", include("games.urls")),

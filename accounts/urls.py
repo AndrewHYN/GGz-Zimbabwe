@@ -6,6 +6,7 @@ from . import views
 urlpatterns = [
 	path("signup/", views.signup, name="signup"),
 	path("dashboard/", views.dashboard, name="dashboard"),
+	path("discover/", views.geo_discovery, name="geo_discovery"),
 	path("gamers/", views.gamer_discovery, name="gamer_discovery"),
 	path("notifications/", views.notification_list, name="notification_list"),
 	path("notifications/<int:notification_id>/read/", views.notification_read, name="notification_read"),
@@ -18,6 +19,7 @@ urlpatterns = [
 	path("<str:gamer_tag>/followers/", views.profile_followers, name="profile_followers"),
 	path("<str:gamer_tag>/following/", views.profile_following, name="profile_following"),
 	path("<str:gamer_tag>/friends/", views.profile_friends, name="profile_friends"),
+	path("<str:gamer_tag>/match-history/", views.player_match_history, name="player_match_history"),
 	path("<str:gamer_tag>/edit/", views.profile_edit, name="profile_edit"),
 	path("<str:gamer_tag>/<str:action>/", views.connection_action, name="connection_action"),
     path("<str:gamer_tag>/", views.profile_detail, name="profile_detail"),

@@ -1,3 +1,5 @@
+import math
+
 from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
@@ -8,10 +10,11 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
+from events.models import Event
 from games.models import Game
 
 from .forms import CommentForm, GamerProfileForm, PostForm, SignupForm
-from .models import Block, Comment, Conversation, ConversationParticipant, Follow, FriendRequest, Friendship, GamerProfile, Message, MessageRequest, Notification, Post, PostLike, Report, RespectTransaction, notify
+from .models import Block, Comment, Conversation, ConversationParticipant, Follow, FriendRequest, Friendship, GamerProfile, Message, MessageRequest, Notification, Post, PostLike, Report, RespectTransaction, Venue, notify
 
 
 def _notify(recipient, actor, notification_type, message, target_url=""):
@@ -23,6 +26,186 @@ def _can_message(sender, recipient):
 		return False
 	first, second = sorted((sender.id, recipient.id))
 	return Friendship.objects.filter(profile_one_id=first, profile_two_id=second).exists() or (Follow.objects.filter(follower=sender, following=recipient).exists() and Follow.objects.filter(follower=recipient, following=sender).exists()) or MessageRequest.objects.filter(Q(sender=sender, recipient=recipient) | Q(sender=recipient, recipient=sender), status="Accepted").exists()
+
+
+def _distance_km(lat1, lon1, lat2, lon2):
+	if None in (lat1, lon1, lat2, lon2):
+		return None
+	phi1 = math.radians(lat1)
+	phi2 = math.radians(lat2)
+	delta_phi = math.radians(lat2 - lat1)
+	delta_lambda = math.radians(lon2 - lon1)
+	a = (
+		math.sin(delta_phi / 2) ** 2
+		+ math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2) ** 2
+	)
+	return 6371.0 * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+def geo_discovery(request):
+	query = request.GET.get("q", "").strip()
+	lat = request.GET.get("lat", "").strip()
+	lng = request.GET.get("lng", "").strip()
+	radius_km = float(request.GET.get("radius", "50") or 50)
+	platform = request.GET.get("platform", "").strip()
+	rank = request.GET.get("rank", "").strip()
+	availability = request.GET.get("availability", "").strip()
+	game_id = request.GET.get("game", "").strip()
+	category = request.GET.get("category", "").strip()
+	tournament_mode = request.GET.get("tournament_mode", "").strip()
+
+	profiles = GamerProfile.objects.select_related("user").prefetch_related("games").filter(location_public=True)
+	if query:
+		profiles = profiles.filter(
+			Q(gamer_tag__icontains=query)
+			| Q(user__username__icontains=query)
+			| Q(location__icontains=query)
+			| Q(city__icontains=query)
+			| Q(province__icontains=query)
+			| Q(country__icontains=query)
+		)
+	if platform:
+		profiles = profiles.filter(platform=platform)
+	if rank:
+		profiles = profiles.filter(rank=rank)
+	if availability:
+		profiles = profiles.filter(availability=availability)
+	if game_id:
+		profiles = profiles.filter(games__id=game_id)
+
+	viewer = getattr(request.user, "gamer_profile", None)
+	if viewer:
+		blocked_ids = Block.objects.filter(Q(blocker=viewer) | Q(blocked=viewer)).values_list("blocker_id", "blocked_id")
+		blocked_profile_ids = {value for pair in blocked_ids for value in pair}
+		profiles = profiles.exclude(id__in=blocked_profile_ids)
+
+	if lat and lng:
+		lat_value = float(lat)
+		lng_value = float(lng)
+		filtered_profiles = []
+		for profile in profiles:
+			if profile.latitude is None or profile.longitude is None:
+				continue
+			distance = _distance_km(lat_value, lng_value, profile.latitude, profile.longitude)
+			if distance is not None and distance <= radius_km:
+				profile.distance_km = round(distance, 1)
+				profile.distance_label = f"{profile.distance_km:.1f} km away"
+				filtered_profiles.append(profile)
+		profiles = sorted(filtered_profiles, key=lambda item: item.distance_km)
+	else:
+		profiles = list(profiles.order_by("gamer_tag"))
+		for profile in profiles:
+			profile.distance_label = "Location shared"
+
+	venues = Venue.objects.all()
+	if query:
+		venues = venues.filter(Q(name__icontains=query) | Q(city__icontains=query) | Q(province__icontains=query) | Q(address__icontains=query) | Q(description__icontains=query))
+	if category:
+		venues = venues.filter(category=category)
+	if lat and lng:
+		lat_value = float(lat)
+		lng_value = float(lng)
+		filtered_venues = []
+		for venue in venues:
+			if venue.latitude is None or venue.longitude is None:
+				continue
+			distance = _distance_km(lat_value, lng_value, venue.latitude, venue.longitude)
+			if distance is not None and distance <= radius_km:
+				venue.distance_km = round(distance, 1)
+				venue.distance_label = f"{venue.distance_km:.1f} km away"
+				filtered_venues.append(venue)
+		venues = sorted(filtered_venues, key=lambda item: item.distance_km)
+	else:
+		venues = list(venues.order_by("city", "name")[:12])
+		for venue in venues:
+			venue.distance_label = "Location shared"
+
+	from tournaments.models import Tournament
+
+	events = Event.objects.select_related("game", "organizer__user", "venue").filter(status__in=("Upcoming", "Live"))
+	if query:
+		events = events.filter(Q(name__icontains=query) | Q(location__icontains=query) | Q(venue__name__icontains=query) | Q(venue__city__icontains=query))
+	if lat and lng:
+		lat_value = float(lat)
+		lng_value = float(lng)
+		filtered_events = []
+		for event in events:
+			if event.mode == "online":
+				event.distance_label = "Online event"
+				filtered_events.append(event)
+				continue
+			if event.venue and event.venue.latitude is not None and event.venue.longitude is not None:
+				distance = _distance_km(lat_value, lng_value, event.venue.latitude, event.venue.longitude)
+				if distance is not None and distance <= radius_km:
+					event.distance_km = round(distance, 1)
+					event.distance_label = f"{event.distance_km:.1f} km away"
+					filtered_events.append(event)
+		nearby_events = sorted(filtered_events, key=lambda item: getattr(item, "distance_km", 9999))[:6]
+	else:
+		nearby_events = list(events.order_by("start_date")[:6])
+		for event in nearby_events:
+			event.distance_label = "Online event" if event.mode == "online" else "Location shared"
+
+	tournaments = Tournament.objects.select_related("game", "organizer__user", "venue").filter(status__in=("Registration Open", "Live", "Registration Closed"))
+	if query:
+		tournaments = tournaments.filter(Q(name__icontains=query) | Q(location__icontains=query) | Q(city__icontains=query) | Q(province__icontains=query) | Q(venue__name__icontains=query))
+	if tournament_mode:
+		tournaments = tournaments.filter(mode=tournament_mode)
+	if game_id:
+		tournaments = tournaments.filter(game_id=game_id)
+	if lat and lng:
+		lat_value = float(lat)
+		lng_value = float(lng)
+		filtered_tournaments = []
+		for tournament in tournaments:
+			if tournament.mode == "online":
+				tournament.distance_label = "Online tournament"
+				filtered_tournaments.append(tournament)
+				continue
+			if tournament.latitude is not None and tournament.longitude is not None:
+				distance = _distance_km(lat_value, lng_value, tournament.latitude, tournament.longitude)
+				if distance is not None and distance <= radius_km:
+					tournament.distance_km = round(distance, 1)
+					tournament.distance_label = f"{tournament.distance_km:.1f} km away"
+					filtered_tournaments.append(tournament)
+		nearby_tournaments = sorted(filtered_tournaments, key=lambda item: getattr(item, "distance_km", 9999))[:6]
+	else:
+		nearby_tournaments = list(tournaments.order_by("start_date")[:6])
+		for tournament in nearby_tournaments:
+			tournament.distance_label = "Online tournament" if tournament.mode == "online" else "Location shared"
+
+	page = Paginator(profiles, 12)
+	page_obj = page.get_page(request.GET.get("page"))
+	map_embed_url = ""
+	if lat and lng:
+		map_embed_url = f"https://www.openstreetmap.org/export/embed.html?bbox={float(lng)-0.05}%2C{float(lat)-0.05}%2C{float(lng)+0.05}%2C{float(lat)+0.05}&layer=mapnik&marker={float(lat)}%2C{float(lng)}"
+
+	return render(
+		request,
+		"accounts/geo_discovery.html",
+		{
+			"page": page_obj,
+			"query": query,
+			"lat": lat,
+			"lng": lng,
+			"radius": radius_km,
+			"nearby_events": nearby_events,
+			"nearby_tournaments": nearby_tournaments,
+			"venues": venues,
+			"map_embed_url": map_embed_url,
+			"platform_choices": GamerProfile.PLATFORM_CHOICES,
+			"rank_choices": GamerProfile.RANK_CHOICES,
+			"availability_choices": GamerProfile.AVAILABILITY_CHOICES,
+			"game_choices": Game.objects.order_by("name"),
+			"venue_category_choices": Venue.CATEGORY_CHOICES,
+			"selected_platform": platform,
+			"selected_rank": rank,
+			"selected_availability": availability,
+			"selected_game": game_id,
+			"selected_category": category,
+			"selected_tournament_mode": tournament_mode,
+		},
+	)
 
 
 def gamer_discovery(request):
@@ -125,6 +308,36 @@ def profile_detail(request, gamer_tag):
 		message_request_incoming = MessageRequest.objects.filter(sender=profile, recipient=viewer).first()
 		if is_blocked:
 			profile_posts = Post.objects.none()
+
+	from tournaments.models import TournamentMatch
+	game_stats = []
+	for game in profile.games.all():
+		# Count only completed matches where this player participated
+		matches = TournamentMatch.objects.filter(
+			game=game,
+			status="Completed"
+		).filter(
+			Q(player_one=profile) | Q(player_two=profile)
+		).count()
+
+		# Count only wins in completed matches (and verify winner is this player)
+		wins = TournamentMatch.objects.filter(
+			game=game,
+			status="Completed",
+			winner=profile
+		).filter(
+			Q(player_one=profile) | Q(player_two=profile)
+		).count()
+
+		win_rate = (wins / matches * 100) if matches > 0 else 0
+		if matches > 0:  # Only include games with completed matches
+			game_stats.append({
+				"game": game,
+				"wins": wins,
+				"matches": matches,
+				"win_rate": round(win_rate, 1),
+			})
+
 	return render(
 		request,
 		"accounts/profile_detail.html",
@@ -143,6 +356,7 @@ def profile_detail(request, gamer_tag):
 				Q(profile_one=profile) | Q(profile_two=profile)
 			).count(),
 			"respect_giver_count": profile.respect_received.count(),
+			"game_stats": game_stats,
 		},
 	)
 
@@ -163,6 +377,41 @@ def profile_friends(request, gamer_tag):
 	profile = get_object_or_404(GamerProfile.objects.select_related("user"), gamer_tag=gamer_tag)
 	items = _profile_connection_list(profile, "friends")
 	return render(request, "accounts/profile_connections.html", {"profile": profile, "items": items, "mode": "friends", "title": f"{profile.gamer_tag}'s friends"})
+
+
+def player_match_history(request, gamer_tag):
+	"""Show completed matches for a player, ordered by date (most recent first)."""
+	profile = get_object_or_404(GamerProfile.objects.select_related("user"), gamer_tag=gamer_tag)
+
+	# Get all completed matches where this player participated
+	from tournaments.models import TournamentMatch
+	matches = TournamentMatch.objects.filter(
+		status="Completed"
+	).filter(
+		Q(player_one=profile) | Q(player_two=profile)
+	).select_related("game", "tournament", "player_one__user", "player_two__user", "winner__user").order_by("-id")
+
+	# Add computed fields for display
+	match_data = []
+	for match in matches:
+		opponent = match.player_two if match.player_one == profile else match.player_one
+		won = match.winner == profile
+		match_data.append({
+			"match": match,
+			"opponent": opponent,
+			"won": won,
+			"score": match.score if hasattr(match, "score") else "No score recorded",
+		})
+
+	return render(
+		request,
+		"accounts/player_match_history.html",
+		{
+			"profile": profile,
+			"match_data": match_data,
+			"match_count": len(match_data),
+		},
+	)
 
 
 @login_required
