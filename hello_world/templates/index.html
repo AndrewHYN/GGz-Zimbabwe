@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}GGs | Find your people{% endblock %}
+{% block title %}GGz | Find your people{% endblock %}
 
 {% block content %}
 <main>
@@ -13,7 +13,7 @@
                 <div class="actions"><a class="button" href="{% url 'profile_detail' user_profile.gamer_tag %}">Open my profile</a><a class="button alt" href="{% url 'game_list' %}">Browse games</a></div>
             {% else %}
                 <h1>Find your <em>people.</em></h1>
-                <p class="lede">GGs is where players show up, find their next rival, and build a reputation that travels with them.</p>
+                <p class="lede">GGz is where players show up, find their next rival, and build a reputation that travels with them.</p>
                 <div class="actions"><a class="button" href="{% url 'signup' %}">Create your profile</a><a class="button alt" href="{% url 'game_list' %}">Explore games</a></div>
             {% endif %}
         </div>
@@ -24,7 +24,7 @@
             <div class="stats"><div class="stat"><span class="stat-label">Players</span><span class="stat-value">{{ profile_count }}</span></div><div class="stat"><span class="stat-label">Games</span><span class="stat-value">{{ game_count }}</span></div></div>
         </aside>
     </section>
-    <section class="features" aria-label="GGs features">
+    <section class="features" aria-label="GGz features">
         <article class="feature"><span>01</span><h3>Discover</h3><p>Find players who match your pace and your games.</p></article>
         <article class="feature"><span>02</span><h3>Compete</h3><p>Turn sessions into rivalries, brackets, and wins.</p></article>
         <article class="feature"><span>03</span><h3>Connect</h3><p>Keep the local gaming community within reach.</p></article>

@@ -307,3 +307,8 @@ class SearchAndRankTests(TestCase):
 		response = self.client.get(reverse("index"))
 		self.assertContains(response, "Community pulse")
 		self.assertContains(response, "Looking for a few teammates this weekend.")
+
+	def test_index_uses_ggz_branding_on_homepage(self):
+		response = self.client.get(reverse("index"))
+		self.assertContains(response, "GGz")
+		self.assertNotContains(response, "GGs")

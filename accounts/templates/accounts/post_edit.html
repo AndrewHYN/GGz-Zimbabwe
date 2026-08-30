@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Edit post | GGs{% endblock %}
+{% block title %}Edit post | GGz{% endblock %}
 
 {% block content %}
 <main class="page-shell form-page"><a class="back-link" href="{% url 'post_detail' post.id %}">&larr; Back to post</a><div class="form-card"><p class="eyebrow">Your post</p><h1>Edit update</h1><form method="post" enctype="multipart/form-data">{% csrf_token %}{{ form.as_p }}<button class="button" type="submit">Save changes</button></form></div></main>

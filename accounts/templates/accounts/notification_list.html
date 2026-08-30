@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Notifications | GGs{% endblock %}
+{% block title %}Notifications | GGz{% endblock %}
 {% block content %}
 <main class="page-shell utility-page notification-page">
     <div class="section-heading"><div><p class="eyebrow">Your activity</p><h1>Notifications.</h1><p class="lede">Stay close to the people and matches that matter.</p></div>{% if unread_count %}<form method="post" action="{% url 'notifications_read_all' %}">{% csrf_token %}<button class="button alt" type="submit">Mark all read</button></form>{% endif %}</div>
