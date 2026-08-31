@@ -39,6 +39,53 @@ class TournamentTests(TestCase):
 		response = self.client.post(reverse("tournament_register", args=[self.tournament.slug]))
 		self.assertEqual(response.status_code, 403)
 
+	def test_registration_after_deadline_is_rejected(self):
+		self.tournament.registration_deadline = timezone.now() - timedelta(days=1)
+		self.tournament.save(update_fields=("registration_deadline",))
+		self.client.login(username="player", password="pass-12345")
+		response = self.client.post(reverse("tournament_register", args=[self.tournament.slug]))
+		self.assertEqual(response.status_code, 403)
+
+	def test_odd_player_count_generates_bye_in_bracket(self):
+		players = [self.player]
+		for index in range(2):
+			players.append(GamerProfile.objects.create(user=User.objects.create_user(username=f"bye{index}"), gamer_tag=f"Bye{index}ZW"))
+		for player in players:
+			TournamentRegistration.objects.create(tournament=self.tournament, player=player)
+		self.tournament.max_participants = 4
+		self.tournament.save(update_fields=("max_participants",))
+		self.client.login(username="organizer", password="pass-12345")
+		self.client.post(reverse("generate_bracket", args=(self.tournament.slug,)))
+		self.assertEqual(self.tournament.matches.count(), 3)
+		self.assertTrue(self.tournament.matches.filter(score="Bye").exists())
+
+	def test_match_result_rejects_invalid_score_format(self):
+		match = TournamentMatch.objects.create(tournament=self.tournament, game=self.game, player_one=self.player, player_two=self.organizer)
+		self.client.login(username="player", password="pass-12345")
+		response = self.client.post(reverse("match_result", args=[match.id]), {"winner": self.player.id, "score": "banana", "status": "Completed"})
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Score must use the format")
+
+	def test_final_result_completes_tournament_and_updates_winner_stats(self):
+		players = [self.player]
+		for index in range(3):
+			players.append(GamerProfile.objects.create(user=User.objects.create_user(username=f"final{index}"), gamer_tag=f"Final{index}ZW"))
+		for player in players:
+			TournamentRegistration.objects.create(tournament=self.tournament, player=player)
+		self.tournament.max_participants = 4
+		self.tournament.save(update_fields=("max_participants",))
+		self.client.login(username="organizer", password="pass-12345")
+		self.client.post(reverse("generate_bracket", args=(self.tournament.slug,)))
+		semis = self.tournament.matches.filter(round=1).order_by("id")
+		self.client.post(reverse("match_result", args=(semis[0].id,)), {"winner": self.player.id, "score": "2-0", "status": "Completed"})
+		self.client.post(reverse("match_result", args=(semis[1].id,)), {"winner": semis[1].player_two.id, "score": "2-1", "status": "Completed"})
+		final = self.tournament.matches.get(round=2)
+		self.client.post(reverse("match_result", args=(final.id,)), {"winner": self.player.id, "score": "2-1", "status": "Completed"})
+		self.tournament.refresh_from_db()
+		self.assertEqual(self.tournament.status, "Completed")
+		self.player.refresh_from_db()
+		self.assertEqual(self.player.tournament_wins, 1)
+
 	def test_challenge_cannot_target_self(self):
 		self.client.login(username="organizer", password="pass-12345")
 		response = self.client.post(reverse("challenge_create", args=[self.tournament.slug]), {"opponent": self.organizer.id, "game": self.game.id, "tournament": self.tournament.id})

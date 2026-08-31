@@ -1,3 +1,5 @@
+import re
+
 from django import forms
 
 from .models import Challenge, Tournament, TournamentMatch
@@ -21,6 +23,14 @@ class MatchResultForm(forms.ModelForm):
     class Meta:
         model = TournamentMatch
         fields = ("winner", "score", "status")
+
+    def clean_score(self):
+        score = self.cleaned_data.get("score", "")
+        if not score:
+            return score
+        if not re.fullmatch(r"\d+\s*-\s*\d+", score.strip()):
+            raise forms.ValidationError("Score must use the format '2-0'.")
+        return score.strip()
 
     def clean(self):
         cleaned = super().clean()
