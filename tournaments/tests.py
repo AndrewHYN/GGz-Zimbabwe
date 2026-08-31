@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from accounts.models import GamerProfile
 from games.models import Game
+from teams.models import Team, TeamMembership
 
 from .models import Challenge, Tournament, TournamentMatch, TournamentRegistration
 
@@ -31,6 +32,31 @@ class TournamentTests(TestCase):
 		self.client.post(url)
 		self.client.post(url)
 		self.assertEqual(TournamentRegistration.objects.count(), 1)
+
+	def test_team_captain_can_register_full_team_to_tournament(self):
+		team_game = Game.objects.create(name="Counter-Strike 2")
+		team = Team.objects.create(owner=self.organizer, game=team_game, name="Alpha Squad", tag="AS", slug="alpha-squad")
+		TeamMembership.objects.create(team=team, player=self.organizer, role="Captain")
+		teammate = GamerProfile.objects.create(user=User.objects.create_user(username="teammate", password="pass-12345"), gamer_tag="MateZW")
+		TeamMembership.objects.create(team=team, player=teammate, role="Member")
+		tournament = Tournament.objects.create(
+			organizer=self.organizer,
+			game=team_game,
+			name="Team GGz Cup",
+			slug="team-ggz-cup",
+			description="A team cup",
+			format="2v2",
+			max_participants=10,
+			start_date=timezone.now() + timedelta(days=3),
+			registration_deadline=timezone.now() + timedelta(days=2),
+			status="Registration Open",
+		)
+		self.client.login(username="organizer", password="pass-12345")
+		response = self.client.post(reverse("tournament_register", args=[tournament.slug]), {"team_id": team.id})
+		self.assertEqual(response.status_code, 302)
+		self.assertEqual(TournamentRegistration.objects.filter(tournament=tournament).count(), 2)
+		self.assertTrue(TournamentRegistration.objects.filter(tournament=tournament, player=self.organizer).exists())
+		self.assertTrue(TournamentRegistration.objects.filter(tournament=tournament, player=teammate).exists())
 
 	def test_cancelled_tournament_cannot_be_joined(self):
 		self.tournament.status = "Cancelled"
@@ -85,6 +111,48 @@ class TournamentTests(TestCase):
 		self.assertEqual(self.tournament.status, "Completed")
 		self.player.refresh_from_db()
 		self.assertEqual(self.player.tournament_wins, 1)
+
+	def test_organizer_dashboard_shows_overview_and_management_actions(self):
+		self.client.login(username="organizer", password="pass-12345")
+		response = self.client.get(reverse("tournament_manage", args=[self.tournament.slug]))
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Overview")
+		self.assertContains(response, "Registrations")
+		self.assertContains(response, "Matches")
+		self.assertContains(response, "Generate bracket")
+		self.assertContains(response, "Delete tournament")
+
+	def test_organizer_can_toggle_registration_and_cancel_tournament(self):
+		self.client.login(username="organizer", password="pass-12345")
+		close_response = self.client.post(reverse("tournament_toggle_registration", args=[self.tournament.slug]))
+		self.assertEqual(close_response.status_code, 302)
+		self.tournament.refresh_from_db()
+		self.assertEqual(self.tournament.status, "Registration Closed")
+
+		open_response = self.client.post(reverse("tournament_toggle_registration", args=[self.tournament.slug]))
+		self.assertEqual(open_response.status_code, 302)
+		self.tournament.refresh_from_db()
+		self.assertEqual(self.tournament.status, "Registration Open")
+
+		cancel_response = self.client.post(reverse("tournament_cancel", args=[self.tournament.slug]))
+		self.assertEqual(cancel_response.status_code, 302)
+		self.tournament.refresh_from_db()
+		self.assertEqual(self.tournament.status, "Cancelled")
+
+		self.client.logout()
+		self.client.login(username="player", password="pass-12345")
+		response = self.client.post(reverse("tournament_toggle_registration", args=[self.tournament.slug]))
+		self.assertEqual(response.status_code, 404)
+
+	def test_organizer_can_delete_tournament_but_other_users_cannot(self):
+		self.client.login(username="organizer", password="pass-12345")
+		response = self.client.post(reverse("tournament_delete", args=[self.tournament.slug]))
+		self.assertEqual(response.status_code, 302)
+		self.assertFalse(Tournament.objects.filter(id=self.tournament.id).exists())
+		self.client.logout()
+		self.client.login(username="player", password="pass-12345")
+		response = self.client.post(reverse("tournament_delete", args=[self.tournament.slug]))
+		self.assertEqual(response.status_code, 404)
 
 	def test_challenge_cannot_target_self(self):
 		self.client.login(username="organizer", password="pass-12345")

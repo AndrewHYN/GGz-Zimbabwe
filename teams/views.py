@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db.models import Q
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.text import slugify
@@ -24,8 +25,37 @@ def team_list(request):
 
 
 def team_detail(request, slug):
-    team = get_object_or_404(Team.objects.select_related("owner", "game").prefetch_related("memberships__player"), slug=slug)
-    return render(request, "teams/team_detail.html", {"team": team})
+    team = get_object_or_404(Team.objects.select_related("owner", "game").prefetch_related("memberships__player__user"), slug=slug)
+    tournaments = list(team.tournament_history)
+    from tournaments.models import TournamentMatch
+
+    memberships = team.memberships.select_related("player__user").order_by("role", "player__gamer_tag")
+    captains = list(team.memberships.filter(role="Captain").select_related("player__user"))
+    upcoming_matches = (
+        TournamentMatch.objects.filter(status__in=("Scheduled", "Live"), tournament__registrations__player__team_memberships__team=team)
+        .filter(Q(player_one__team_memberships__team=team) | Q(player_two__team_memberships__team=team))
+        .distinct()
+        .select_related("tournament", "game", "winner")[:5]
+    )
+    completed_matches = (
+        TournamentMatch.objects.filter(status="Completed", tournament__registrations__player__team_memberships__team=team)
+        .filter(Q(player_one__team_memberships__team=team) | Q(player_two__team_memberships__team=team))
+        .distinct()
+        .select_related("tournament", "game", "winner")[:5]
+    )
+    return render(
+        request,
+        "teams/team_detail.html",
+        {
+            "team": team,
+            "memberships": memberships,
+            "captains": captains,
+            "tournaments": tournaments,
+            "upcoming_matches": upcoming_matches,
+            "completed_matches": completed_matches,
+            "stats": {"wins": team.wins, "losses": team.losses, "matches_played": team.matches_played, "win_rate": team.win_rate},
+        },
+    )
 
 
 @login_required

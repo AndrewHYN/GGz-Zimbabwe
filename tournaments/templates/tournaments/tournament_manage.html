@@ -1,3 +1,65 @@
 {% extends "base.html" %}
 {% block title %}Manage {{ tournament.name }} | GGz{% endblock %}
-{% block content %}<main class="page-shell utility-page"><a class="back-link" href="{% url 'tournament_detail' tournament.slug %}">&larr; Back to tournament</a><p class="eyebrow">Organizer workspace</p><h1>Manage <em>{{ tournament.name }}</em></h1><section class="tournament-section"><div class="section-heading"><h2>Registrations</h2><span class="muted">{{ tournament.participant_count }} / {{ tournament.max_participants }}</span></div><div class="management-list">{% for registration in tournament.registrations.all %}<div class="management-row"><span><strong>{{ registration.player.gamer_tag }}</strong><small>{{ registration.status }}</small></span><span class="row-actions"><form method="post" action="{% url 'registration_action' registration.id 'approve' %}">{% csrf_token %}<button class="text-button" type="submit">Approve</button></form><form method="post" action="{% url 'registration_action' registration.id 'reject' %}">{% csrf_token %}<button class="text-button" type="submit">Reject</button></form><form method="post" action="{% url 'registration_action' registration.id 'remove' %}">{% csrf_token %}<button class="text-button" type="submit">Remove</button></form></span></div>{% empty %}<p class="muted">No registrations yet.</p>{% endfor %}</div></section><section class="tournament-section"><div class="section-heading"><h2>Matches</h2><a class="button alt" href="{% url 'match_create' tournament.slug %}">Schedule match</a></div>{% for match in tournament.matches.all %}<div class="management-row"><span>Round {{ match.round }} · {{ match.player_one.gamer_tag|default:"TBD" }} vs {{ match.player_two.gamer_tag|default:"TBD" }}<small>{% if match.scheduled_at %}{{ match.scheduled_at|date:"M j, Y · H:i" }}{% else %}Unscheduled{% endif %} · {{ match.status }}</small></span><span class="row-actions"><a class="text-link" href="{% url 'match_schedule' match.id %}">Schedule</a><a class="text-link" href="{% url 'match_result' match.id %}">Result</a></span></div>{% empty %}<p class="muted">No matches scheduled.</p>{% endfor %}</section></main>{% endblock %}
+{% block content %}
+<main class="page-shell utility-page">
+  <a class="back-link" href="{% url 'tournament_detail' tournament.slug %}">&larr; Back to tournament</a>
+  <p class="eyebrow">Organizer workspace</p>
+  <h1>Manage <em>{{ tournament.name }}</em></h1>
+
+  <section class="tournament-section">
+    <div class="section-heading"><h2>Overview</h2><span class="muted">{{ tournament.status }}</span></div>
+    <dl class="details">
+      <div class="detail"><dt>Format</dt><dd>{{ tournament.format }}</dd></div>
+      <div class="detail"><dt>Registrations</dt><dd>{{ tournament.participant_count }} / {{ tournament.max_participants }}</dd></div>
+      <div class="detail"><dt>Matches</dt><dd>{{ tournament.matches.count }}</dd></div>
+      <div class="detail"><dt>Bracket</dt><dd>{% if tournament.matches.exists %}Generated{% else %}Not generated{% endif %}</dd></div>
+      <div class="detail"><dt>Mode</dt><dd>{{ tournament.mode|title }}</dd></div>
+      <div class="detail"><dt>Starts</dt><dd>{{ tournament.start_date|date:"M j, Y" }}</dd></div>
+    </dl>
+  </section>
+
+  <section class="tournament-section">
+    <div class="section-heading"><h2>Management actions</h2></div>
+    <div class="row-actions">
+      <form method="post" action="{% url 'tournament_toggle_registration' tournament.slug %}">{% csrf_token %}<button class="button alt" type="submit">{% if tournament.status == 'Registration Open' %}Close registration{% else %}Open registration{% endif %}</button></form>
+      <form method="post" action="{% url 'tournament_cancel' tournament.slug %}">{% csrf_token %}<button class="button danger" type="submit">Cancel tournament</button></form>
+      <a class="button alt" href="{% url 'generate_bracket' tournament.slug %}">Generate bracket</a>
+      <a class="button alt" href="{% url 'tournament_edit' tournament.slug %}">Edit tournament</a>
+      <form method="post" action="{% url 'tournament_delete' tournament.slug %}">{% csrf_token %}<button class="button danger" type="submit">Delete tournament</button></form>
+    </div>
+  </section>
+
+  <section class="tournament-section">
+    <div class="section-heading"><h2>Registrations</h2><span class="muted">{{ tournament.participant_count }} / {{ tournament.max_participants }}</span></div>
+    <div class="management-list">
+      {% for registration in tournament.registrations.all %}
+        <div class="management-row">
+          <span><strong>{{ registration.player.gamer_tag }}</strong><small>{{ registration.status }}</small></span>
+          <span class="row-actions">
+            <form method="post" action="{% url 'registration_action' registration.id 'approve' %}">{% csrf_token %}<button class="text-button" type="submit">Approve</button></form>
+            <form method="post" action="{% url 'registration_action' registration.id 'reject' %}">{% csrf_token %}<button class="text-button" type="submit">Reject</button></form>
+            <form method="post" action="{% url 'registration_action' registration.id 'remove' %}">{% csrf_token %}<button class="text-button" type="submit">Remove</button></form>
+          </span>
+        </div>
+      {% empty %}
+        <p class="muted">No registrations yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="tournament-section">
+    <div class="section-heading"><h2>Matches</h2><a class="button alt" href="{% url 'match_create' tournament.slug %}">Schedule match</a></div>
+    {% for match in tournament.matches.all %}
+      <div class="management-row">
+        <span>Round {{ match.round }} · {{ match.player_one.gamer_tag|default:"TBD" }} vs {{ match.player_two.gamer_tag|default:"TBD" }}<small>{% if match.scheduled_at %}{{ match.scheduled_at|date:"M j, Y · H:i" }}{% else %}Unscheduled{% endif %} · {{ match.status }}</small></span>
+        <span class="row-actions">
+          <a class="text-link" href="{% url 'match_schedule' match.id %}">Schedule</a>
+          <a class="text-link" href="{% url 'match_result' match.id %}">Result</a>
+        </span>
+      </div>
+    {% empty %}
+      <p class="muted">No matches scheduled.</p>
+    {% endfor %}
+  </section>
+</main>
+{% endblock %}

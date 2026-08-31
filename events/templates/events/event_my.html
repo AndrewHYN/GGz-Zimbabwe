@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}My events | GGz{% endblock %}
+{% block content %}
+<main class="page-shell utility-page">
+  <p class="eyebrow">Organizer workspace</p>
+  <h1>My <em>events.</em></h1>
+  <section class="listing-grid page-section">
+    {% for event in events %}
+      <article class="player-card">
+        <a class="text-link" href="{% url 'event_detail' event.id %}">{{ event.name }}</a>
+        <p class="muted">{{ event.game.name|default:"Community event" }} · {{ event.status }}</p>
+        <small>{{ event.start_date|date:"M j, Y · H:i" }} · {{ event.rsvps.count }} attending</small>
+        <p>
+          <a class="text-link" href="{% url 'event_edit' event.id %}">Edit event</a>
+          ·
+          <form method="post" action="{% url 'event_delete' event.id %}" style="display:inline;">{% csrf_token %}<button class="text-button" type="submit">Delete event</button></form>
+        </p>
+      </article>
+    {% empty %}
+      <div class="empty-state">
+        <h2>No events created yet.</h2>
+        <p class="muted">Your organizer dashboard will appear here.</p>
+      </div>
+    {% endfor %}
+  </section>
+</main>
+{% endblock %}

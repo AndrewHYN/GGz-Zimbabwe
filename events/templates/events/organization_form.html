@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} | Events{% endblock %}
+{% block content %}
+<main class="page-shell form-page">
+    <a class="back-link" href="{% url 'event_list' %}">&larr; Back to events</a>
+    <div class="form-card">
+        <p class="eyebrow">Organizations</p>
+        <h1>{{ title }}</h1>
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button class="button" type="submit">Save organization</button>
+        </form>
+    </div>
+</main>
+{% endblock %}

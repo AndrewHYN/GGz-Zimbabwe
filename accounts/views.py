@@ -1,5 +1,9 @@
 import math
 
+import json
+from collections import Counter
+
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
@@ -10,7 +14,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
-from events.models import Event
+from events.models import Event, Organization
 from games.models import Game
 
 from .forms import CommentForm, GamerProfileForm, PostForm, SignupForm
@@ -40,6 +44,139 @@ def _distance_km(lat1, lon1, lat2, lon2):
 		+ math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2) ** 2
 	)
 	return 6371.0 * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+def _map_hotspot_payload():
+	min_threshold = getattr(settings, "GGZ_MAP_MIN_HOTSPOT_GAMERS", 3)
+	profiles = GamerProfile.objects.filter(location_public=True, latitude__isnull=False, longitude__isnull=False).prefetch_related("games")
+	clusters = {}
+	for profile in profiles:
+		if profile.latitude is None or profile.longitude is None:
+			continue
+		key = (round(float(profile.latitude), 2), round(float(profile.longitude), 2))
+		bucket = clusters.setdefault(key, {"latitude": key[0], "longitude": key[1], "gamer_count": 0, "games": []})
+		bucket["gamer_count"] += 1
+		bucket["games"].extend(game.name for game in profile.games.all())
+	hotspots = []
+	for data in clusters.values():
+		if data["gamer_count"] < min_threshold:
+			continue
+		popular_games = [name for name, _ in Counter(data["games"]).most_common(5)]
+		hotspots.append({
+			"latitude": data["latitude"],
+			"longitude": data["longitude"],
+			"gamer_count": data["gamer_count"],
+			"popular_games": popular_games,
+			"label": "Gamer Hotspot",
+		})
+	return sorted(hotspots, key=lambda item: (-item["gamer_count"], item["latitude"], item["longitude"]))
+
+
+def _map_entity_payload(model, queryset, kind, item_name_field="name"):
+	items = []
+	for item in queryset:
+		lat = getattr(item, "latitude", None)
+		lng = getattr(item, "longitude", None)
+		if lat is None or lng is None:
+			continue
+		payload = {
+			"id": item.pk,
+			"kind": kind,
+			"name": getattr(item, item_name_field),
+			"latitude": float(lat),
+			"longitude": float(lng),
+			"location": getattr(item, "location", "") or getattr(item, "city", "") or getattr(item, "address", "") or "Public location",
+		}
+		if hasattr(item, "game") and getattr(item, "game", None):
+			payload["game"] = item.game.name
+			payload["game_id"] = item.game_id
+		if hasattr(item, "status"):
+			payload["status"] = item.status
+		if hasattr(item, "url_name"):
+			payload["url"] = reverse(item.url_name, args=[item.pk]) if kind != "organization" else reverse("event_list")
+		else:
+			payload["url"] = "#"
+		items.append(payload)
+	return items
+
+
+def map_data(request):
+	venues = Venue.objects.filter(latitude__isnull=False, longitude__isnull=False).exclude(latitude=0, longitude=0).order_by("name")
+	venues_payload = [{
+		"id": item.pk,
+		"kind": "venue",
+		"name": item.name,
+		"latitude": float(item.latitude),
+		"longitude": float(item.longitude),
+		"category": item.category,
+		"location": item.city or item.province or item.country or item.address or "Public location",
+		"url": "#",
+	} for item in venues]
+	events = Event.objects.filter(location_public=True, latitude__isnull=False, longitude__isnull=False).exclude(latitude=0, longitude=0).select_related("game").order_by("start_date")
+	event_payload = [{
+		"id": item.pk,
+		"kind": "event",
+		"name": item.name,
+		"latitude": float(item.latitude),
+		"longitude": float(item.longitude),
+		"location": item.location or item.city or item.country or "Public location",
+		"status": item.status,
+		"game": item.game.name if item.game else "General",
+		"url": reverse("event_detail", args=[item.pk]),
+	} for item in events]
+	tournaments = Event.objects.none()
+	from tournaments.models import Tournament
+	tournaments = Tournament.objects.filter(latitude__isnull=False, longitude__isnull=False).exclude(latitude=0, longitude=0).select_related("game").order_by("start_date")
+	tournament_payload = [{
+		"id": item.pk,
+		"kind": "tournament",
+		"name": item.name,
+		"latitude": float(item.latitude),
+		"longitude": float(item.longitude),
+		"location": item.location or item.city or item.country or "Public location",
+		"status": item.status,
+		"game": item.game.name if item.game else "General",
+		"url": reverse("tournament_detail", args=[item.slug]),
+	} for item in tournaments]
+	organizations = Organization.objects.filter(location_public=True, latitude__isnull=False, longitude__isnull=False).exclude(latitude=0, longitude=0).order_by("name")
+	organization_payload = [{
+		"id": item.pk,
+		"kind": "organization",
+		"name": item.name,
+		"latitude": float(item.latitude),
+		"longitude": float(item.longitude),
+		"location": item.city or item.province or item.country or item.address or "Public location",
+		"organization_type": item.organization_type,
+		"url": "#",
+	} for item in organizations]
+
+	payload = {
+		"hotspots": _map_hotspot_payload(),
+		"venues": venues_payload,
+		"events": event_payload,
+		"tournaments": tournament_payload,
+		"organizations": organization_payload,
+	}
+	return JsonResponse(payload)
+
+
+def map_page(request):
+	provider = getattr(settings, "GGZ_MAP_PROVIDER", "osm")
+	api_key = getattr(settings, "GGZ_MAP_API_KEY", "")
+	default_lat = getattr(settings, "GGZ_MAP_DEFAULT_LATITUDE", -17.8252)
+	default_lng = getattr(settings, "GGZ_MAP_DEFAULT_LONGITUDE", 31.0335)
+	return render(
+		request,
+		"accounts/map_page.html",
+		{
+			"map_provider": provider,
+			"map_api_key": api_key,
+			"map_default_lat": default_lat,
+			"map_default_lng": default_lng,
+			"map_data_url": reverse("map_data"),
+			"min_hotspot_gamers": getattr(settings, "GGZ_MAP_MIN_HOTSPOT_GAMERS", 3),
+		},
+	)
 
 
 def geo_discovery(request):

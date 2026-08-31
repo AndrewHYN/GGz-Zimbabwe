@@ -5,7 +5,7 @@ from django.urls import reverse
 from games.models import Game
 
 from .models import Block, Conversation, ConversationParticipant, Follow, FriendRequest, Friendship, GamerProfile, Message, MessageRequest, Notification, Post, PostLike, RespectTransaction, Venue
-from events.models import Event
+from events.models import Event, Organization
 
 
 class HealthAndConfigTests(TestCase):
@@ -237,6 +237,131 @@ class GamerProfileWorkflowTests(TestCase):
 		)
 		response = self.client.get(reverse("geo_discovery"), {"lat": -17.8252, "lng": 31.0335, "radius": 20, "tournament_mode": "offline"})
 		self.assertContains(response, "Harare Cup")
+
+
+class GGzMapTests(TestCase):
+	def setUp(self):
+		self.profile = GamerProfile.objects.create(
+			user=User.objects.create_user(username="baselineplayer", password="pass"),
+			gamer_tag="BaselinePlayer",
+			city="Harare",
+			country="Zimbabwe",
+			latitude=-17.8252,
+			longitude=31.0335,
+			location_public=True,
+		)
+
+	def test_hotspot_api_aggregates_public_profiles_and_hides_private_details(self):
+		base_game = Game.objects.create(name="Tekken 8")
+		for i in range(3):
+			profile = GamerProfile.objects.create(
+				user=User.objects.create_user(username=f"hotspot{i}", password="pass"),
+				gamer_tag=f"Hotspot{i}",
+				city="Harare",
+				country="Zimbabwe",
+				latitude=-17.8244 + i * 0.0002,
+				longitude=31.0322 + i * 0.0002,
+				location_public=True,
+			)
+			profile.games.add(base_game)
+		GamerProfile.objects.create(
+			user=User.objects.create_user(username="secretplayer", password="pass"),
+			gamer_tag="SecretPlayer",
+			city="Harare",
+			country="Zimbabwe",
+			latitude=-17.8240,
+			longitude=31.0320,
+			location_public=False,
+		)
+		response = self.client.get(reverse("map_data"))
+		self.assertEqual(response.status_code, 200)
+		payload = response.json()
+		self.assertGreaterEqual(len(payload["hotspots"]), 1)
+		self.assertEqual(payload["hotspots"][0]["gamer_count"], 3)
+		self.assertNotIn("username", str(payload["hotspots"]))
+		self.assertNotIn("exact", str(payload["hotspots"]))
+		self.assertNotIn("Hotspot0", str(payload["hotspots"]))
+
+	def test_hotspot_threshold_and_empty_map_are_safe(self):
+		Game.objects.create(name="Valorant")
+		GamerProfile.objects.create(
+			user=User.objects.create_user(username="solo", password="pass"),
+			gamer_tag="SoloGuy",
+			city="Bulawayo",
+			country="Zimbabwe",
+			latitude=-20.1830,
+			longitude=28.5830,
+			location_public=True,
+		)
+		with self.settings(GGZ_MAP_MIN_HOTSPOT_GAMERS=3):
+			response = self.client.get(reverse("map_data"))
+			self.assertEqual(response.status_code, 200)
+			self.assertEqual(response.json()["hotspots"], [])
+		response = self.client.get(reverse("map_data", args=[]))
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.json()["hotspots"], [])
+
+	def test_public_entities_and_provider_fallback_are_included(self):
+		venue = Venue.objects.create(
+			name="Pixel Forge",
+			category="Gaming Lounge",
+			city="Harare",
+			country="Zimbabwe",
+			latitude=-17.8240,
+			longitude=31.0310,
+		)
+		org = Organization.objects.create(
+			owner=GamerProfile.objects.create(user=User.objects.create_user(username="orgowner", password="pass"), gamer_tag="OrgOwner"),
+			name="North Star Esports",
+			slug="north-star-esports",
+			organization_type="Organization",
+			description="Community organizer",
+			latitude=-17.8230,
+			longitude=31.0315,
+			location_public=True,
+		)
+		Event.objects.create(
+			organizer=GamerProfile.objects.create(user=User.objects.create_user(username="eventowner", password="pass"), gamer_tag="EventOwner"),
+			name="Harare LAN Weekend",
+			description="Public event",
+			start_date="2026-12-15T18:00:00Z",
+			status="Upcoming",
+			location="Harare",
+			latitude=-17.8235,
+			longitude=31.0325,
+		)
+		self.profile.organized_tournaments.create(
+			game=Game.objects.create(name="Street Fighter 6"),
+			name="Harare Cup",
+			slug="harare-cup-map",
+			description="Local map tournament.",
+			format="1v1",
+			start_date="2026-12-01T18:00:00Z",
+			registration_deadline="2026-11-30T18:00:00Z",
+			location="Harare",
+			city="Harare",
+			country="Zimbabwe",
+			mode="offline",
+			latitude=-17.8228,
+			longitude=31.0341,
+			status="Registration Open",
+		)
+		response = self.client.get(reverse("map_data"))
+		self.assertEqual(response.status_code, 200)
+		payload = response.json()
+		self.assertTrue(any(item["name"] == "Pixel Forge" for item in payload["venues"]))
+		self.assertTrue(any(item["name"] == "Harare LAN Weekend" for item in payload["events"]))
+		self.assertTrue(any(item["name"] == "Harare Cup" for item in payload["tournaments"]))
+		self.assertTrue(any(item["name"] == "North Star Esports" for item in payload["organizations"]))
+
+	def test_map_page_and_api_gracefully_handle_missing_provider_key(self):
+		with self.settings(GGZ_MAP_PROVIDER="google", GGZ_MAP_API_KEY=""):
+			response = self.client.get(reverse("map_page"))
+			self.assertEqual(response.status_code, 200)
+			self.assertContains(response, "GGz Map")
+			api_response = self.client.get(reverse("map_data"))
+			self.assertEqual(api_response.status_code, 200)
+			self.assertIn("hotspots", api_response.json())
 
 
 class GamerProfileGameTests(TestCase):

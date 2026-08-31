@@ -3,6 +3,8 @@ from django.test import TestCase
 from django.urls import reverse
 
 from accounts.models import GamerProfile
+from games.models import Game
+from tournaments.models import Tournament, TournamentMatch, TournamentRegistration
 
 from .models import Team, TeamInvitation, TeamMembership
 
@@ -99,3 +101,40 @@ class TeamInvitationTests(TestCase):
         response = self.client.post(reverse("team_create"), {"name": "Squad", "tag": "SQ"})
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "already exists")
+
+    def test_team_detail_shows_competitive_stats_and_tournament_history(self):
+        game = Game.objects.create(name="Apex Legends")
+        team = Team.objects.create(owner=self.owner, game=game, name="Elite Squad", tag="ES", slug="elite-squad")
+        TeamMembership.objects.create(team=team, player=self.owner, role="Captain")
+        member = GamerProfile.objects.create(user=User.objects.create_user(username="member-stats", password="pass"), gamer_tag="StatsMember")
+        TeamMembership.objects.create(team=team, player=member, role="Member")
+
+        tournament = Tournament.objects.create(
+            organizer=self.owner,
+            game=game,
+            name="Elite Open",
+            slug="elite-open",
+            description="Qualifying tournament",
+            format="1v1",
+            max_participants=8,
+            start_date="2030-01-05T18:00:00Z",
+            registration_deadline="2030-01-01T18:00:00Z",
+            status="Registration Open",
+        )
+        TournamentRegistration.objects.create(tournament=tournament, player=member, status="Registered")
+        TournamentMatch.objects.create(
+            tournament=tournament,
+            game=game,
+            player_one=member,
+            player_two=self.owner,
+            winner=member,
+            score="2-0",
+            status="Completed",
+        )
+
+        response = self.client.get(reverse("team_detail", args=(team.slug,)))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Tournament history")
+        self.assertContains(response, "Elite Open")
+        self.assertContains(response, "Wins")
+        self.assertContains(response, "Win rate")

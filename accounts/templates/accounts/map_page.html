@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}GGz Map | Discovery{% endblock %}
+{% block content %}
+<main class="page-shell">
+    <div class="page-section">
+        <p class="eyebrow">GGz Map</p>
+        <h1>Gamer hotspot discovery</h1>
+        <p class="lede">Explore a privacy-safe gaming ecosystem map with hotspots, venues, tournaments, events, and organizations.</p>
+    </div>
+
+    <section class="map-layout" aria-label="GGz map discovery panel">
+        <div class="map-shell">
+            <div id="ggz-map" data-default-lat="{{ map_default_lat }}" data-default-lng="{{ map_default_lng }}" data-map-provider="{{ map_provider }}" data-map-key="{{ map_api_key|default:'' }}" data-map-data-url="{{ map_data_url }}" aria-live="polite"></div>
+            <div class="map-overlay-card">
+                <strong>Privacy-safe discovery</strong>
+                <span>{{ min_hotspot_gamers }}+ gamers in a hotspot before it is shown</span>
+            </div>
+        </div>
+        <aside class="map-sidebar">
+            <div class="map-panel">
+                <h2>Layers</h2>
+                <div class="layer-toggle-group">
+                    <label><input type="checkbox" checked data-layer="hotspots"> 🔥 Gamer Hotspots</label>
+                    <label><input type="checkbox" checked data-layer="venues"> 🎮 Venues</label>
+                    <label><input type="checkbox" checked data-layer="tournaments"> 🏆 Tournaments</label>
+                    <label><input type="checkbox" checked data-layer="events"> 📅 Events</label>
+                    <label><input type="checkbox" checked data-layer="organizations"> 🏢 Organizations</label>
+                </div>
+            </div>
+            <div class="map-panel">
+                <h2>Map status</h2>
+                <div id="map-status" class="map-status">Loading map data…</div>
+            </div>
+            <div class="map-panel">
+                <h2>Insights</h2>
+                <ul id="map-insights" class="map-insights">
+                    <li>Use the layer toggles to focus on the gaming ecosystem.</li>
+                </ul>
+            </div>
+        </aside>
+    </section>
+</main>
+{% endblock %}

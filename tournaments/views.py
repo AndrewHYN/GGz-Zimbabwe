@@ -12,6 +12,7 @@ from accounts.models import GamerProfile, Notification, notify
 
 from .forms import ChallengeForm, MatchCreateForm, MatchResultForm, MatchScheduleForm, TournamentForm
 from .models import Challenge, Tournament, TournamentMatch, TournamentRegistration
+from teams.models import Team, TeamMembership
 
 
 def tournament_list(request):
@@ -71,6 +72,43 @@ def tournament_edit(request, slug):
 		messages.success(request, "Your tournament was updated.")
 		return redirect("tournament_manage", slug=tournament.slug)
 	return render(request, "tournaments/tournament_form.html", {"form": form, "title": "Edit tournament", "tournament": tournament})
+
+
+@login_required
+def tournament_delete(request, slug):
+	tournament = get_object_or_404(Tournament, slug=slug, organizer__user=request.user)
+	if request.method != "POST":
+		return HttpResponseForbidden("This action requires POST.")
+	tournament.delete()
+	messages.success(request, "Your tournament was deleted.")
+	return redirect("tournament_my")
+
+
+@login_required
+def tournament_toggle_registration(request, slug):
+	tournament = get_object_or_404(Tournament, slug=slug, organizer__user=request.user)
+	if request.method != "POST":
+		return HttpResponseForbidden("This action requires POST.")
+	if tournament.status == "Registration Open":
+		tournament.status = "Registration Closed"
+		message = "Registration closed."
+	else:
+		tournament.status = "Registration Open"
+		message = "Registration opened."
+	tournament.save(update_fields=("status",))
+	messages.success(request, message)
+	return redirect("tournament_manage", slug=tournament.slug)
+
+
+@login_required
+def tournament_cancel(request, slug):
+	tournament = get_object_or_404(Tournament, slug=slug, organizer__user=request.user)
+	if request.method != "POST":
+		return HttpResponseForbidden("This action requires POST.")
+	tournament.status = "Cancelled"
+	tournament.save(update_fields=("status",))
+	messages.success(request, "The tournament was cancelled.")
+	return redirect("tournament_manage", slug=tournament.slug)
 
 
 def _advance_winner(match):
@@ -173,6 +211,29 @@ def tournament_register(request, slug):
 		return HttpResponseForbidden("This action requires POST.")
 	if tournament.status != "Registration Open" or timezone.now() > tournament.registration_deadline:
 		return HttpResponseForbidden("Registration is closed.")
+
+	team_id = request.POST.get("team_id")
+	if team_id:
+		team = get_object_or_404(Team, id=team_id)
+		if team.game_id != tournament.game_id:
+			return HttpResponseForbidden("This team is not compatible with this tournament's game.")
+		if team.owner_id != player.id and not TeamMembership.objects.filter(team=team, player=player, role="Captain").exists():
+			return HttpResponseForbidden("Only the team owner or captain can register the team.")
+		members = list(TeamMembership.objects.filter(team=team).select_related("player"))
+		if not members:
+			return HttpResponseForbidden("This team has no members to register.")
+		new_count = TournamentRegistration.objects.filter(tournament=tournament, status="Registered").count() + len(members)
+		if new_count > tournament.max_participants:
+			return HttpResponseForbidden("This team would exceed the tournament participant limit.")
+		for membership in members:
+			registration, _ = TournamentRegistration.objects.get_or_create(tournament=tournament, player=membership.player, defaults={"status": "Registered"})
+			if registration.status in ("Withdrawn", "Waitlisted"):
+				registration.status = "Registered"
+				registration.save(update_fields=("status",))
+		notify(tournament.organizer, player, "tournament", f"{team.name} registered for {tournament.name}", f"/tournaments/{tournament.slug}/manage/")
+		messages.success(request, "Your team joined the tournament.")
+		return redirect("tournament_detail", slug=slug)
+
 	if tournament.participant_count >= tournament.max_participants:
 		return HttpResponseForbidden("This tournament is full.")
 	registration, _ = TournamentRegistration.objects.get_or_create(tournament=tournament, player=player, defaults={"status": "Registered"})

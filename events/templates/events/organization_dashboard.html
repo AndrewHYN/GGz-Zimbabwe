@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ organization.name }} | Organization{% endblock %}
+{% block content %}
+<main class="page-shell utility-page">
+  <p class="eyebrow">Organization dashboard</p>
+  <h1>{{ organization.name }}</h1>
+  <p class="lede">{{ organization.description|default:"Community operator and event partner." }}</p>
+
+  <dl class="details">
+    <div class="detail"><dt>Type</dt><dd>{{ organization.get_organization_type_display }}</dd></div>
+    <div class="detail"><dt>Status</dt><dd>{{ organization.verification_status }}</dd></div>
+    <div class="detail"><dt>Website</dt><dd>{% if organization.website %}<a class="text-link" href="{{ organization.website }}" target="_blank" rel="noreferrer">Visit</a>{% else %}Not listed{% endif %}</dd></div>
+  </dl>
+
+  <section class="page-section">
+    <h2>Events</h2>
+    {% if events %}
+      <ul class="game-list">
+        {% for event in events %}
+          <li><a class="text-link" href="{% url 'event_detail' event.id %}">{{ event.name }}</a><span class="muted"> · {{ event.status }} · {{ event.start_date|date:"M j, Y" }}</span></li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">No events yet.</p>
+    {% endif %}
+  </section>
+
+  <section class="page-section">
+    <h2>Promotion requests</h2>
+    {% if promotion_requests %}
+      <ul class="game-list">
+        {% for request in promotion_requests %}
+          <li><strong>{{ request.request_type }}</strong><span class="muted"> · {{ request.status }} · {{ request.event.name }}</span></li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">No promotion requests yet.</p>
+    {% endif %}
+  </section>
+</main>
+{% endblock %}

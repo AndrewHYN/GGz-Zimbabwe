@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Promotion request | Events{% endblock %}
+{% block content %}
+<main class="page-shell form-page">
+    <a class="back-link" href="{% url 'event_detail' event_id=event.id %}">&larr; Back to event</a>
+    <div class="form-card">
+        <p class="eyebrow">Promotions</p>
+        <h1>Request event promotion</h1>
+        <form method="post">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button class="button" type="submit">Submit request</button>
+        </form>
+    </div>
+</main>
+{% endblock %}
