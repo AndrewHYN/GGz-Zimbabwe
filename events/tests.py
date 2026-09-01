@@ -159,4 +159,62 @@ class EventManagementTests(TestCase):
 		self.assertContains(response, reverse("event_promotion_review", args=(promotion.id, "approve")))
 		self.assertContains(response, reverse("event_promotion_review", args=(promotion.id, "reject")))
 
+	def test_organization_dashboard_allows_creating_a_public_location(self):
+		org = Organization.objects.create(
+			owner=self.profile,
+			name="Harare Arcade",
+			slug="harare-arcade",
+			organization_type="Venue",
+			description="Local gaming venue",
+		)
+		self.client.login(username="event-owner", password="pass")
+		response = self.client.post(
+			reverse("organization_location_create", args=(org.slug,)),
+			{
+				"name": "Harare Arcade LAN Lounge",
+				"location_type": "Gaming Hub",
+				"address": "12 Main Street",
+				"city": "Harare",
+				"country": "Zimbabwe",
+				"latitude": "-17.8252",
+				"longitude": "31.0335",
+				"public_visible": "on",
+				"verification_status": "VERIFIED",
+			},
+		)
+		self.assertEqual(response.status_code, 302)
+		self.assertTrue(org.locations.filter(name="Harare Arcade LAN Lounge").exists())
+
+		dashboard = self.client.get(reverse("organization_dashboard", args=(org.slug,)))
+		self.assertEqual(dashboard.status_code, 200)
+		self.assertContains(dashboard, "Harare Arcade LAN Lounge")
+
+	def test_organization_portal_blocks_other_owners_and_edits_locations(self):
+		org = Organization.objects.create(owner=self.profile, name="Portal Hub", slug="portal-hub", organization_type="Venue")
+		location = org.locations.create(name="Portal Hub Main", city="Harare", latitude=-17.8252, longitude=31.0335)
+		other_user = User.objects.create_user(username="portal-other", password="pass")
+		other_profile = GamerProfile.objects.create(user=other_user, gamer_tag="PortalOther")
+		self.client.login(username="portal-other", password="pass")
+		self.assertEqual(self.client.get(reverse("organization_portal_dashboard", args=(org.slug,))).status_code, 403)
+		self.assertEqual(self.client.post(reverse("organization_location_edit", args=(org.slug, location.id)), {"name": "Changed"}).status_code, 403)
+
+		self.client.login(username="event-owner", password="pass")
+		response = self.client.post(
+			reverse("organization_location_edit", args=(org.slug, location.id)),
+			{"name": "Portal Hub Updated", "location_type": "Gaming Hub", "city": "Bulawayo", "latitude": "-20.15", "longitude": "28.58", "public_visible": "on"},
+		)
+		self.assertEqual(response.status_code, 302)
+		location.refresh_from_db()
+		self.assertEqual(location.name, "Portal Hub Updated")
+		self.assertEqual(location.verification_status, "UNVERIFIED")
+
+	def test_public_organization_profile_only_exposes_public_locations(self):
+		org = Organization.objects.create(owner=self.profile, name="Public Arcade", slug="public-arcade", organization_type="Venue", location_public=False)
+		public_location = org.locations.create(name="Public Arcade Main", city="Harare", latitude=-17.8252, longitude=31.0335, public_visible=True)
+		org.locations.create(name="Private Storage", city="Harare", latitude=-17.82, longitude=31.03, public_visible=False)
+		response = self.client.get(reverse("organization_public_profile", args=(org.slug,)))
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, public_location.name)
+		self.assertNotContains(response, "Private Storage")
+
 # Create your tests here.

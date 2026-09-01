@@ -1,7 +1,7 @@
 from django import forms
 from django.utils.text import slugify
 
-from .models import Event, EventPromotionRequest, Organization
+from .models import Event, EventPromotionRequest, Organization, OrganizationLocation
 
 
 class OrganizationForm(forms.ModelForm):
@@ -19,6 +19,39 @@ class OrganizationForm(forms.ModelForm):
         if commit:
             organization.save()
         return organization
+
+
+class OrganizationLocationForm(forms.ModelForm):
+    class Meta:
+        model = OrganizationLocation
+        fields = (
+            "name",
+            "location_type",
+            "address",
+            "city",
+            "country",
+            "description",
+            "phone",
+            "website",
+            "opening_hours",
+            "latitude",
+            "longitude",
+            "public_visible",
+        )
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 4}),
+            "opening_hours": forms.TextInput(attrs={"placeholder": "Mon-Sun: 10:00-22:00"}),
+            "latitude": forms.HiddenInput(),
+            "longitude": forms.HiddenInput(),
+        }
+
+    def save(self, commit=True, organization=None):
+        location = super().save(commit=False)
+        if organization is not None:
+            location.organization = organization
+        if commit:
+            location.save()
+        return location
 
 
 class EventPromotionRequestForm(forms.ModelForm):

@@ -1,10 +1,35 @@
 {% extends "base.html" %}
 {% block title %}{{ organization.name }} | Organization{% endblock %}
 {% block content %}
-<main class="page-shell utility-page">
-  <p class="eyebrow">Organization dashboard</p>
-  <h1>{{ organization.name }}</h1>
-  <p class="lede">{{ organization.description|default:"Community operator and event partner." }}</p>
+<main class="page-shell organization-portal-shell">
+  <div class="organization-portal-header">
+    <div>
+      <p class="eyebrow">GGz Organization Portal</p>
+      <h1>{{ organization.name }}</h1>
+      <p class="lede">{{ organization.description|default:"Manage your presence across the GGz gaming ecosystem." }}</p>
+    </div>
+    <div class="organization-portal-actions">
+      <a class="button alt" href="{% url 'organization_public_profile' organization.slug %}">View public profile</a>
+      <a class="button alt" href="{% url 'map_page' %}">View on Radar</a>
+      <a class="button" href="{% url 'organization_portal_location_create' organization.slug %}">Add location</a>
+    </div>
+  </div>
+
+  <nav class="organization-portal-nav" aria-label="Organization portal">
+    <a class="is-active" href="{% url 'organization_portal_dashboard' organization.slug %}">Overview</a>
+    <a href="{% url 'organization_edit' organization.slug %}">Profile</a>
+    <a href="#locations">Locations</a>
+    <a href="#events">Events</a>
+    <a href="#reviews">Reviews</a>
+    <span class="portal-nav-muted">Games · Media · Settings</span>
+  </nav>
+
+  <div class="organization-stat-grid">
+    <div class="organization-stat"><span>Locations</span><strong>{{ locations|length }}</strong></div>
+    <div class="organization-stat"><span>Upcoming events</span><strong>{{ events|length }}</strong></div>
+    <div class="organization-stat"><span>Radar presence</span><strong>{{ organization.verification_status }}</strong></div>
+    <div class="organization-stat"><span>Subscription</span><strong>{% if locations %}{{ locations.0.subscription_status }}{% else %}FREE{% endif %}</strong></div>
+  </div>
 
   <dl class="details">
     <div class="detail"><dt>Type</dt><dd>{{ organization.get_organization_type_display }}</dd></div>
@@ -12,7 +37,31 @@
     <div class="detail"><dt>Website</dt><dd>{% if organization.website %}<a class="text-link" href="{{ organization.website }}" target="_blank" rel="noreferrer">Visit</a>{% else %}Not listed{% endif %}</dd></div>
   </dl>
 
-  <section class="page-section">
+  <section class="page-section portal-section" id="locations">
+    <h2>Radar locations</h2>
+    {% if locations %}
+      <ul class="game-list">
+        {% for location in locations %}
+          <li>
+            <div class="promotion-request-item">
+              <div>
+                <strong>{{ location.name }}</strong>
+                <span class="muted"> · {{ location.location_type }} · {{ location.city|default:"Location" }}</span>
+              </div>
+              <div class="row-actions">
+                <a class="button alt" href="{% url 'organization_location_edit' organization.slug location.id %}">Manage</a>
+                {% if location.public_visible %}<a class="button alt" href="{% url 'radar_location_detail' location.id %}" target="_blank" rel="noreferrer">View</a>{% endif %}
+              </div>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">No public Radar locations yet. Add your first venue.</p>
+    {% endif %}
+  </section>
+
+  <section class="page-section portal-section" id="events">
     <h2>Events</h2>
     {% if events %}
       <ul class="game-list">
@@ -25,7 +74,7 @@
     {% endif %}
   </section>
 
-  <section class="page-section">
+  <section class="page-section portal-section" id="reviews">
     <h2>Promotion requests</h2>
     {% if promotion_requests %}
       <ul class="game-list">

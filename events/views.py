@@ -1,15 +1,17 @@
 from django.shortcuts import render
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect
 from django.core.paginator import Paginator
+from django.db.models import Q
 from django.utils.text import slugify
 
 from accounts.models import GamerProfile
-from .models import Event, EventPromotionRequest, EventRsvp, Organization
-from .forms import EventForm, EventPromotionRequestForm, OrganizationForm
+from .forms import EventForm, EventPromotionRequestForm, OrganizationForm, OrganizationLocationForm
+from .models import Event, EventPromotionRequest, EventRsvp, Organization, OrganizationLocation
 
 
 def event_list(request):
@@ -88,10 +90,86 @@ def event_publish(request, event_id):
 @login_required
 def organization_dashboard(request, slug):
 	profile = get_object_or_404(GamerProfile, user=request.user)
-	organization = get_object_or_404(Organization.objects.select_related("owner__user").prefetch_related("events", "promotion_requests"), slug=slug)
+	organization = get_object_or_404(Organization.objects.select_related("owner__user").prefetch_related("events", "promotion_requests", "locations"), slug=slug)
 	if organization.owner_id != profile.id:
 		return HttpResponseForbidden("You are not the owner of this organization.")
-	return render(request, "events/organization_dashboard.html", {"organization": organization, "events": organization.events.all(), "promotion_requests": organization.promotion_requests.all()})
+	return render(request, "events/organization_dashboard.html", {
+		"organization": organization,
+		"events": organization.events.all(),
+		"promotion_requests": organization.promotion_requests.all(),
+		"locations": organization.locations.all(),
+	})
+
+
+@login_required
+def organization_portal(request):
+	profile = get_object_or_404(GamerProfile, user=request.user)
+	organization = Organization.objects.filter(owner=profile).order_by("name").first()
+	if organization is None:
+		return redirect("organization_create")
+	return redirect("organization_portal_dashboard", slug=organization.slug)
+
+
+def organization_public_profile(request, slug):
+	organization = get_object_or_404(
+		Organization.objects.prefetch_related("locations__games", "locations__reviews__author__user", "events__game"),
+		Q(slug=slug) & (Q(location_public=True) | Q(locations__public_visible=True)),
+	)
+	locations = organization.locations.filter(public_visible=True).order_by("name")
+	return render(request, "events/organization_public_profile.html", {
+		"organization": organization,
+		"locations": locations,
+		"events": organization.events.filter(status__in=("Published", "Upcoming", "Live")).order_by("start_date")[:6],
+	})
+
+
+@login_required
+def organization_location_create(request, slug):
+	profile = get_object_or_404(GamerProfile, user=request.user)
+	organization = get_object_or_404(Organization.objects.select_related("owner__user"), slug=slug)
+	if organization.owner_id != profile.id:
+		return HttpResponseForbidden("You are not the owner of this organization.")
+	form = OrganizationLocationForm(request.POST or None)
+	if request.method == "POST" and form.is_valid():
+		location = form.save(commit=False, organization=organization)
+		location.save()
+		messages.success(request, "Your gaming location was added to GGz Radar.")
+		return redirect("organization_portal_dashboard", slug=organization.slug)
+	return render(request, "events/organization_location_form.html", {
+		"form": form,
+		"organization": organization,
+		"title": "Add Radar location",
+		"map_provider": getattr(settings, "GGZ_MAP_PROVIDER", "google"),
+		"map_api_key": getattr(settings, "GGZ_MAP_API_KEY", ""),
+		"map_id": getattr(settings, "GGZ_MAP_ID", ""),
+		"map_default_lat": getattr(settings, "GGZ_MAP_DEFAULT_LATITUDE", -17.8252),
+		"map_default_lng": getattr(settings, "GGZ_MAP_DEFAULT_LONGITUDE", 31.0335),
+	})
+
+
+@login_required
+def organization_location_edit(request, slug, location_id):
+	profile = get_object_or_404(GamerProfile, user=request.user)
+	organization = get_object_or_404(Organization, slug=slug)
+	if organization.owner_id != profile.id:
+		return HttpResponseForbidden("You are not the owner of this organization.")
+	location = get_object_or_404(OrganizationLocation, pk=location_id, organization=organization)
+	form = OrganizationLocationForm(request.POST or None, instance=location)
+	if request.method == "POST" and form.is_valid():
+		form.save()
+		messages.success(request, "Your Radar location was updated.")
+		return redirect("organization_portal_dashboard", slug=organization.slug)
+	return render(request, "events/organization_location_form.html", {
+		"form": form,
+		"organization": organization,
+		"location": location,
+		"title": "Edit Radar location",
+		"map_provider": getattr(settings, "GGZ_MAP_PROVIDER", "google"),
+		"map_api_key": getattr(settings, "GGZ_MAP_API_KEY", ""),
+		"map_id": getattr(settings, "GGZ_MAP_ID", ""),
+		"map_default_lat": location.latitude or getattr(settings, "GGZ_MAP_DEFAULT_LATITUDE", -17.8252),
+		"map_default_lng": location.longitude or getattr(settings, "GGZ_MAP_DEFAULT_LONGITUDE", 31.0335),
+	})
 
 
 @login_required
@@ -109,6 +187,20 @@ def organization_create(request):
 		messages.success(request, "Your organization was created.")
 		return redirect("organization_dashboard", slug=organization.slug)
 	return render(request, "events/organization_form.html", {"form": form, "title": "Create organization"})
+
+
+@login_required
+def organization_edit(request, slug):
+	profile = get_object_or_404(GamerProfile, user=request.user)
+	organization = get_object_or_404(Organization, slug=slug)
+	if organization.owner_id != profile.id:
+		return HttpResponseForbidden("You are not the owner of this organization.")
+	form = OrganizationForm(request.POST or None, request.FILES or None, instance=organization)
+	if request.method == "POST" and form.is_valid():
+		form.save()
+		messages.success(request, "Your organization profile was updated.")
+		return redirect("organization_portal_dashboard", slug=organization.slug)
+	return render(request, "events/organization_form.html", {"form": form, "organization": organization, "title": "Edit organization profile"})
 
 
 @login_required

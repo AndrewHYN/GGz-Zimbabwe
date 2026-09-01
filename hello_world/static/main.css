@@ -130,6 +130,188 @@ a:hover { color: #a5b4fc; }
     gap: 0.5rem;
 }
 
+.radar-toolbar {
+    display: flex;
+    align-items: end;
+    flex-wrap: wrap;
+    gap: 0.7rem;
+    margin: 0 0 1.25rem;
+    padding: 0.8rem;
+    background: rgba(15, 23, 42, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 16px;
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.2);
+}
+
+.radar-search {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex: 1 1 280px;
+    min-width: 220px;
+}
+
+.radar-search-icon {
+    position: absolute;
+    left: 0.9rem;
+    color: var(--accent-secondary);
+    font-size: 1.35rem;
+    line-height: 1;
+    pointer-events: none;
+}
+
+.radar-search input,
+.radar-filter-select select {
+    width: 100%;
+    min-height: 44px;
+    color: var(--text-primary);
+    background: rgba(2, 6, 23, 0.64);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 10px;
+    outline: none;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+}
+
+.radar-search input {
+    padding: 0.65rem 0.9rem 0.65rem 2.45rem;
+}
+
+.radar-search input::placeholder {
+    color: var(--text-muted);
+}
+
+.radar-search input:focus,
+.radar-filter-select select:focus {
+    background: rgba(2, 6, 23, 0.9);
+    border-color: rgba(45, 212, 191, 0.8);
+    box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.14);
+}
+
+.radar-filter-group {
+    display: grid;
+    gap: 0.25rem;
+    min-width: 148px;
+}
+
+.radar-filter-label {
+    padding-left: 0.2rem;
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.radar-filter-select {
+    position: relative;
+    display: block;
+}
+
+.radar-filter-select::after {
+    position: absolute;
+    top: 50%;
+    right: 0.85rem;
+    color: var(--text-tertiary);
+    content: "⌄";
+    pointer-events: none;
+    transform: translateY(-55%);
+}
+
+.radar-filter-select select {
+    appearance: none;
+    padding: 0.65rem 2.2rem 0.65rem 0.8rem;
+    cursor: pointer;
+}
+
+.radar-filter-select option {
+    color: var(--text-primary);
+    background: var(--bg-2);
+}
+
+.radar-toggle {
+    display: inline-flex;
+    align-items: center;
+    align-self: end;
+    gap: 0.55rem;
+    min-height: 44px;
+    padding: 0 0.75rem;
+    color: var(--text-secondary);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 600;
+    transition: border-color var(--transition-fast), background var(--transition-fast), color var(--transition-fast);
+}
+
+.radar-toggle:hover {
+    background: rgba(148, 163, 184, 0.08);
+    border-color: rgba(148, 163, 184, 0.3);
+}
+
+.radar-toggle input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.radar-toggle-track {
+    position: relative;
+    width: 31px;
+    height: 18px;
+    flex: 0 0 auto;
+    background: rgba(100, 116, 139, 0.45);
+    border-radius: 999px;
+    transition: background var(--transition-fast);
+}
+
+.radar-toggle-track::after {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 12px;
+    height: 12px;
+    background: #e2e8f0;
+    border-radius: 50%;
+    content: "";
+    transition: transform var(--transition-fast);
+}
+
+.radar-toggle input:checked + .radar-toggle-track {
+    background: var(--accent-success);
+}
+
+.radar-toggle input:checked + .radar-toggle-track::after {
+    transform: translateX(13px);
+}
+
+.radar-toggle input:focus-visible + .radar-toggle-track {
+    box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.2);
+}
+
+.radar-toggle:has(input:checked) {
+    color: var(--text-primary);
+    border-color: rgba(16, 185, 129, 0.45);
+    background: rgba(16, 185, 129, 0.1);
+}
+
+.radar-toolbar-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-self: end;
+}
+
+.radar-action-btn {
+    min-height: 44px;
+    white-space: nowrap;
+}
+
+.radar-action-btn span {
+    color: #5eead4;
+    font-size: 1.1rem;
+    line-height: 1;
+}
+
 .radar-mode-btn,
 .primary-button,
 .filter-pill,
@@ -165,9 +347,37 @@ a:hover { color: #a5b4fc; }
 
 .radar-discovery-lists {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1rem;
     margin-top: 1.25rem;
+}
+
+.radar-discovery-panel {
+    min-width: 0;
+}
+
+.radar-section-heading,
+.organization-portal-header,
+.organization-portal-actions,
+.location-search-input {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.radar-section-heading h2 {
+    margin-bottom: 0;
+}
+
+.radar-result-count {
+    padding: 0.25rem 0.55rem;
+    color: var(--text-tertiary);
+    background: rgba(148, 163, 184, 0.08);
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    white-space: nowrap;
 }
 
 .radar-mini-grid {
@@ -185,6 +395,278 @@ a:hover { color: #a5b4fc; }
 .radar-mini-card h3 {
     font-size: 1rem;
     margin: 0.2rem 0 0.35rem;
+}
+
+.radar-gamer-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.7rem;
+}
+
+.radar-gamer-avatar {
+    display: grid;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    color: #042f2e;
+    background: linear-gradient(135deg, #5eead4, #93c5fd);
+    border-radius: 12px;
+    font-weight: 800;
+}
+
+.radar-gamer-copy {
+    min-width: 0;
+}
+
+.radar-gamer-copy .eyebrow,
+.radar-activity-card .eyebrow {
+    margin-bottom: 0.15rem;
+}
+
+.radar-gamer-copy h3,
+.radar-activity-card h3 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.radar-availability {
+    display: inline-flex;
+    padding: 0.14rem 0.45rem;
+    color: #bbf7d0;
+    background: rgba(16, 185, 129, 0.12);
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 700;
+}
+
+.radar-card-link,
+.radar-secondary-link {
+    color: #99f6e4;
+    font-size: 0.78rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.radar-secondary-link {
+    display: inline-flex;
+    gap: 0.4rem;
+    margin-top: 0.9rem;
+}
+
+.radar-activity-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+}
+
+.radar-activity-icon {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    flex: 0 0 auto;
+    place-items: center;
+    background: rgba(167, 139, 250, 0.14);
+    border-radius: 10px;
+}
+
+.tournament-icon {
+    background: rgba(249, 115, 22, 0.14);
+}
+
+.radar-empty-state {
+    padding: 1rem 0;
+}
+
+.radar-places-strip {
+    grid-column: 1 / -1;
+}
+
+.radar-places-list {
+    display: grid;
+    gap: 0.45rem;
+    color: var(--text-tertiary);
+    font-size: 0.82rem;
+}
+
+.radar-places-list strong {
+    color: var(--text-secondary);
+}
+
+.organization-portal-shell {
+    padding: 2.5rem 0 3rem;
+}
+
+.organization-portal-header {
+    align-items: flex-end;
+    padding-bottom: 1.4rem;
+}
+
+.organization-portal-header h1 {
+    margin-bottom: 0.45rem;
+}
+
+.organization-portal-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+    overflow-x: auto;
+    padding: 0.35rem;
+    margin-bottom: 1rem;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+}
+
+.organization-portal-nav a,
+.portal-nav-muted {
+    padding: 0.55rem 0.75rem;
+    color: var(--text-tertiary);
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.organization-portal-nav a:hover,
+.organization-portal-nav a.is-active {
+    color: var(--text-primary);
+    background: rgba(99, 102, 241, 0.18);
+}
+
+.portal-nav-muted {
+    margin-left: auto;
+    color: var(--text-muted);
+}
+
+.organization-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.organization-stat {
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 12px;
+}
+
+.organization-stat span {
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+
+.organization-stat strong {
+    display: block;
+    margin-top: 0.3rem;
+    color: var(--text-primary);
+    font-size: 1.35rem;
+}
+
+.location-picker {
+    min-width: 0;
+    margin-bottom: 1.2rem;
+    padding: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 14px;
+}
+
+.location-picker legend {
+    padding: 0 0.35rem;
+    color: var(--text-primary);
+    font-weight: 700;
+}
+
+.location-search-row {
+    display: grid;
+    gap: 0.35rem;
+    margin: 0.8rem 0;
+}
+
+.location-search-row label {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.location-search-input input {
+    flex: 1;
+    min-width: 0;
+    min-height: 42px;
+    padding: 0.6rem 0.75rem;
+    color: var(--text-primary);
+    background: rgba(2, 6, 23, 0.64);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 9px;
+}
+
+.location-picker-map {
+    min-height: 300px;
+    margin-top: 0.8rem;
+    overflow: hidden;
+    background: #101a1d;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+}
+
+.location-picker-status {
+    margin: 0.65rem 0 0;
+    color: var(--text-tertiary);
+    font-size: 0.78rem;
+}
+
+.organization-public-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 2rem 0 1.5rem;
+}
+
+.organization-public-header h1 {
+    margin-bottom: 0.45rem;
+}
+
+.organization-public-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr);
+    gap: 1rem;
+}
+
+.public-location-list {
+    display: grid;
+    gap: 0.65rem;
+    margin-top: 1rem;
+}
+
+.public-location-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.85rem;
+    background: rgba(148, 163, 184, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 10px;
+}
+
+.public-location-item h3 {
+    font-size: 1rem;
+}
+
+.public-location-item p {
+    margin: 0.2rem 0 0;
+}
+
+.organization-public-events {
+    margin-top: 1rem;
 }
 
 .radar-sidebar,
@@ -419,6 +901,56 @@ a:hover { color: #a5b4fc; }
 }
 
 @media (max-width: 720px) {
+    .radar-toolbar {
+        align-items: stretch;
+        padding: 0.7rem;
+    }
+    .radar-search,
+    .radar-filter-group {
+        flex-basis: 100%;
+    }
+    .radar-filter-group {
+        min-width: 0;
+    }
+    .radar-toggle {
+        align-self: stretch;
+        justify-content: space-between;
+    }
+    .radar-toolbar-actions {
+        width: 100%;
+    }
+    .radar-action-btn {
+        flex: 1;
+    }
+    .radar-discovery-lists {
+        grid-template-columns: 1fr;
+    }
+    .radar-places-strip {
+        grid-column: auto;
+    }
+    .radar-section-heading {
+        align-items: flex-start;
+    }
+    .radar-gamer-card {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+    .radar-gamer-card .radar-card-link {
+        grid-column: 2;
+    }
+    .organization-portal-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+    .organization-portal-actions {
+        width: 100%;
+    }
+    .organization-portal-actions .button {
+        flex: 1;
+        text-align: center;
+    }
+    .organization-stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
     .radar-hero,
     .radar-detail-header {
         flex-direction: column;

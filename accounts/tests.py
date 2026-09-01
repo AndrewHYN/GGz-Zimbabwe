@@ -536,6 +536,21 @@ class GGzMapTests(TestCase):
 		payload = api_response.json()
 		self.assertTrue(any(item["name"] == "Harare Gaming Hub" for item in payload["locations"]))
 
+	def test_nearby_gaming_shows_three_gamers_and_discovery_link(self):
+		for index in range(4):
+			GamerProfile.objects.create(
+				user=User.objects.create_user(username=f"radar-player-{index}", password="pass"),
+				gamer_tag=f"RadarPlayer{index}",
+				city="Harare",
+				latitude=-17.8252,
+				longitude=31.0335,
+				location_public=True,
+			)
+		response = self.client.get(reverse("geo_discovery"))
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.content.decode().count('class="radar-mini-card radar-gamer-card"'), 3)
+		self.assertContains(response, "Show more gamers")
+
 
 class RadarLocationTests(TestCase):
 	def test_organization_location_tracks_verification_and_subscription(self):

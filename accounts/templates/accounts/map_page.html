@@ -20,35 +20,44 @@
     <section class="radar-toolbar" aria-label="GGz Radar search and controls">
         <label class="radar-search">
             <span class="sr-only">Search GGz Radar</span>
+            <span class="radar-search-icon" aria-hidden="true">⌕</span>
             <input id="radar-search-input" type="search" placeholder="Search venues, games, Harare, Tekken..." aria-label="Search Radar" />
         </label>
-        <label class="radar-filter-select">
-            <span class="sr-only">Filter Radar by category</span>
-            <select id="radar-category-filter" aria-label="Filter by category">
-                <option value="all">All categories</option>
-                <option value="gaming hubs">Gaming hubs</option>
-                <option value="esports">Esports</option>
-                <option value="lan">LAN</option>
-                <option value="tech">Tech</option>
-                <option value="developers">Developers</option>
-                <option value="events">Events</option>
-                <option value="tournaments">Tournaments</option>
-            </select>
-        </label>
-        <label class="radar-filter-select">
-            <span class="sr-only">Filter Radar by distance</span>
-            <select id="radar-distance-filter" aria-label="Distance filter">
-                <option value="100">Any distance</option>
-                <option value="5">Within 5 km</option>
-                <option value="10">Within 10 km</option>
-                <option value="25">Within 25 km</option>
-                <option value="50">Within 50 km</option>
-                <option value="100">Within 100 km</option>
-            </select>
-        </label>
-        <label class="radar-check-inline"><input type="checkbox" id="radar-verified-only" /> Verified only</label>
-        <button type="button" class="secondary-button" id="near-me-btn">Near Me</button>
-        <button type="button" class="secondary-button" id="map-legend-toggle">Legend</button>
+        <div class="radar-filter-group">
+            <span class="radar-filter-label">Explore</span>
+            <label class="radar-filter-select">
+                <span class="sr-only">Filter Radar by category</span>
+                <select id="radar-category-filter" aria-label="Filter by category">
+                    <option value="all">All categories</option>
+                    <option value="gaming hubs">Gaming hubs</option>
+                    <option value="esports">Esports</option>
+                    <option value="lan">LAN</option>
+                    <option value="tech">Tech</option>
+                    <option value="developers">Developers</option>
+                    <option value="events">Events</option>
+                    <option value="tournaments">Tournaments</option>
+                </select>
+            </label>
+        </div>
+        <div class="radar-filter-group">
+            <span class="radar-filter-label">Distance</span>
+            <label class="radar-filter-select">
+                <span class="sr-only">Filter Radar by distance</span>
+                <select id="radar-distance-filter" aria-label="Distance filter">
+                    <option value="100">Any distance</option>
+                    <option value="5">Within 5 km</option>
+                    <option value="10">Within 10 km</option>
+                    <option value="25">Within 25 km</option>
+                    <option value="50">Within 50 km</option>
+                    <option value="100">Within 100 km</option>
+                </select>
+            </label>
+        </div>
+        <label class="radar-toggle"><input type="checkbox" id="radar-verified-only" /><span class="radar-toggle-track" aria-hidden="true"></span><span>Verified only</span></label>
+        <div class="radar-toolbar-actions">
+            <button type="button" class="secondary-button radar-action-btn" id="near-me-btn"><span aria-hidden="true">◎</span> Near Me</button>
+            <button type="button" class="secondary-button radar-action-btn" id="map-legend-toggle"><span aria-hidden="true">◈</span> Legend</button>
+        </div>
     </section>
 
     <section class="radar-layout" aria-label="GGz Radar map discovery panel">
@@ -102,53 +111,64 @@
 
     {% if nearby_profiles or nearby_venues or nearby_events or nearby_tournaments %}
     <section class="radar-discovery-lists" aria-label="Nearby gaming results">
-        {% if nearby_profiles %}
-        <div class="radar-panel">
-            <h2>Nearby gamers</h2>
+        <div class="radar-panel radar-discovery-panel">
+            <div class="radar-section-heading">
+                <div><p class="eyebrow">Community</p><h2>Nearby gamers</h2></div>
+                <span class="radar-result-count">{{ nearby_profiles_total|default:0 }} public</span>
+            </div>
+            {% if nearby_profiles %}
             <div class="radar-mini-grid">
                 {% for gamer in nearby_profiles %}
-                <article class="radar-mini-card">
-                    <p class="eyebrow">Player</p>
-                    <h3>{{ gamer.gamer_tag }}</h3>
-                    <p class="muted">{% if gamer.city %}{{ gamer.city }}{% else %}{{ gamer.location|default:'Community' }}{% endif %}{% if gamer.distance_label %} · {{ gamer.distance_label }}{% endif %}</p>
+                <article class="radar-mini-card radar-gamer-card">
+                    <div class="radar-gamer-avatar">{{ gamer.gamer_tag|slice:":1"|upper }}</div>
+                    <div class="radar-gamer-copy">
+                        <p class="eyebrow">Player</p>
+                        <h3>{{ gamer.gamer_tag }}</h3>
+                        <p class="muted">{% if gamer.games.all %}{{ gamer.games.all.0.name }}{% else %}Community player{% endif %}{% if gamer.rank %} · {{ gamer.get_rank_display }}{% endif %}</p>
+                        {% if gamer.availability %}<span class="radar-availability">{{ gamer.get_availability_display }}</span>{% endif %}
+                    </div>
+                    <a class="radar-card-link" href="{% url 'profile_detail' gamer.gamer_tag %}">Profile <span aria-hidden="true">→</span></a>
                 </article>
                 {% endfor %}
             </div>
+            {% else %}
+            <p class="muted radar-empty-state">No public gamers are nearby yet.</p>
+            {% endif %}
+            <a class="radar-secondary-link" href="{% url 'gamer_discovery' %}">Show more gamers <span aria-hidden="true">→</span></a>
         </div>
-        {% endif %}
+
+        <div class="radar-panel radar-discovery-panel">
+            <div class="radar-section-heading">
+                <div><p class="eyebrow">Live activity</p><h2>Happening nearby</h2></div>
+                <span class="radar-result-count">{{ nearby_activity_total|default:0 }} listed</span>
+            </div>
+            {% if nearby_events or nearby_tournaments %}
+            <div class="radar-mini-grid">
+                {% for event in nearby_events|slice:":3" %}
+                <article class="radar-mini-card radar-activity-card">
+                    <span class="radar-activity-icon event-icon" aria-hidden="true">🎪</span>
+                    <div><p class="eyebrow">Event · {{ event.status }}</p><h3>{{ event.name }}</h3><p class="muted">{{ event.location|default:"Venue to be confirmed" }}{% if event.distance_label %} · {{ event.distance_label }}{% endif %}</p></div>
+                </article>
+                {% endfor %}
+                {% for tournament in nearby_tournaments|slice:":3" %}
+                <article class="radar-mini-card radar-activity-card">
+                    <span class="radar-activity-icon tournament-icon" aria-hidden="true">🏆</span>
+                    <div><p class="eyebrow">Tournament · {{ tournament.status }}</p><h3>{{ tournament.name }}</h3><p class="muted">{{ tournament.location|default:tournament.city|default:"Online" }}{% if tournament.distance_label %} · {{ tournament.distance_label }}{% endif %}</p></div>
+                </article>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="muted radar-empty-state">No public events or tournaments are scheduled nearby.</p>
+            {% endif %}
+            <a class="radar-secondary-link" href="{% url 'event_list' %}">View all activity <span aria-hidden="true">→</span></a>
+        </div>
 
         {% if nearby_venues %}
-        <div class="radar-panel">
-            <h2>Places</h2>
-            <div class="radar-mini-grid">
+        <div class="radar-panel radar-places-strip">
+            <p class="eyebrow">Public places</p>
+            <div class="radar-places-list">
                 {% for venue in nearby_venues %}
-                <article class="radar-mini-card">
-                    <p class="eyebrow">{{ venue.category|default:"Venue" }}</p>
-                    <h3>{{ venue.name }}</h3>
-                    <p class="muted">{{ venue.address|default:venue.city|default:"Location shared" }}{% if venue.distance_label %} · {{ venue.distance_label }}{% endif %}</p>
-                </article>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
-
-        {% if nearby_events or nearby_tournaments %}
-        <div class="radar-panel">
-            <h2>Nearby activities</h2>
-            <div class="radar-mini-grid">
-                {% for event in nearby_events %}
-                <article class="radar-mini-card">
-                    <p class="eyebrow">Event</p>
-                    <h3>{{ event.name }}</h3>
-                    <p class="muted">{{ event.location|default:"Venue to be confirmed" }}{% if event.distance_label %} · {{ event.distance_label }}{% endif %}</p>
-                </article>
-                {% endfor %}
-                {% for tournament in nearby_tournaments %}
-                <article class="radar-mini-card">
-                    <p class="eyebrow">Tournament</p>
-                    <h3>{{ tournament.name }}</h3>
-                    <p class="muted">{{ tournament.location|default:tournament.city|default:"Online" }}{% if tournament.distance_label %} · {{ tournament.distance_label }}{% endif %}</p>
-                </article>
+                <span><strong>{{ venue.name }}</strong> · {{ venue.category|default:"Venue" }} · {{ venue.address|default:venue.city|default:"Location shared" }}</span>
                 {% endfor %}
             </div>
         </div>

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}{{ organization.name }} | GGz{% endblock %}
+{% block content %}
+<main class="page-shell organization-public-page">
+  <header class="organization-public-header">
+    <div>
+      <p class="eyebrow">GGz Organization</p>
+      <h1>{{ organization.name }}</h1>
+      <p class="lede">{{ organization.description|default:"A local part of Zimbabwe's gaming ecosystem." }}</p>
+      {% if organization.verification_status == "Verified" %}<span class="verified-badge">✓ Verified organization</span>{% endif %}
+    </div>
+    <a class="button alt" href="{% url 'map_page' %}">Explore on Radar</a>
+  </header>
+
+  <section class="organization-public-grid">
+    <article class="radar-box">
+      <p class="eyebrow">Locations</p>
+      <h2>Find us</h2>
+      {% if locations %}
+        <div class="public-location-list">
+          {% for location in locations %}
+            <div class="public-location-item">
+              <div><h3>{{ location.name }}</h3><p class="muted">{{ location.location_type }} · {{ location.city|default:location.country }}</p></div>
+              <a class="radar-card-link" href="{% url 'radar_location_detail' location.id %}">View on Radar <span aria-hidden="true">→</span></a>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}<p class="muted">No public locations listed yet.</p>{% endif %}
+    </article>
+
+    <article class="radar-box">
+      <p class="eyebrow">Contact</p>
+      <h2>Connect</h2>
+      <ul class="meta-list">
+        {% if organization.address %}<li>{{ organization.address }}</li>{% endif %}
+        {% if organization.city %}<li>{{ organization.city }}{% if organization.country %}, {{ organization.country }}{% endif %}</li>{% endif %}
+        {% if organization.contact_email %}<li><a href="mailto:{{ organization.contact_email }}">{{ organization.contact_email }}</a></li>{% endif %}
+        {% if organization.website %}<li><a href="{{ organization.website }}" target="_blank" rel="noreferrer">Website</a></li>{% endif %}
+      </ul>
+    </article>
+  </section>
+
+  <section class="radar-box organization-public-events">
+    <p class="eyebrow">Live activity</p><h2>Upcoming events</h2>
+    {% if events %}<div class="radar-mini-grid">{% for event in events %}<div class="radar-mini-card"><p class="eyebrow">{{ event.status }}</p><h3><a href="{% url 'event_detail' event.id %}">{{ event.name }}</a></h3><p class="muted">{{ event.start_date|date:"M j, Y" }} · {{ event.game.name|default:"Community event" }}</p></div>{% endfor %}</div>{% else %}<p class="muted">No upcoming public events.</p>{% endif %}
+  </section>
+</main>
+{% endblock %}

@@ -34,7 +34,7 @@
             {% if organization %}
             <div class="organization-link-block">
                 <h3>Organization</h3>
-                <a href="{% url 'organization_dashboard' organization.slug %}">{{ organization.name }}</a>
+                <a href="{% url 'organization_public_profile' organization.slug %}">{{ organization.name }}</a>
             </div>
             {% endif %}
         </article>
