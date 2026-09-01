@@ -1283,8 +1283,8 @@ a:hover { color: #a5b4fc; }
 .player-grid,
 .listing-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
 }
 
 .gamer-card,
@@ -1292,13 +1292,14 @@ a:hover { color: #a5b4fc; }
 .listing-card {
     display: flex;
     flex-direction: column;
-    gap: 0.9rem;
+    gap: 1rem;
     min-height: 100%;
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     background: linear-gradient(180deg, rgba(18, 23, 30, 0.95), rgba(10, 14, 17, 0.95));
-    padding: 1.1rem;
+    padding: 1.25rem;
     transition: transform var(--transition-base), border-color var(--transition-base), box-shadow var(--transition-base);
+    overflow: hidden;
 }
 
 .gamer-card:hover,
@@ -2346,7 +2347,8 @@ a:hover { color: #a5b4fc; }
 }
 
 .tournament-grid {
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
 }
 
 .info-card {
@@ -2643,6 +2645,65 @@ a:hover { color: #a5b4fc; }
     }
 }
 
+/* Responsive List Grid Layouts */
+@media (max-width: 1024px) {
+    .games-grid,
+    .gamer-grid,
+    .player-grid,
+    .tournament-grid {
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 1.25rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .games-grid,
+    .gamer-grid,
+    .player-grid,
+    .listing-grid,
+    .tournament-grid {
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+
+    .gamer-card,
+    .player-card,
+    .listing-card,
+    .game-card {
+        padding: 1rem;
+    }
+}
+
+@media (max-width: 640px) {
+    .games-grid,
+    .gamer-grid,
+    .player-grid,
+    .listing-grid,
+    .tournament-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+    }
+
+    .post-card {
+        padding: 1rem;
+    }
+
+    .post-image {
+        margin: 0.75rem -1rem -1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .games-grid,
+    .gamer-grid,
+    .player-grid,
+    .listing-grid,
+    .tournament-grid {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+}
+
 @media (max-width: 900px) {
     .nav-menu {
         width: 100%;
@@ -2837,11 +2898,23 @@ a:hover { color: #a5b4fc; }
     background: var(--bg-1);
     border-radius: var(--radius-lg);
     transition: all var(--transition-base);
+    overflow: hidden;
 }
 
 .post-card:hover {
     border-color: var(--border-strong);
     box-shadow: var(--shadow-md);
+}
+
+.post-image {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    border-radius: var(--radius-md);
+    margin: 1rem -1.5rem -1.5rem;
+    margin-bottom: 1rem;
 }
 
 .post-header {
@@ -2929,12 +3002,6 @@ a:hover { color: #a5b4fc; }
 }
 
 /* Marketplace */
-.listing-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 1.5rem;
-}
-
 .listing-card {
     border: 1px solid var(--border);
     background: var(--bg-1);
