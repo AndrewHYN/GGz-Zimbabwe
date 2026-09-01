@@ -11,7 +11,7 @@ from accounts.models import Block, GamerProfile
 from tournaments.models import Challenge, Tournament, TournamentMatch
 from events.models import Event
 
-from .models import Game
+from .models import Game, GameReview, GameWishlist
 
 
 def _compute_game_stats(game):
@@ -114,6 +114,7 @@ def game_detail(request, game_id):
 			"posts__author__user",
 			"posts__likes",
 			"posts__comments",
+			"reviews__reviewer__user",
 		),
 		id=game_id,
 	)
@@ -122,9 +123,13 @@ def game_detail(request, game_id):
 	leaderboard = _compute_game_stats(game)[:10]
 	available_players = game.players.select_related("user").order_by("gamer_tag")[:8]
 	community_posts = game.posts.exclude(author_id__in=blocked_ids)[:5]
-	upcoming_tournaments = Tournament.objects.filter(game=game, status__in=("Registration Open", "Registration Closed")).select_related("organizer")[:4]
+	upcoming_tournaments = Tournament.objects.filter(game=game, status__in=("Registration Open", "Registration Closed", "Live")).select_related("organizer")[:4]
 	related_events = Event.objects.filter(game=game, status__in=("Upcoming", "Published", "Live")).select_related("organizer")[:4]
 	related_listings = Listing.objects.filter(game=game, status__in=("Available", "Reserved")).select_related("seller").prefetch_related("images")[:4]
+	reviews = list(game.reviews.select_related("reviewer__user").order_by("-created_at"))
+	user_review = next((review for review in reviews if viewer and review.reviewer_id == viewer.id), None)
+	wishlist_count = GameWishlist.objects.filter(game=game).count()
+	is_wishlisted = bool(viewer and GameWishlist.objects.filter(profile=viewer, game=game).exists())
 	challenge_form = None
 	if viewer:
 		from tournaments.forms import ChallengeForm
@@ -146,6 +151,15 @@ def game_detail(request, game_id):
 			"trailer_embed_url": game.trailer_embed_url,
 			"store_links": game.acquisition_links,
 			"primary_store_url": game.primary_store_url,
+			"average_rating": game.average_rating,
+			"review_count": game.review_count,
+			"reviews": reviews,
+			"user_review": user_review,
+			"is_wishlisted": is_wishlisted,
+			"wishlist_count": wishlist_count,
+			"player_count": game.players.count(),
+			"tournament_count": game.tournaments.filter(status__in=("Registration Open", "Registration Closed", "Live")).count(),
+			"event_count": game.events.filter(status__in=("Upcoming", "Published", "Live")).count(),
 		},
 	)
 
@@ -196,4 +210,46 @@ def game_challenge_create(request, game_id):
 		scheduled_at=scheduled_at,
 	)
 	messages.success(request, "Challenge sent.")
+	return redirect("game_detail", game_id=game.id)
+
+
+@login_required
+def game_review_create(request, game_id):
+	game = get_object_or_404(Game, id=game_id)
+	profile = get_object_or_404(GamerProfile, user=request.user)
+	rating = request.POST.get("rating")
+	review_text = (request.POST.get("review") or "").strip()
+	if not rating:
+		messages.error(request, "Select a rating before posting your review.")
+		return redirect("game_detail", game_id=game.id)
+	try:
+		rating_value = int(rating)
+	except (TypeError, ValueError):
+		messages.error(request, "The submitted rating was invalid.")
+		return redirect("game_detail", game_id=game.id)
+	if rating_value not in {1, 2, 3, 4, 5}:
+		messages.error(request, "The submitted rating was invalid.")
+		return redirect("game_detail", game_id=game.id)
+	review, created = GameReview.objects.get_or_create(game=game, reviewer=profile, defaults={"rating": rating_value, "review": review_text})
+	review.rating = rating_value
+	review.review = review_text
+	review.save()
+	if created:
+		messages.success(request, "Review posted.")
+	else:
+		messages.success(request, "Review updated.")
+	return redirect("game_detail", game_id=game.id)
+
+
+@login_required
+def game_wishlist_toggle(request, game_id):
+	game = get_object_or_404(Game, id=game_id)
+	profile = get_object_or_404(GamerProfile, user=request.user)
+	wishlist_item = GameWishlist.objects.filter(game=game, profile=profile).first()
+	if wishlist_item:
+		wishlist_item.delete()
+		messages.success(request, f"Removed {game.name} from your wishlist.")
+	else:
+		GameWishlist.objects.create(game=game, profile=profile)
+		messages.success(request, f"Added {game.name} to your wishlist.")
 	return redirect("game_detail", game_id=game.id)

@@ -11,7 +11,7 @@ from django.contrib.auth.models import User
 from tournaments.models import Challenge, Tournament, TournamentMatch
 from events.models import Event
 
-from .models import Game
+from .models import Game, GameReview, GameWishlist
 
 
 class GameHubTests(TestCase):
@@ -375,6 +375,23 @@ class GameHubTests(TestCase):
 		self.assertIn("width: fit-content", css)
 		self.assertIn("object-fit: cover", css)
 		self.assertIn("background-color: rgba(13, 18, 23, 0.9)", css)
+
+	def test_game_review_and_wishlist_flow_works(self):
+		game = Game.objects.create(name="Elden Ring", genre="Action RPG")
+		player_user = User.objects.create_user(username="reviewerone", password="pass")
+		player = GamerProfile.objects.create(user=player_user, gamer_tag="ReviewerOneZW")
+
+		self.client.force_login(player_user)
+		response = self.client.post(reverse("game_review_create", args=[game.id]), {"rating": 5, "review": "Excellent adventure."})
+		self.assertEqual(response.status_code, 302)
+		self.assertTrue(GameReview.objects.filter(game=game, reviewer=player, rating=5, review="Excellent adventure.").exists())
+
+		wishlist_response = self.client.post(reverse("game_wishlist_toggle", args=[game.id]))
+		self.assertEqual(wishlist_response.status_code, 302)
+		self.assertTrue(GameWishlist.objects.filter(game=game, profile=player).exists())
+
+		self.client.post(reverse("game_wishlist_toggle", args=[game.id]))
+		self.assertFalse(GameWishlist.objects.filter(game=game, profile=player).exists())
 
 	def test_game_detail_wires_find_players_and_challenge_friend_to_existing_system(self):
 		game = Game.objects.create(name="League of Legends", genre="MOBA")

@@ -21,35 +21,48 @@
             <div class="meta-row">
                 {% if game.developer %}<span>{{ game.developer }}</span>{% endif %}
                 {% if game.publisher %}<span>{{ game.publisher }}</span>{% endif %}
+                {% if game.genre %}<span>{{ game.genre }}</span>{% endif %}
+                {% if game.platform %}<span>{{ game.platform }}</span>{% endif %}
                 {% if game.release_year %}<span>{{ game.release_year }}</span>{% endif %}
                 {% if game.free_to_play %}<span>Free to play</span>{% else %}<span>Paid</span>{% endif %}
             </div>
 
-            <div class="actions detail-actions">
+            {% if average_rating is not None %}
+            <div class="review-summary" aria-label="Average user rating for {{ game.name }}">
+                <span class="rating-stars">★★★★★</span>
+                <strong>{{ average_rating }}</strong>
+                <span>({{ review_count }} review{{ review_count|pluralize }})</span>
+            </div>
+            {% endif %}
+
+            <div class="hub-actions" aria-label="Game actions for {{ game.name }}">
                 {% if store_links %}
                     {% for link in store_links %}
                         <a class="button button-primary" href="{{ link.url }}" target="_blank" rel="noopener noreferrer" aria-label="{{ link.aria_label }} for {{ game.name }}">
                             {{ link.label }}
-                            <span class="sr-only">{{ link.aria_label }}</span>
                         </a>
                     {% endfor %}
                 {% elif primary_store_url %}
                     <a class="button button-primary" href="{{ primary_store_url }}" target="_blank" rel="noopener noreferrer" aria-label="{{ store_label }} for {{ game.name }}">
                         {{ store_label }}
-                        <span class="sr-only">{{ store_label|upper }}</span>
                     </a>
                 {% else %}
-                    <a class="button button-primary" href="{% url 'game_detail' game.id %}" aria-label="{% if game.free_to_play %}Play free{% else %}Get game{% endif %} for {{ game.name }}">
+                    <a class="button button-primary" href="{% if game.free_to_play %}{{ game.primary_store_url|default:'#' }}{% else %}{{ primary_store_url|default:'#' }}{% endif %}" aria-label="{% if game.free_to_play %}Play free{% else %}Get game{% endif %} for {{ game.name }}">
                         {% if game.free_to_play %}Play Free{% else %}Get Game{% endif %}
-                        <span class="sr-only">{% if game.free_to_play %}PLAY FREE{% else %}GET GAME{% endif %}</span>
                     </a>
                 {% endif %}
-                <a class="button button-secondary" href="{% url 'gamer_discovery' %}?game={{ game.id }}" aria-label="Find players for {{ game.name }}">Find players for {{ game.name }}</a>
+                <a class="button button-secondary" href="{% url 'gamer_discovery' %}?game={{ game.id }}" aria-label="Find players for {{ game.name }}">Find players</a>
                 {% if viewer %}
-                    <a class="button button-ghost" href="#challenge-area" aria-label="Challenge a friend for {{ game.name }}">Challenge a friend</a>
+                    <a class="button button-ghost" href="#challenge-area" aria-label="Challenge a friend for {{ game.name }}">Challenge</a>
+                    <form method="post" action="{% url 'game_wishlist_toggle' game.id %}" class="inline-form">
+                        {% csrf_token %}
+                        <button class="button {% if is_wishlisted %}button-secondary{% else %}button-ghost{% endif %}" type="submit">{% if is_wishlisted %}✓ In Wishlist{% else %}+ Add to Wishlist{% endif %}</button>
+                    </form>
+                {% else %}
+                    <a class="button button-ghost" href="{% url 'login' %}?next={% url 'game_detail' game.id %}" aria-label="Log in to wishlist or review {{ game.name }}">Log in to wishlist</a>
                 {% endif %}
-                {% if upcoming_tournaments %}<a class="button button-ghost" href="#tournaments">View tournaments</a>{% endif %}
-                {% if related_events %}<a class="button button-ghost" href="#events">View events</a>{% endif %}
+                <a class="button button-ghost" href="#reviews" aria-label="Review {{ game.name }}">Rate / Review</a>
+                {% if trailer_embed_url %}<a class="button button-ghost" href="#trailer" aria-label="Watch the trailer for {{ game.name }}">Watch trailer</a>{% endif %}
             </div>
 
             <dl class="game-facts">
@@ -58,13 +71,41 @@
                 {% if game.platform %}<div class="detail"><dt>Platform</dt><dd>{{ game.platform }}</dd></div>{% endif %}
                 {% if game.release_year %}<div class="detail"><dt>Release</dt><dd>{{ game.release_year }}</dd></div>{% endif %}
                 {% if game.player_count %}<div class="detail"><dt>Players</dt><dd>{{ game.player_count }} players</dd></div>{% endif %}
-                <div class="detail"><dt>GGz players</dt><dd>{{ game.players.count }}</dd></div>
+                <div class="detail"><dt>GGz players</dt><dd>{{ player_count }}</dd></div>
+                {% if game.popularity %}<div class="detail"><dt>Popularity</dt><dd>{{ game.popularity }}%</dd></div>{% endif %}
             </dl>
+
+            <div class="hub-stats" aria-label="Game community stats for {{ game.name }}">
+                <div class="hub-stat">
+                    <strong>{{ player_count }}</strong>
+                    <span>Players</span>
+                </div>
+                <div class="hub-stat">
+                    <strong>{{ review_count }}</strong>
+                    <span>Reviews</span>
+                </div>
+                <div class="hub-stat">
+                    <strong>{% if average_rating is not None %}{{ average_rating }}{% else %}—{% endif %}</strong>
+                    <span>Rating</span>
+                </div>
+                <div class="hub-stat">
+                    <strong>{{ tournament_count }}</strong>
+                    <span>Tournaments</span>
+                </div>
+                <div class="hub-stat">
+                    <strong>{{ event_count }}</strong>
+                    <span>Events</span>
+                </div>
+                <div class="hub-stat">
+                    <strong>{{ wishlist_count }}</strong>
+                    <span>Saved</span>
+                </div>
+            </div>
         </div>
     </section>
 
     {% if trailer_embed_url %}
-    <section class="store-section game-trailer-section" aria-label="{{ game.name }} trailer">
+    <section id="trailer" class="store-section game-trailer-section" aria-label="{{ game.name }} trailer">
         <div class="section-header">
             <div>
                 <p class="eyebrow">Game Trailer</p>
@@ -76,6 +117,60 @@
         </div>
     </section>
     {% endif %}
+
+    <section class="store-section panel-section" id="reviews">
+        <div class="section-header">
+            <div>
+                <p class="eyebrow">Reviews</p>
+                <h2>Community rating</h2>
+            </div>
+        </div>
+
+        {% if viewer %}
+        <form method="post" action="{% url 'game_review_create' game.id %}" class="review-form">
+            {% csrf_token %}
+            <div class="review-form-row">
+                <label>
+                    <span>Rating</span>
+                    <select name="rating" aria-label="Rate {{ game.name }}">
+                        <option value="">Choose a rating</option>
+                        <option value="5" {% if user_review and user_review.rating == 5 %}selected{% endif %}>5 stars</option>
+                        <option value="4" {% if user_review and user_review.rating == 4 %}selected{% endif %}>4 stars</option>
+                        <option value="3" {% if user_review and user_review.rating == 3 %}selected{% endif %}>3 stars</option>
+                        <option value="2" {% if user_review and user_review.rating == 2 %}selected{% endif %}>2 stars</option>
+                        <option value="1" {% if user_review and user_review.rating == 1 %}selected{% endif %}>1 star</option>
+                    </select>
+                </label>
+                <button class="button button-primary" type="submit">{% if user_review %}Update review{% else %}Post review{% endif %}</button>
+            </div>
+            <label>
+                <span>Review</span>
+                <textarea name="review" rows="4" placeholder="Share your thoughts on {{ game.name }}...">{% if user_review %}{{ user_review.review }}{% endif %}</textarea>
+            </label>
+        </form>
+        {% endif %}
+
+        {% if reviews %}
+        <div class="review-list">
+            {% for review in reviews %}
+            <article class="review-card">
+                <div class="review-header">
+                    <strong>{{ review.reviewer.gamer_tag }}</strong>
+                    <span>{{ review.rating }} / 5</span>
+                </div>
+                {% if review.review %}
+                <p>{{ review.review }}</p>
+                {% else %}
+                <p class="muted">No written review, only a rating.</p>
+                {% endif %}
+                <small>{{ review.created_at|date:"M j, Y" }}</small>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted empty-card">No reviews yet. Be the first to rate this game.</p>
+        {% endif %}
+    </section>
 
     <div class="detail-layout">
         <div class="detail-main">
@@ -91,11 +186,14 @@
                     {% for player in available_players %}
                         <article class="player-mini-card">
                             <a href="{% url 'profile_detail' player.gamer_tag %}">{{ player.gamer_tag }}</a>
-                            <small>{{ player.rank }} · {{ player.platform|default:"PC" }}</small>
+                            <small>{{ player.rank|default:"GGz player" }} · {{ player.platform|default:"PC" }}</small>
                         </article>
                     {% empty %}
                         <p class="muted empty-card">No one is currently available to play.</p>
                     {% endfor %}
+                </div>
+                <div class="section-footer">
+                    <a class="button button-secondary" href="{% url 'gamer_discovery' %}?game={{ game.id }}">View all players</a>
                 </div>
             </section>
 

@@ -27,6 +27,17 @@ class Game(models.Model):
 		return self.name
 
 	@property
+	def average_rating(self):
+		reviews = self.reviews.all()
+		if not reviews:
+			return None
+		return round(sum(review.rating for review in reviews) / reviews.count(), 1)
+
+	@property
+	def review_count(self):
+		return self.reviews.count()
+
+	@property
 	def display_price(self):
 		return "Free to Play" if self.free_to_play else "Buy"
 
@@ -113,3 +124,43 @@ class Game(models.Model):
 			if "itch.io" in host:
 				return "Get on itch.io"
 		return "Get Game"
+
+
+class GameReview(models.Model):
+	RATING_CHOICES = [
+		(1, "1 star"),
+		(2, "2 stars"),
+		(3, "3 stars"),
+		(4, "4 stars"),
+		(5, "5 stars"),
+	]
+	game = models.ForeignKey(Game, related_name="reviews", on_delete=models.CASCADE)
+	reviewer = models.ForeignKey("accounts.GamerProfile", related_name="game_reviews", on_delete=models.CASCADE)
+	rating = models.PositiveSmallIntegerField(choices=RATING_CHOICES)
+	review = models.TextField(blank=True)
+	created_at = models.DateTimeField(auto_now_add=True)
+	updated_at = models.DateTimeField(auto_now=True)
+
+	class Meta:
+		ordering = ("-created_at",)
+		constraints = [
+			models.UniqueConstraint(fields=("game", "reviewer"), name="unique_game_review_per_user"),
+		]
+
+	def __str__(self):
+		return f"{self.reviewer.gamer_tag} reviewed {self.game.name} ({self.rating}/5)"
+
+
+class GameWishlist(models.Model):
+	game = models.ForeignKey(Game, related_name="wishlist_entries", on_delete=models.CASCADE)
+	profile = models.ForeignKey("accounts.GamerProfile", related_name="saved_games", on_delete=models.CASCADE)
+	created_at = models.DateTimeField(auto_now_add=True)
+
+	class Meta:
+		constraints = [
+			models.UniqueConstraint(fields=("game", "profile"), name="unique_game_wishlist_per_profile"),
+		]
+		ordering = ("-created_at",)
+
+	def __str__(self):
+		return f"{self.profile.gamer_tag} saved {self.game.name}"
