@@ -67,6 +67,19 @@ class GameHubTests(TestCase):
 		self.assertContains(response, "Tekken community post")
 		self.assertNotContains(response, "Street Fighter post")
 
+	def test_game_detail_has_compact_trailer_with_game_community_preview(self):
+		game = Game.objects.create(name="Mortal Kombat", trailer_url="https://www.youtube.com/watch?v=V5uCZuKtyr0")
+		user = User.objects.create_user(username="mkplayer")
+		profile = GamerProfile.objects.create(user=user, gamer_tag="MKPlayerZW")
+		Post.objects.create(author=profile, game=game, body="Finally hit Master 🔥")
+
+		response = self.client.get(reverse("game_detail", args=[game.id]))
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "VIEW ALL COMMUNITY POSTS")
+		self.assertContains(response, "game-community-panel")
+		self.assertContains(response, "Finally hit Master 🔥")
+
 	def test_game_leaderboard_shows_competitive_rankings(self):
 		game = Game.objects.create(name="Valorant")
 		organizer_user = User.objects.create_user(username="organizer", password="pass")

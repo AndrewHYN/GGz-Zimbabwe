@@ -34,9 +34,9 @@
             </header>
 
             <nav class="feed-tabs" aria-label="Feed views">
-                <a class="{% if tab == 'for-you' %}active{% endif %}" href="?tab=for-you">For You</a>
-                <a class="{% if tab == 'following' %}active{% endif %}" href="?tab=following">Following</a>
-                <a class="{% if tab == 'latest' %}active{% endif %}" href="?tab=latest">Latest</a>
+                <a class="{% if tab == 'for-you' %}active{% endif %}" href="?tab=for-you{% if game_id %}&game={{ game_id }}{% endif %}">For You</a>
+                <a class="{% if tab == 'following' %}active{% endif %}" href="?tab=following{% if game_id %}&game={{ game_id }}{% endif %}">Following</a>
+                <a class="{% if tab == 'latest' %}active{% endif %}" href="?tab=latest{% if game_id %}&game={{ game_id }}{% endif %}">Latest</a>
             </nav>
 
             {% if request.user.is_authenticated %}
@@ -63,17 +63,28 @@
                     {% include "accounts/post_card.html" with post=post %}
                 {% empty %}
                     <div class="empty-state">
+                        {% if tab == 'following' %}
+                        <h2>You're not following anyone yet.</h2>
+                        <p class="muted">Follow players, teams, and competitive creators to build your GGz feed.</p>
+                        {% elif tab == 'for-you' %}
+                        <h2>No personalized gaming discovery yet.</h2>
+                        <p class="muted">Follow games or players to unlock GGz recommendations and relevant community updates.</p>
+                        {% else %}
                         <h2>No posts here yet.</h2>
                         <p class="muted">Be the first player to share something with the community.</p>
+                        {% endif %}
+                        {% if request.user.is_authenticated %}
+                        <a class="button button-primary" href="{% url 'gamer_discovery' %}">Discover gamers</a>
+                        {% endif %}
                     </div>
                 {% endfor %}
             </section>
 
             {% if page.has_other_pages %}
             <nav class="pagination" aria-label="Feed pages">
-                {% if page.has_previous %}<a href="?tab={{ tab }}&page={{ page.previous_page_number }}">Previous</a>{% endif %}
+                {% if page.has_previous %}<a href="?tab={{ tab }}{% if game_id %}&game={{ game_id }}{% endif %}&page={{ page.previous_page_number }}">Previous</a>{% endif %}
                 <span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
-                {% if page.has_next %}<a href="?tab={{ tab }}&page={{ page.next_page_number }}">Next</a>{% endif %}
+                {% if page.has_next %}<a href="?tab={{ tab }}{% if game_id %}&game={{ game_id }}{% endif %}&page={{ page.next_page_number }}">Next</a>{% endif %}
             </nav>
             {% endif %}
         </section>

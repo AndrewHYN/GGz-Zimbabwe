@@ -104,22 +104,66 @@
         </div>
     </section>
 
-    <section id="trailer" class="store-section game-trailer-section" aria-label="{{ game.name }} gameplay trailer">
-        <div class="section-header">
-            <div>
-                <p class="eyebrow">Gameplay</p>
-                <h2>GAMEPLAY TRAILER</h2>
+    <section id="trailer" class="store-section game-trailer-community" aria-label="{{ game.name }} gameplay and community overview">
+        <div class="game-trailer-community-layout">
+            <div class="game-trailer-column">
+                <div class="section-header compact-header">
+                    <div>
+                        <p class="eyebrow">Gameplay</p>
+                        <h2>GAMEPLAY TRAILER</h2>
+                    </div>
+                </div>
+                {% if trailer_embed_url %}
+                <div class="trailer-frame">
+                    <iframe src="{{ trailer_embed_url }}?autoplay=1&mute=1&playsinline=1&rel=0" title="{{ game.name }} official trailer" loading="lazy" allow="autoplay; accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" playsinline></iframe>
+                </div>
+                {% else %}
+                <div class="trailer-placeholder">
+                    <p>Trailer preview is being prepared for {{ game.name }}.</p>
+                </div>
+                {% endif %}
             </div>
+
+            <aside class="game-community-panel" aria-label="Community activity for {{ game.name }}">
+                <div class="section-header compact-header">
+                    <div>
+                        <p class="eyebrow">Community</p>
+                        <h2>{{ game.name }}</h2>
+                    </div>
+                    <a class="text-link" href="{% url 'feed' %}?tab=latest&game={{ game.id }}">VIEW ALL COMMUNITY POSTS</a>
+                </div>
+
+                {% if community_posts %}
+                    <div class="game-community-posts">
+                        {% for post in community_posts %}
+                        <article class="game-community-post">
+                            <div class="game-community-post-header">
+                                <a href="{% url 'profile_detail' post.author.gamer_tag %}">{{ post.author.gamer_tag }}</a>
+                                <span>{{ post.created_at|timesince }} ago</span>
+                            </div>
+                            <p>{{ post.body|linebreaksbr }}</p>
+                            {% if post.game %}<div class="game-community-tag">🎮 {{ post.game.name }}</div>{% endif %}
+                            <div class="game-community-actions">
+                                <span>❤️ {{ post.likes.count }}</span>
+                                <span>💬 {{ post.comments.count }}</span>
+                                <span>🔁 {{ post.comments.count|add:post.likes.count|add:1 }}</span>
+                                <span>🔖</span>
+                            </div>
+                        </article>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="empty-community-panel">
+                        <p>No community posts yet. Be the first to post.</p>
+                        {% if viewer %}
+                        <a class="button button-primary" href="{% url 'feed' %}">CREATE POST</a>
+                        {% else %}
+                        <a class="button button-primary" href="{% url 'login' %}?next={% url 'feed' %}">CREATE POST</a>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </aside>
         </div>
-        {% if trailer_embed_url %}
-        <div class="trailer-frame">
-            <iframe src="{{ trailer_embed_url }}?autoplay=1&mute=1&playsinline=1&rel=0" title="{{ game.name }} official trailer" loading="lazy" allow="autoplay; accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" playsinline></iframe>
-        </div>
-        {% else %}
-        <div class="trailer-placeholder">
-            <p>Trailer preview is being prepared for {{ game.name }}.</p>
-        </div>
-        {% endif %}
     </section>
 
     <section class="store-section panel-section" id="reviews">
@@ -286,6 +330,7 @@
                         <p class="eyebrow">Community</p>
                         <h2>Recent posts</h2>
                     </div>
+                    <a class="text-link" href="{% url 'feed' %}?tab=latest&game={{ game.id }}">View all community posts</a>
                 </div>
                 <div class="post-list">
                     {% for post in community_posts %}

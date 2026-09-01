@@ -1479,14 +1479,36 @@ a:hover { color: #a5b4fc; }
     margin: 0;
 }
 
+.game-trailer-community {
+    padding: 1.25rem;
+}
+
+.game-trailer-community-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.65fr) minmax(260px, 0.9fr);
+    gap: 1.25rem;
+    align-items: start;
+}
+
+.game-trailer-column,
+.game-community-panel {
+    min-width: 0;
+}
+
+.compact-header {
+    margin-bottom: 0.9rem;
+}
+
 .trailer-frame {
     position: relative;
     width: 100%;
+    max-width: 100%;
     aspect-ratio: 16 / 9;
     overflow: hidden;
     border-radius: var(--radius-xl);
     border: 1px solid var(--border);
     background: rgba(0,0,0,0.3);
+    box-shadow: var(--shadow-md);
 }
 
 .trailer-frame iframe {
@@ -1504,6 +1526,99 @@ a:hover { color: #a5b4fc; }
     border-radius: var(--radius-xl);
     background: rgba(255,255,255,0.02);
     color: var(--text-secondary);
+}
+
+.game-community-panel {
+    display: grid;
+    gap: 0.9rem;
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    background: rgba(15, 19, 24, 0.95);
+    min-height: 100%;
+}
+
+.game-community-posts {
+    display: grid;
+    gap: 0.8rem;
+}
+
+.game-community-post {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.85rem 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: rgba(255,255,255,0.02);
+}
+
+.game-community-post-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.78rem;
+}
+
+.game-community-post-header a {
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.game-community-post-header span,
+.game-community-post p,
+.game-community-tag,
+.game-community-actions {
+    color: var(--text-secondary);
+}
+
+.game-community-post p {
+    margin: 0;
+    line-height: 1.5;
+    font-size: 0.93rem;
+}
+
+.game-community-tag {
+    display: inline-flex;
+    width: fit-content;
+    padding: 0.35rem 0.6rem;
+    border-radius: 999px;
+    background: rgba(99, 102, 241, 0.12);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.game-community-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+}
+
+.empty-community-panel {
+    display: grid;
+    gap: 0.9rem;
+    align-content: center;
+    min-height: 180px;
+    padding: 1rem;
+    border: 1px dashed rgba(255,255,255,0.15);
+    border-radius: var(--radius-lg);
+    background: rgba(255,255,255,0.02);
+    color: var(--text-secondary);
+}
+
+.empty-community-panel p {
+    margin: 0;
+}
+
+@media (max-width: 960px) {
+    .game-trailer-community-layout {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 960px) {

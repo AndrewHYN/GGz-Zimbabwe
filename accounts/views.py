@@ -693,13 +693,22 @@ def _visible_posts(viewer):
 def feed(request):
 	viewer = getattr(request.user, "gamer_profile", None)
 	posts = _visible_posts(viewer)
-	tab = request.GET.get("tab", "latest")
+	tab = request.GET.get("tab", "for-you" if viewer else "latest")
+	game_id = request.GET.get("game")
+	if game_id:
+		posts = posts.filter(game_id=game_id)
 	if tab == "following" and viewer:
-		posts = posts.filter(author__in=viewer.following.all())
+		followed_profile_ids = viewer.following.values_list("following_id", flat=True)
+		posts = posts.filter(author_id__in=followed_profile_ids)
 	elif tab == "for-you" and viewer:
-		posts = posts.filter(
-			Q(author__location=viewer.location) | Q(author__games__in=viewer.games.all())
-		).distinct()
+		interest_game_ids = viewer.games.values_list("id", flat=True)
+		if interest_game_ids:
+			posts = posts.filter(Q(game_id__in=interest_game_ids) | Q(author__games__in=interest_game_ids)).distinct()
+		else:
+			posts = posts.order_by("-created_at")
+	elif tab == "latest":
+		posts = posts.order_by("-created_at")
+	posts = posts.order_by("-created_at")
 	page = Paginator(posts, 10).get_page(request.GET.get("page"))
 	liked_post_ids = set(PostLike.objects.filter(user=viewer, post__in=page.object_list).values_list("post_id", flat=True)) if viewer else set()
 	saved_post_ids = set(PostSave.objects.filter(user=viewer, post__in=page.object_list).values_list("post_id", flat=True)) if viewer else set()
@@ -713,6 +722,7 @@ def feed(request):
 		{
 			"page": page,
 			"tab": tab,
+			"game_id": game_id,
 			"post_form": PostForm(),
 			"liked_post_ids": liked_post_ids,
 			"saved_post_ids": saved_post_ids,

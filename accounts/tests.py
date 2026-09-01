@@ -140,6 +140,46 @@ class GamerProfileWorkflowTests(TestCase):
 		self.assertContains(response, "TendaiZW")
 		self.assertContains(response, "Following")
 
+	def test_feed_following_only_shows_posts_from_followed_users(self):
+		viewer = self.profile
+		followed = GamerProfile.objects.get(gamer_tag="RudoZW")
+		Follow.objects.create(follower=viewer, following=followed)
+		followed_post = Post.objects.create(author=followed, body="Followed player update")
+		other_profile = GamerProfile.objects.create(
+			user=User.objects.create_user(username="otherfeeder", password="strong-password-123"),
+			gamer_tag="OtherFeedZW",
+		)
+		other_post = Post.objects.create(author=other_profile, body="Unfollowed player update")
+
+		self.client.login(username="tendai", password="strong-password-123")
+		response = self.client.get(reverse("feed"), {"tab": "following"})
+
+		self.assertContains(response, "Followed player update")
+		self.assertNotContains(response, "Unfollowed player update")
+		self.assertNotContains(response, "You're not following anyone yet.")
+
+	def test_feed_for_you_prioritizes_relevant_game_posts(self):
+		viewer = self.profile
+		game = Game.objects.create(name="Tekken 8")
+		viewer.games.add(game)
+		related_author = GamerProfile.objects.create(
+			user=User.objects.create_user(username="tekkengamer", password="strong-password-123"),
+			gamer_tag="TekkenFanZW",
+		)
+		related_author.games.add(game)
+		Post.objects.create(author=related_author, game=game, body="Relevant Tekken matchup thread")
+		unrelated_author = GamerProfile.objects.create(
+			user=User.objects.create_user(username="randomgamer", password="strong-password-123"),
+			gamer_tag="RandomZW",
+		)
+		Post.objects.create(author=unrelated_author, game=Game.objects.create(name="Fortnite"), body="Totally unrelated post")
+
+		self.client.login(username="tendai", password="strong-password-123")
+		response = self.client.get(reverse("feed"), {"tab": "for-you"})
+
+		self.assertContains(response, "Relevant Tekken matchup thread")
+		self.assertNotContains(response, "Totally unrelated post")
+
 	def test_message_requests_have_a_requests_dashboard(self):
 		self.client.login(username="tendai", password="strong-password-123")
 		self.client.post(reverse("message_request_action", args=["RudoZW", "send"]))
