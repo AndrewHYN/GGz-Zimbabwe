@@ -153,6 +153,9 @@
     const layerInputs = Array.from(document.querySelectorAll('[data-layer]'));
     const modeButtons = Array.from(document.querySelectorAll('[data-map-mode]'));
     const searchInput = document.getElementById('radar-search-input');
+    const categoryFilter = document.getElementById('radar-category-filter');
+    const distanceFilter = document.getElementById('radar-distance-filter');
+    const verifiedOnlyToggle = document.getElementById('radar-verified-only');
     const nearMeBtn = document.getElementById('near-me-btn');
     const legendToggle = document.getElementById('map-legend-toggle');
     const legend = document.getElementById('radar-legend');
@@ -161,6 +164,7 @@
     const mapDataUrl = mapContainer.dataset.mapDataUrl || '/map-data/';
     const provider = (mapContainer.dataset.mapProvider || 'google').toLowerCase();
     const apiKey = mapContainer.dataset.mapKey || '';
+    const mapId = mapContainer.dataset.mapId || '';
     let map = null;
     let renderMarkers = [];
     let clusterer = null;
@@ -246,6 +250,15 @@
       return new Set(layerInputs.filter((input) => input.checked).map((input) => input.dataset.layer));
     }
 
+    function getCurrentRadarFilters() {
+      return {
+        query: (searchInput && searchInput.value || '').trim().toLowerCase(),
+        category: (categoryFilter && categoryFilter.value || 'all').toLowerCase(),
+        distance: Number(distanceFilter && distanceFilter.value || 100),
+        verifiedOnly: Boolean(verifiedOnlyToggle && verifiedOnlyToggle.checked),
+      };
+    }
+
     function buildMapItems(data) {
       const activeLayers = getActiveLayers();
       const items = [];
@@ -283,21 +296,43 @@
     }
 
     function applySearch(items) {
-      const query = (searchInput && searchInput.value || '').trim().toLowerCase();
-      if (!query) return items;
-      return items.filter((item) => {
-        const haystack = [
-          item.name,
-          item.location,
-          item.city,
-          item.game,
-          item.organization,
-          item.location_type,
-          item.category,
-          item.kind,
-        ].filter(Boolean).join(' ').toLowerCase();
-        return haystack.includes(query);
-      });
+      const filters = getCurrentRadarFilters();
+      let filtered = items;
+      if (filters.query) {
+        filtered = filtered.filter((item) => {
+          const haystack = [
+            item.name,
+            item.location,
+            item.city,
+            item.game,
+            item.organization,
+            item.location_type,
+            item.category,
+            item.kind,
+          ].filter(Boolean).join(' ').toLowerCase();
+          return haystack.includes(filters.query);
+        });
+      }
+      if (filters.category && filters.category !== 'all') {
+        filtered = filtered.filter((item) => {
+          const kind = (item.kind || '').toLowerCase();
+          const categoryText = [item.location_type, item.category, item.organization_type, item.kind].join(' ').toLowerCase();
+          return categoryText.includes(filters.category) || kind === filters.category || kind.includes(filters.category);
+        });
+      }
+      if (filters.verifiedOnly) {
+        filtered = filtered.filter((item) => {
+          const verification = (item.verification_status || '').toString().toLowerCase();
+          return verification === 'verified';
+        });
+      }
+      if (Number.isFinite(filters.distance) && filters.distance && filters.distance < 100) {
+        filtered = filtered.filter((item) => {
+          if (item.distance_km === null || item.distance_km === undefined) return true;
+          return Number(item.distance_km) <= filters.distance;
+        });
+      }
+      return filtered;
     }
 
     function ensureGoogleMaps() {
@@ -435,10 +470,17 @@
       ]);
     }
 
-    async function loadMapData() {
+    async function loadMapData(extraParams = {}) {
       updateStatus('Loading map data…');
       try {
-        const response = await fetch(mapDataUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        const params = new URLSearchParams({
+          q: (searchInput && searchInput.value || '').trim(),
+          category: (categoryFilter && categoryFilter.value || 'all'),
+          distance: (distanceFilter && distanceFilter.value || '100'),
+          verified: verifiedOnlyToggle && verifiedOnlyToggle.checked ? '1' : '0',
+          ...extraParams,
+        });
+        const response = await fetch(`${mapDataUrl}?${params.toString()}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
         if (!response.ok) throw new Error('Map request failed');
         const data = await response.json();
         lastData = data;
@@ -453,19 +495,39 @@
 
     function activateMapMode(mode) {
       if (!map) return;
-      const buttonSet = new Set(modeButtons);
       modeButtons.forEach((button) => button.classList.toggle('is-active', button.dataset.mapMode === mode));
-      if (mode === 'road') map.setMapTypeId('roadmap');
-      if (mode === 'satellite') map.setMapTypeId('satellite');
-      if (mode === 'hybrid') map.setMapTypeId('hybrid');
-      if (mode === '3d') {
-        map.setTilt(45);
-        map.setHeading(45);
+      if (mode === 'road') {
         map.setMapTypeId('roadmap');
+        map.setTilt(0);
+      }
+      if (mode === 'satellite') {
+        map.setMapTypeId('satellite');
+        map.setTilt(0);
+      }
+      if (mode === 'hybrid') {
+        map.setMapTypeId('hybrid');
+        map.setTilt(0);
+      }
+      if (mode === '3d') {
+        if (window.google && window.google.maps && map.setTilt) {
+          map.setTilt(45);
+          map.setHeading(45);
+          map.setMapTypeId('roadmap');
+          updateStatus('3D tilt enabled where supported by the current provider configuration.');
+        } else {
+          updateStatus('3D map support is unavailable in this configuration.');
+          map.setMapTypeId('roadmap');
+        }
       }
       if (mode === 'street') {
-        if (map.getStreetView()) {
-          map.getStreetView().setVisible(true);
+        const panorama = map.getStreetView();
+        if (panorama) {
+          const target = { lat: map.getCenter().lat(), lng: map.getCenter().lng() };
+          panorama.setPosition(target);
+          panorama.setVisible(true);
+          updateStatus('Street View is active for the current map center.');
+        } else {
+          updateStatus("Street View isn't available at this location.");
         }
         map.setMapTypeId('roadmap');
       }
@@ -485,6 +547,30 @@
         searchInput.addEventListener('input', () => {
           if (!lastData) return;
           renderMapMarkers(lastData);
+        });
+      }
+
+      if (categoryFilter) {
+        categoryFilter.addEventListener('change', () => {
+          if (map) {
+            loadMapData();
+          }
+        });
+      }
+
+      if (distanceFilter) {
+        distanceFilter.addEventListener('change', () => {
+          if (map) {
+            loadMapData();
+          }
+        });
+      }
+
+      if (verifiedOnlyToggle) {
+        verifiedOnlyToggle.addEventListener('change', () => {
+          if (map) {
+            loadMapData();
+          }
         });
       }
 
@@ -538,7 +624,7 @@
         const mapOptions = {
           center: { lat: defaultLat, lng: defaultLng },
           zoom: 11,
-          mapId: 'GGZ_RADAR_MAP',
+          mapId: mapId || 'GGZ_RADAR_MAP',
           mapTypeControl: true,
           streetViewControl: true,
           fullscreenControl: true,

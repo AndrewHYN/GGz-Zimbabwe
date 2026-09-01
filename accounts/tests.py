@@ -10,7 +10,7 @@ from games.models import Game
 
 from .models import Block, Conversation, ConversationParticipant, ExternalFeedItem, Follow, FriendRequest, Friendship, GamerProfile, Message, MessageRequest, Notification, Post, PostLike, RespectTransaction, Venue
 from .services import _parse_rss_feed, refresh_public_gaming_feed
-from events.models import Event, Organization
+from events.models import Event, Organization, OrganizationLocation
 from teams.models import Team, TeamInvitation
 
 
@@ -505,6 +505,36 @@ class GGzMapTests(TestCase):
 			api_response = self.client.get(reverse("map_data"))
 			self.assertEqual(api_response.status_code, 200)
 			self.assertIn("hotspots", api_response.json())
+
+	def test_map_page_exposes_map_provider_configuration_and_filterable_data(self):
+		location = OrganizationLocation.objects.create(
+			organization=Organization.objects.create(
+				owner=GamerProfile.objects.create(user=User.objects.create_user(username="orgowner2", password="pass"), gamer_tag="OrgOwner2"),
+				name="Harare Gaming Hub",
+				slug="harare-gaming-hub",
+				organization_type="Venue",
+				latitude=-17.8252,
+				longitude=31.0335,
+				location_public=True,
+			),
+			name="Harare Gaming Hub",
+			location_type="Gaming Hub",
+			city="Harare",
+			country="Zimbabwe",
+			latitude=-17.8252,
+			longitude=31.0335,
+			verification_status="VERIFIED",
+			public_visible=True,
+		)
+		location.games.add(Game.objects.create(name="Tekken 8"))
+		with self.settings(GGZ_MAP_PROVIDER="google", GGZ_MAP_API_KEY="test-key", GGZ_MAP_ID="ggz-radar-default"):
+			response = self.client.get(reverse("map_page"))
+			self.assertEqual(response.status_code, 200)
+			self.assertContains(response, "ggz-radar-default")
+		api_response = self.client.get(reverse("map_data"), {"q": "Tekken", "category": "Gaming Hub", "verified": "1"})
+		self.assertEqual(api_response.status_code, 200)
+		payload = api_response.json()
+		self.assertTrue(any(item["name"] == "Harare Gaming Hub" for item in payload["locations"]))
 
 
 class RadarLocationTests(TestCase):

@@ -123,7 +123,38 @@ def _map_entity_payload(model, queryset, kind, item_name_field="name"):
 
 
 def map_data(request):
+	query = (request.GET.get("q") or "").strip()
+	category = (request.GET.get("category") or "all").strip().lower()
+	verified_only = request.GET.get("verified") in {"1", "true", "True", "yes", "on"}
+	distance_limit = request.GET.get("distance", "100")
+	try:
+		distance_limit = float(distance_limit)
+	except (TypeError, ValueError):
+		distance_limit = 100.0
+	lat = request.GET.get("lat")
+	lng = request.GET.get("lng")
+	lookup_lat = None
+	lookup_lng = None
+	if lat not in (None, "") and lng not in (None, ""):
+		try:
+			lookup_lat = float(lat)
+			lookup_lng = float(lng)
+		except (TypeError, ValueError):
+			lookup_lat = None
+			lookup_lng = None
+
 	venues = Venue.objects.filter(latitude__isnull=False, longitude__isnull=False).exclude(latitude=0, longitude=0).order_by("name")
+	if query:
+		venues = venues.filter(Q(name__icontains=query) | Q(category__icontains=query) | Q(city__icontains=query) | Q(province__icontains=query) | Q(country__icontains=query))
+	if category and category != "all":
+		venues = venues.filter(category__icontains=category.replace("-", " "))
+	if lookup_lat is not None and lookup_lng is not None:
+		filtered_venues = []
+		for item in venues:
+			distance = _distance_km(lookup_lat, lookup_lng, item.latitude, item.longitude)
+			if distance is not None and distance <= distance_limit:
+				filtered_venues.append((item, distance))
+		venues = [item for item, _ in filtered_venues]
 	venues_payload = [{
 		"id": item.pk,
 		"kind": "venue",
@@ -132,11 +163,54 @@ def map_data(request):
 		"longitude": float(item.longitude),
 		"category": item.category,
 		"location": item.city or item.province or item.country or item.address or "Public location",
+		"distance_km": round(distance, 1) if lookup_lat is not None and lookup_lng is not None else None,
 		"url": "#",
-	} for item in venues]
+	} for item, distance in [(item, _distance_km(lookup_lat, lookup_lng, item.latitude, item.longitude)) for item in venues] if (lookup_lat is None or lookup_lng is None or (distance is not None and distance <= distance_limit))]
 	locations = OrganizationLocation.objects.filter(public_visible=True, latitude__isnull=False, longitude__isnull=False).exclude(latitude=0, longitude=0).select_related("organization").order_by("name")
+	if query:
+		locations = locations.filter(
+			Q(name__icontains=query)
+			| Q(city__icontains=query)
+			| Q(country__icontains=query)
+			| Q(location_type__icontains=query)
+			| Q(organization__name__icontains=query)
+			| Q(description__icontains=query)
+			| Q(games__name__icontains=query)
+		).distinct()
+	if verified_only:
+		locations = locations.filter(verification_status="VERIFIED")
+	if category and category != "all":
+		category_map = {
+			"gaming hub": "Gaming Hub",
+			"gaming hubs": "Gaming Hub",
+			"esports": "Esports Arena",
+			"esports arena": "Esports Arena",
+			"lan": "LAN Centre",
+			"lan centre": "LAN Centre",
+			"tech": "Tech Business",
+			"tech business": "Tech Business",
+			"developers": "Developer Studio",
+			"developer studio": "Developer Studio",
+			"events": "event",
+			"tournaments": "tournament",
+		}
+		mapped = category_map.get(category)
+		if mapped == "event":
+			locations = locations.none()
+		elif mapped == "tournament":
+			locations = locations.none()
+		elif mapped:
+			locations = locations.filter(location_type__icontains=mapped)
+	if lookup_lat is not None and lookup_lng is not None:
+		filtered_locations = []
+		for item in locations:
+			distance = _distance_km(lookup_lat, lookup_lng, item.latitude, item.longitude)
+			if distance is not None and distance <= distance_limit:
+				filtered_locations.append((item, distance))
+		locations = [item for item, _ in filtered_locations]
 	location_payload = []
 	for item in locations:
+		distance = _distance_km(lookup_lat, lookup_lng, item.latitude, item.longitude) if lookup_lat is not None and lookup_lng is not None else None
 		event_count = Event.objects.filter(organization_id=item.organization_id, status__in=("Published", "Upcoming", "Live")).count()
 		tournament_count = Tournament.objects.filter(venue__isnull=False, venue__name__icontains=item.name, status__in=("Registration Open", "Live", "Registration Closed")).count()
 		location_payload.append({
@@ -155,9 +229,21 @@ def map_data(request):
 			"organization": item.organization.name,
 			"event_count": event_count,
 			"tournament_count": tournament_count,
+			"distance_km": round(distance, 1) if distance is not None else None,
 			"url": reverse("radar_location_detail", args=[item.pk]),
 		})
 	events = Event.objects.filter(location_public=True, latitude__isnull=False, longitude__isnull=False).exclude(latitude=0, longitude=0).select_related("game").order_by("start_date")
+	if query:
+		events = events.filter(Q(name__icontains=query) | Q(location__icontains=query) | Q(city__icontains=query) | Q(country__icontains=query) | Q(game__name__icontains=query))
+	if category and category != "all":
+		if category == "events":
+			events = events.filter(location_public=True)
+		elif category not in {"all"} and category not in {"gaming hubs", "esports", "lan", "tech", "developers", "tournaments"}:
+			events = events.filter(Q(game__name__icontains=category) | Q(name__icontains=category))
+	if verified_only:
+		events = events.filter(location_public=True)
+	if lookup_lat is not None and lookup_lng is not None:
+		events = [event for event in events if _distance_km(lookup_lat, lookup_lng, event.latitude, event.longitude) is not None and _distance_km(lookup_lat, lookup_lng, event.latitude, event.longitude) <= distance_limit]
 	event_payload = [{
 		"id": item.pk,
 		"kind": "event",
@@ -167,11 +253,19 @@ def map_data(request):
 		"location": item.location or item.city or item.country or "Public location",
 		"status": item.status,
 		"game": item.game.name if item.game else "General",
+		"distance_km": round(_distance_km(lookup_lat, lookup_lng, item.latitude, item.longitude), 1) if lookup_lat is not None and lookup_lng is not None and _distance_km(lookup_lat, lookup_lng, item.latitude, item.longitude) is not None else None,
 		"url": reverse("event_detail", args=[item.pk]),
 	} for item in events]
-	tournaments = Event.objects.none()
-	from tournaments.models import Tournament
 	tournaments = Tournament.objects.filter(latitude__isnull=False, longitude__isnull=False).exclude(latitude=0, longitude=0).select_related("game").order_by("start_date")
+	if query:
+		tournaments = tournaments.filter(Q(name__icontains=query) | Q(location__icontains=query) | Q(city__icontains=query) | Q(country__icontains=query) | Q(game__name__icontains=query))
+	if category and category != "all":
+		if category == "tournaments":
+			tournaments = tournaments.filter(status__in=("Registration Open", "Live", "Registration Closed"))
+		elif category not in {"all", "gaming hubs", "esports", "lan", "tech", "developers", "events"}:
+			tournaments = tournaments.filter(Q(game__name__icontains=category) | Q(name__icontains=category))
+	if lookup_lat is not None and lookup_lng is not None:
+		tournaments = [tournament for tournament in tournaments if _distance_km(lookup_lat, lookup_lng, tournament.latitude, tournament.longitude) is not None and _distance_km(lookup_lat, lookup_lng, tournament.latitude, tournament.longitude) <= distance_limit]
 	tournament_payload = [{
 		"id": item.pk,
 		"kind": "tournament",
@@ -181,9 +275,22 @@ def map_data(request):
 		"location": item.location or item.city or item.country or "Public location",
 		"status": item.status,
 		"game": item.game.name if item.game else "General",
+		"distance_km": round(_distance_km(lookup_lat, lookup_lng, item.latitude, item.longitude), 1) if lookup_lat is not None and lookup_lng is not None and _distance_km(lookup_lat, lookup_lng, item.latitude, item.longitude) is not None else None,
 		"url": reverse("tournament_detail", args=[item.slug]),
 	} for item in tournaments]
 	organizations = Organization.objects.filter(location_public=True, latitude__isnull=False, longitude__isnull=False).exclude(latitude=0, longitude=0).order_by("name")
+	if query:
+		organizations = organizations.filter(Q(name__icontains=query) | Q(city__icontains=query) | Q(country__icontains=query) | Q(organization_type__icontains=query))
+	if category and category != "all":
+		if category in {"developers", "tech"}:
+			organizations = organizations.filter(organization_type__icontains="Developer" if category == "developers" else "Tech")
+	if lookup_lat is not None and lookup_lng is not None:
+		filtered_organizations = []
+		for item in organizations:
+			distance = _distance_km(lookup_lat, lookup_lng, item.latitude, item.longitude)
+			if distance is not None and distance <= distance_limit:
+				filtered_organizations.append((item, distance))
+		organizations = [item for item, _ in filtered_organizations]
 	organization_payload = [{
 		"id": item.pk,
 		"kind": "organization",
@@ -192,8 +299,9 @@ def map_data(request):
 		"longitude": float(item.longitude),
 		"location": item.city or item.province or item.country or item.address or "Public location",
 		"organization_type": item.organization_type,
+		"distance_km": round(distance, 1) if lookup_lat is not None and lookup_lng is not None else None,
 		"url": "#",
-	} for item in organizations]
+	} for item, distance in [(item, _distance_km(lookup_lat, lookup_lng, item.latitude, item.longitude)) for item in organizations] if (lookup_lat is None or lookup_lng is None or (distance is not None and distance <= distance_limit))]
 
 	payload = {
 		"hotspots": _map_hotspot_payload(),
@@ -211,12 +319,14 @@ def map_page(request):
 	api_key = getattr(settings, "GGZ_MAP_API_KEY", "")
 	default_lat = getattr(settings, "GGZ_MAP_DEFAULT_LATITUDE", -17.8252)
 	default_lng = getattr(settings, "GGZ_MAP_DEFAULT_LONGITUDE", 31.0335)
+	map_id = getattr(settings, "GGZ_MAP_ID", "")
 	return render(
 		request,
 		"accounts/map_page.html",
 		{
 			"map_provider": provider,
 			"map_api_key": api_key,
+			"map_id": map_id,
 			"map_default_lat": default_lat,
 			"map_default_lng": default_lng,
 			"map_data_url": reverse("map_data"),
@@ -461,32 +571,38 @@ def geo_discovery(request):
 	if lat and lng:
 		map_embed_url = f"https://www.openstreetmap.org/export/embed.html?bbox={float(lng)-0.05}%2C{float(lat)-0.05}%2C{float(lng)+0.05}%2C{float(lat)+0.05}&layer=mapnik&marker={float(lat)}%2C{float(lng)}"
 
-	return render(
-		request,
-		"accounts/geo_discovery.html",
-		{
-			"page": page_obj,
-			"query": query,
-			"lat": lat,
-			"lng": lng,
-			"radius": radius_km,
-			"nearby_events": nearby_events,
-			"nearby_tournaments": nearby_tournaments,
-			"venues": venues,
-			"map_embed_url": map_embed_url,
-			"platform_choices": GamerProfile.PLATFORM_CHOICES,
-			"rank_choices": GamerProfile.RANK_CHOICES,
-			"availability_choices": GamerProfile.AVAILABILITY_CHOICES,
-			"game_choices": Game.objects.order_by("name"),
-			"venue_category_choices": Venue.CATEGORY_CHOICES,
-			"selected_platform": platform,
-			"selected_rank": rank,
-			"selected_availability": availability,
-			"selected_game": game_id,
-			"selected_category": category,
-			"selected_tournament_mode": tournament_mode,
-		},
-	)
+	context = {
+		"page": page_obj,
+		"query": query,
+		"lat": lat,
+		"lng": lng,
+		"radius": radius_km,
+		"nearby_events": nearby_events,
+		"nearby_tournaments": nearby_tournaments,
+		"nearby_profiles": list(profiles),
+		"nearby_venues": list(venues),
+		"venues": venues,
+		"map_embed_url": map_embed_url,
+		"platform_choices": GamerProfile.PLATFORM_CHOICES,
+		"rank_choices": GamerProfile.RANK_CHOICES,
+		"availability_choices": GamerProfile.AVAILABILITY_CHOICES,
+		"game_choices": Game.objects.order_by("name"),
+		"venue_category_choices": Venue.CATEGORY_CHOICES,
+		"selected_platform": platform,
+		"selected_rank": rank,
+		"selected_availability": availability,
+		"selected_game": game_id,
+		"selected_category": category,
+		"selected_tournament_mode": tournament_mode,
+		"map_provider": getattr(settings, "GGZ_MAP_PROVIDER", "google"),
+		"map_api_key": getattr(settings, "GGZ_MAP_API_KEY", ""),
+		"map_id": getattr(settings, "GGZ_MAP_ID", ""),
+		"map_default_lat": getattr(settings, "GGZ_MAP_DEFAULT_LATITUDE", -17.8252),
+		"map_default_lng": getattr(settings, "GGZ_MAP_DEFAULT_LONGITUDE", 31.0335),
+		"map_data_url": reverse("map_data"),
+		"min_hotspot_gamers": getattr(settings, "GGZ_MAP_MIN_HOTSPOT_GAMERS", 3),
+	}
+	return render(request, "accounts/map_page.html", context)
 
 
 def gamer_discovery(request):

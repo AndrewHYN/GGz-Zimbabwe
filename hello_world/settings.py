@@ -207,6 +207,7 @@ MEDIA_ROOT = Path(config("MEDIA_ROOT", default=str(BASE_DIR / "hello_world" / "m
 
 GGZ_MAP_PROVIDER = config("GGZ_MAP_PROVIDER", default="google")
 GGZ_MAP_API_KEY = config("GGZ_MAP_API_KEY", default="")
+GGZ_MAP_ID = config("GGZ_MAP_ID", default="")
 GGZ_MAP_MIN_HOTSPOT_GAMERS = config("GGZ_MAP_MIN_HOTSPOT_GAMERS", default=3, cast=int)
 GGZ_MAP_DEFAULT_LATITUDE = config("GGZ_MAP_DEFAULT_LATITUDE", default=-17.8252, cast=float)
 GGZ_MAP_DEFAULT_LONGITUDE = config("GGZ_MAP_DEFAULT_LONGITUDE", default=31.0335, cast=float)
