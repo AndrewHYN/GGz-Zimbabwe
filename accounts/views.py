@@ -14,7 +14,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
-from events.models import Event, Organization
+from events.models import Event, Organization, OrganizationLocation
 from games.models import Game
 from tournaments.models import Tournament
 
@@ -134,6 +134,23 @@ def map_data(request):
 		"location": item.city or item.province or item.country or item.address or "Public location",
 		"url": "#",
 	} for item in venues]
+	locations = OrganizationLocation.objects.filter(public_visible=True, latitude__isnull=False, longitude__isnull=False).exclude(latitude=0, longitude=0).select_related("organization").order_by("name")
+	location_payload = [{
+		"id": item.pk,
+		"kind": "radar_location",
+		"name": item.name,
+		"latitude": float(item.latitude),
+		"longitude": float(item.longitude),
+		"location": item.city or item.country or item.address or "Public location",
+		"location_type": item.location_type,
+		"verification_status": item.verification_status,
+		"subscription_status": item.subscription_status,
+		"ggz_score": item.ggz_score,
+		"rating_average": item.average_rating,
+		"rating_count": item.rating_count,
+		"organization": item.organization.name,
+		"url": reverse("radar_location_detail", args=[item.pk]),
+	} for item in locations]
 	events = Event.objects.filter(location_public=True, latitude__isnull=False, longitude__isnull=False).exclude(latitude=0, longitude=0).select_related("game").order_by("start_date")
 	event_payload = [{
 		"id": item.pk,
@@ -175,6 +192,7 @@ def map_data(request):
 	payload = {
 		"hotspots": _map_hotspot_payload(),
 		"venues": venues_payload,
+		"locations": location_payload,
 		"events": event_payload,
 		"tournaments": tournament_payload,
 		"organizations": organization_payload,
@@ -183,7 +201,7 @@ def map_data(request):
 
 
 def map_page(request):
-	provider = getattr(settings, "GGZ_MAP_PROVIDER", "osm")
+	provider = getattr(settings, "GGZ_MAP_PROVIDER", "google")
 	api_key = getattr(settings, "GGZ_MAP_API_KEY", "")
 	default_lat = getattr(settings, "GGZ_MAP_DEFAULT_LATITUDE", -17.8252)
 	default_lng = getattr(settings, "GGZ_MAP_DEFAULT_LONGITUDE", 31.0335)
@@ -199,6 +217,23 @@ def map_page(request):
 			"min_hotspot_gamers": getattr(settings, "GGZ_MAP_MIN_HOTSPOT_GAMERS", 3),
 		},
 	)
+
+
+def radar_location_detail(request, location_id):
+	location = get_object_or_404(OrganizationLocation.objects.select_related("organization").prefetch_related("games", "ratings", "reviews__author__user"), pk=location_id)
+	if not location.public_visible:
+		return HttpResponseForbidden("This Radar location is not public.")
+	upcoming_events = Event.objects.filter(organization=location.organization, status__in=("Published", "Upcoming", "Live")).select_related("game")[:5]
+	upcoming_tournaments = []
+	if location.organization:
+		from tournaments.models import Tournament
+		upcoming_tournaments = Tournament.objects.filter(venue__isnull=False, venue__name__icontains=location.name, status__in=("Registration Open", "Live", "Registration Closed")).select_related("game")[:5]
+	return render(request, "accounts/radar_location_detail.html", {
+		"location": location,
+		"organization": location.organization,
+		"upcoming_events": upcoming_events,
+		"upcoming_tournaments": upcoming_tournaments,
+	})
 
 
 def geo_discovery(request):

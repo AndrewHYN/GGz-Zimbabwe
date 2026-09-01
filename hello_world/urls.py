@@ -33,6 +33,7 @@ urlpatterns = [
     path("discover/", account_views.geo_discovery, name="geo_discovery"),
     path("map/", account_views.map_page, name="map_page"),
     path("map-data/", account_views.map_data, name="map_data"),
+    path("radar/locations/<int:location_id>/", account_views.radar_location_detail, name="radar_location_detail"),
     path("admin/", admin.site.urls),
     path("profiles/", include("accounts.urls")),
     path("games/", include("games.urls")),

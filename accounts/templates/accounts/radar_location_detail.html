@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}{{ location.name }} | GGz Radar{% endblock %}
+{% block content %}
+<main class="radar-detail-page">
+    <section class="radar-detail-header">
+        <div>
+            <p class="eyebrow">GGz Radar</p>
+            <h1>{{ location.name }}</h1>
+            {% if location.is_verified %}<span class="verified-badge">✓ Verified</span>{% endif %}
+            <div class="radar-rating-row">
+                <span class="stars">{% if location.average_rating %}{% for i in "12345" %}{% if forloop.counter <= location.average_rating|floatformat:0 %}★{% else %}☆{% endif %}{% endfor %}{% else %}No ratings yet{% endif %}</span>
+                <span>{% if location.average_rating %}{{ location.average_rating|floatformat:1 }}{% else %}No ratings yet{% endif %}</span>
+            </div>
+            <p class="subtle-copy">{{ location.city }}{% if location.city and location.country %}, {% endif %}{{ location.country }}</p>
+        </div>
+        <div class="radar-score-box">
+            <span>GGz Score</span>
+            <strong>{{ location.ggz_score|default:"0.0" }}</strong>
+            <small>/ 10</small>
+        </div>
+    </section>
+
+    <section class="radar-detail-grid">
+        <article class="radar-box">
+            <h2>About</h2>
+            <p>{{ location.description|default:"This gaming location is listed in GGz Radar and is ready for community discovery." }}</p>
+            <div class="detail-meta">
+                <span><strong>Type:</strong> {{ location.location_type }}</span>
+                <span><strong>Subscription:</strong> {{ location.subscription_status }}</span>
+                <span><strong>Open hours:</strong> {{ location.opening_hours|default:"Hours not provided" }}</span>
+            </div>
+        </article>
+
+        <article class="radar-box">
+            <h2>Amenities</h2>
+            {% if location.amenities %}
+                <div class="tag-list">{% for amenity in location.amenities %}<span class="tag">{{ amenity }}</span>{% endfor %}</div>
+            {% else %}
+                <p class="muted">No amenities listed yet.</p>
+            {% endif %}
+        </article>
+
+        <article class="radar-box">
+            <h2>Games</h2>
+            {% if location.games.all %}
+                <div class="tag-list">{% for game in location.games.all %}<a class="tag" href="{% url 'game_detail' game.id %}">{{ game.name }}</a>{% endfor %}</div>
+            {% else %}
+                <p class="muted">No games published for this location yet.</p>
+            {% endif %}
+        </article>
+
+        <article class="radar-box">
+            <h2>Upcoming</h2>
+            {% if upcoming_events or upcoming_tournaments %}
+                <ul class="mini-list">
+                    {% for event in upcoming_events %}
+                        <li><a href="{% url 'event_detail' event.id %}">{{ event.name }}</a> • {{ event.start_date|date:"d M" }}</li>
+                    {% endfor %}
+                    {% for tournament in upcoming_tournaments %}
+                        <li><a href="{% url 'tournament_detail' tournament.slug %}">{{ tournament.name }}</a> • {{ tournament.start_date|date:"d M" }}</li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="muted">No active events or tournaments are currently attached.</p>
+            {% endif %}
+        </article>
+
+        <article class="radar-box">
+            <h2>Reviews</h2>
+            {% if location.reviews.all %}
+                {% for review in location.reviews.all %}
+                    <div class="review-item">
+                        <div class="review-header">
+                            <strong>{{ review.author.gamer_tag }}</strong>
+                            <span>{{ review.rating }}★</span>
+                        </div>
+                        <p>“{{ review.review_text }}”</p>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p class="muted">No community reviews yet.</p>
+            {% endif %}
+        </article>
+
+        <article class="radar-box">
+            <h2>Location</h2>
+            <ul class="meta-list">
+                {% if location.address %}<li>{{ location.address }}</li>{% endif %}
+                {% if location.city %}<li>{{ location.city }}</li>{% endif %}
+                {% if location.country %}<li>{{ location.country }}</li>{% endif %}
+                {% if location.phone %}<li>{{ location.phone }}</li>{% endif %}
+                {% if location.website %}<li><a href="{{ location.website }}" target="_blank" rel="noopener">Website</a></li>{% endif %}
+            </ul>
+            {% if location.latitude and location.longitude %}
+                <a class="primary-button" href="https://www.google.com/maps/dir/?api=1&destination={{ location.latitude }},{{ location.longitude }}" target="_blank" rel="noopener">Directions</a>
+            {% endif %}
+        </article>
+    </section>
+</main>
+{% endblock %}

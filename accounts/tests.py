@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -504,6 +505,67 @@ class GGzMapTests(TestCase):
 			api_response = self.client.get(reverse("map_data"))
 			self.assertEqual(api_response.status_code, 200)
 			self.assertIn("hotspots", api_response.json())
+
+
+class RadarLocationTests(TestCase):
+	def test_organization_location_tracks_verification_and_subscription(self):
+		profile = GamerProfile.objects.create(
+			user=User.objects.create_user(username="radarowner", password="pass"),
+			gamer_tag="RadarOwner",
+		)
+		organization = Organization.objects.create(
+			owner=profile,
+			name="GGz Harare Hub",
+			slug="ggz-harare-hub",
+			organization_type="Venue",
+			latitude=-17.8252,
+			longitude=31.0335,
+			location_public=True,
+		)
+		location = organization.locations.create(
+			name="Harare Gaming Hub",
+			location_type="Gaming Hub",
+			address="12 Samora Machel",
+			city="Harare",
+			country="Zimbabwe",
+			latitude=-17.8252,
+			longitude=31.0335,
+			verification_status="VERIFIED",
+			subscription_status="FEATURED",
+		)
+		self.assertTrue(location.is_verified)
+		self.assertEqual(location.subscription_status, "FEATURED")
+		self.assertTrue(location.is_public)
+
+	def test_radar_location_ratings_and_reviews_require_valid_ranges(self):
+		profile = GamerProfile.objects.create(
+			user=User.objects.create_user(username="rater1", password="pass"),
+			gamer_tag="Rater1",
+		)
+		organization = Organization.objects.create(
+			owner=profile,
+			name="GGz Rating Hub",
+			slug="ggz-rating-hub",
+			organization_type="Venue",
+			latitude=-17.8252,
+			longitude=31.0335,
+			location_public=True,
+		)
+		location = organization.locations.create(
+			name="Rating Hub",
+			location_type="Gaming Hub",
+			city="Harare",
+			country="Zimbabwe",
+			latitude=-17.8252,
+			longitude=31.0335,
+		)
+		location.ratings.create(user=profile.user, value=5)
+		self.assertEqual(location.average_rating, 5.0)
+		self.assertEqual(location.rating_count, 1)
+		with self.assertRaises(ValidationError):
+			location.ratings.create(user=User.objects.create_user(username="rater2", password="pass"), value=6)
+		with self.assertRaises(ValidationError):
+			location.reviews.create(author=profile, review_text="   ")
 
 
 class GamerProfileGameTests(TestCase):
