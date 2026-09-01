@@ -3,24 +3,54 @@
 {% block title %}Games | GGz{% endblock %}
 
 {% block content %}
-<main class="page-shell">
-    <a class="back-link" href="/">&larr; Back to GGz</a>
-    <p class="eyebrow">The library</p>
-    <h1>Find your next <em>main.</em></h1>
-    <p class="lede">Browse the games shaping the community and find players who speak your language.</p>
+<main class="page-shell utility-page">
+    <div class="page-toolbar">
+        <div>
+            <a class="back-link" href="{% url 'index' %}">&larr; Back to GGz</a>
+            <p class="eyebrow">The library</p>
+            <h1>Find your next <em>main.</em></h1>
+            <p class="lede">Browse the games shaping the community and find players who speak your language.</p>
+        </div>
+        <div class="actions">
+            <a class="button alt" href="{% url 'gamer_discovery' %}">Find players</a>
+        </div>
+    </div>
+
+    <section class="card-rail">
+        {% for game in games|slice:":3" %}
+            <article class="feature-card">
+                <a href="{% url 'game_detail' game.id %}">
+                    {% if game.cover_art_url %}<img class="game-cover" src="{{ game.cover_art_url }}" alt="{{ game.name }} official cover art">{% else %}<div class="game-cover-fallback" aria-hidden="true">GGz</div>{% endif %}
+                    <div class="card-copy">
+                        <span class="card-kicker">{{ game.genre|default:"Community" }}</span>
+                        <h3>{{ game.name }}</h3>
+                        <p>{{ game.platform|default:"Community favorite" }}</p>
+                    </div>
+                </a>
+            </article>
+        {% endfor %}
+    </section>
+
     <section class="games-grid page-section">
         {% for game in games %}
             <article class="game-card">
                 <a href="{% url 'game_detail' game.id %}">
-                    {% if game.cover_art_url %}<img class="game-cover" src="{{ game.cover_art_url }}" alt="{{ game.name }} official cover art">{% endif %}
-                    {% if not game.cover_art_url %}<div class="game-cover-fallback" aria-hidden="true">GGz</div>{% endif %}
-                    <h2>{{ game.name }}</h2>
-                    {% if game.genre or game.platform %}<div class="game-meta">{{ game.genre }}{% if game.genre and game.platform %} | {% endif %}{{ game.platform }}</div>{% endif %}
-                    {% if game.release_year or game.player_count %}<p class="game-stats">{% if game.release_year %}{{ game.release_year }}{% endif %}{% if game.release_year and game.player_count %} · {% endif %}{% if game.player_count %}{{ game.player_count }} players{% endif %}</p>{% endif %}
-                    {% if game.description %}<p class="muted">{{ game.description|truncatewords:22 }}</p>{% endif %}
+                    {% if game.cover_art_url %}<img class="game-cover" src="{{ game.cover_art_url }}" alt="{{ game.name }} official cover art">{% else %}<div class="game-cover-fallback" aria-hidden="true">GGz</div>{% endif %}
+                    <div class="card-copy">
+                        <span class="card-kicker">{{ game.genre|default:"Community" }}</span>
+                        <h2>{{ game.name }}</h2>
+                        {% if game.genre or game.platform %}<div class="game-meta">{{ game.genre }}{% if game.genre and game.platform %} | {% endif %}{{ game.platform }}</div>{% endif %}
+                        {% if game.release_year or game.player_count %}<p class="game-stats">{% if game.release_year %}{{ game.release_year }}{% endif %}{% if game.release_year and game.player_count %} · {% endif %}{% if game.player_count %}{{ game.player_count }} players{% endif %}</p>{% endif %}
+                        {% if game.description %}<p class="muted">{{ game.description|truncatewords:22 }}</p>{% endif %}
+                    </div>
                 </a>
             </article>
-        {% empty %}<p class="muted">No games have been added yet.</p>{% endfor %}
+        {% empty %}
+            <div class="empty-state" style="grid-column: 1 / -1;">
+                <h2>No games have been added yet.</h2>
+                <p class="muted">The GGz library is still growing.</p>
+            </div>
+        {% endfor %}
     </section>
 </main>
 {% endblock %}

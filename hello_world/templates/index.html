@@ -8,15 +8,15 @@
         <div class="hero-copy">
             <p class="eyebrow">Gaming ecosystem</p>
             {% if request.user.is_authenticated and user_profile %}
-                <h1>Welcome back, <em>{{ user_profile.gamer_tag }}</em>.</h1>
-                <p class="lede">Build your squad, chase your next bracket, and discover the next local gaming moment across Zimbabwe.</p>
+                <h1>Play. Compete. <em>Connect.</em></h1>
+                <p class="lede">Your next squad, tournament, and local gaming moment are waiting inside the GGz ecosystem.</p>
                 <div class="actions">
                     <a class="button" href="{% url 'dashboard' %}">Open my GGz</a>
                     <a class="button alt" href="{% url 'game_list' %}">Browse games</a>
                 </div>
             {% else %}
-                <h1>Level up your <em>gaming life</em>.</h1>
-                <p class="lede">GGz connects players, teams, tournaments, events and gaming spaces into one premium platform for the local scene.</p>
+                <h1>Play. Compete. <em>Connect.</em></h1>
+                <p class="lede">GGz brings Zimbabwe's gaming scene together into one premium platform for players, teams, tournaments, events, and discovery.</p>
                 <div class="actions">
                     <a class="button" href="{% url 'signup' %}">Create profile</a>
                     <a class="button alt" href="{% url 'game_list' %}">Explore the hub</a>

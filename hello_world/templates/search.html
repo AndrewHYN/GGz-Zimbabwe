@@ -2,10 +2,22 @@
 {% block title %}Search | GGz{% endblock %}
 {% block content %}
 <main class="page-shell utility-page">
-    <p class="eyebrow">Global search</p>
-    <h1>Find it on <em>GGz.</em></h1>
-    <form class="search-form" method="get"><label class="sr-only" for="global-search">Search</label><input id="global-search" name="q" value="{{ query }}" autofocus placeholder="Search players, games, posts, gear..."><button class="button" type="submit">Search</button></form>
-    {% if query %}<p class="muted search-summary">Results for “{{ query }}”</p>{% endif %}
+    <div class="page-toolbar">
+        <div>
+            <p class="eyebrow">Global search</p>
+            <h1>Find it on <em>GGz.</em></h1>
+        </div>
+    </div>
+
+    <section class="search-panel">
+        <form class="search-form" method="get">
+            <label class="sr-only" for="global-search">Search</label>
+            <input id="global-search" name="q" value="{{ query }}" autofocus placeholder="Search players, games, posts, gear...">
+            <button class="button" type="submit">Search</button>
+        </form>
+        {% if query %}<p class="muted search-summary">Results for “{{ query }}”</p>{% endif %}
+    </section>
+
     <div class="search-results">
         {% if gamers %}<section><h2>Players</h2>{% for item in gamers %}<a class="result-row" href="{% url 'profile_detail' item.gamer_tag %}">{{ item.gamer_tag }}<span>{{ item.location|default:"Zimbabwe" }} · {{ item.get_rank_display }}</span></a>{% endfor %}{% include "search_pager.html" with page=gamers key="gamers" pager_query=search_params.gamers %}</section>{% endif %}
         {% if games %}<section><h2>Games</h2>{% for item in games %}<a class="result-row" href="{% url 'game_detail' item.id %}">{{ item.name }}</a>{% endfor %}{% include "search_pager.html" with page=games key="games" pager_query=search_params.games %}</section>{% endif %}

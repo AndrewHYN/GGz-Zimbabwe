@@ -27,17 +27,18 @@
 
             <!-- Main Menu -->
             <div class="nav-menu" id="nav-menu">
-                <a href="{% url 'index' %}" class="nav-primary-link">Home</a>
-
                 <div class="nav-dropdown">
                     <button aria-expanded="false" aria-haspopup="true" class="nav-more">Discover</button>
                     <div class="nav-dropdown-panel">
                         <a href="{% url 'game_list' %}" class="nav-dropdown-link">All Games</a>
                         <a href="{% url 'gamer_discovery' %}" class="nav-dropdown-link">Find Players</a>
                         <a href="{% url 'geo_discovery' %}" class="nav-dropdown-link">Nearby Gaming</a>
-                        <a href="{% url 'leaderboard' %}" class="nav-dropdown-link">Leaderboards</a>
+                        <a href="{% url 'leaderboard' %}" class="nav-dropdown-link">Rankings</a>
                     </div>
                 </div>
+
+                <a href="{% url 'game_list' %}" class="nav-link">Games</a>
+                <a href="{% url 'tournament_list' %}" class="nav-link">Compete</a>
 
                 <div class="nav-dropdown">
                     <button aria-expanded="false" aria-haspopup="true" class="nav-more">Community</button>
@@ -48,16 +49,7 @@
                     </div>
                 </div>
 
-                <div class="nav-dropdown">
-                    <button aria-expanded="false" aria-haspopup="true" class="nav-more">Compete</button>
-                    <div class="nav-dropdown-panel">
-                        <a href="{% url 'tournament_list' %}" class="nav-dropdown-link">Tournaments</a>
-                        <a href="{% url 'event_list' %}" class="nav-dropdown-link">Events</a>
-                        <a href="{% url 'leaderboard' %}" class="nav-dropdown-link">Rankings</a>
-                    </div>
-                </div>
-
-                <a href="{% url 'listing_list' %}" class="nav-primary-link">Marketplace</a>
+                <a href="{% url 'listing_list' %}" class="nav-link">Marketplace</a>
             </div>
 
             <!-- Right Side Tools -->
