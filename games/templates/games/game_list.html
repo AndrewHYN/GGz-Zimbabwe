@@ -8,7 +8,7 @@
         <div>
             <p class="eyebrow">GGz Games</p>
             <h1>Discover your next <em>main.</em></h1>
-            <p class="lede">Popular PC titles, local talent, community picks, and competitive staples across the GGz ecosystem.</p>
+            <p class="lede">Curated PC games, local scene picks, and the most active competition-ready titles in the GGz community.</p>
         </div>
         <div class="store-toolbar">
             <a class="button button-secondary" href="{% url 'gamer_discovery' %}">Find players</a>
@@ -34,7 +34,7 @@
 
     {% if featured_games %}
         {% with featured_game=featured_games.0 %}
-        <section class="store-feature">
+        <section class="store-feature" aria-label="Featured game">
             <div class="feature-visual">
                 {% if featured_game.cover_art_url %}
                     <img src="{{ featured_game.cover_art_url }}" alt="{{ featured_game.name }} cover art">
@@ -54,7 +54,7 @@
                 </div>
                 <div class="actions">
                     <a class="button button-primary" href="{% url 'game_detail' featured_game.id %}">{% if featured_game.free_to_play %}Play Free{% else %}Get Game{% endif %}</a>
-                    <a class="button button-secondary" href="{% url 'gamer_discovery' %}?game={{ featured_game.id }}">Find players</a>
+                    <a class="button button-secondary" href="{% url 'gamer_discovery' %}?game={{ featured_game.id }}">Find players for {{ featured_game.name }}</a>
                     {% if featured_game.store_url %}<a class="button button-ghost" href="{{ featured_game.store_url }}" target="_blank" rel="noopener noreferrer">Store</a>{% endif %}
                 </div>
             </div>

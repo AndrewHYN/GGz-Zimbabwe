@@ -27,13 +27,13 @@
 
             <div class="actions detail-actions">
                 {% if game.store_url %}
-                    <a class="button button-primary" href="{{ game.store_url }}" target="_blank" rel="noopener noreferrer">{{ store_label }}</a>
+                    <a class="button button-primary" href="{{ game.store_url }}" target="_blank" rel="noopener noreferrer" aria-label="{{ store_label }} for {{ game.name }}">{{ store_label }}</a>
                 {% else %}
-                    <a class="button button-primary" href="{% url 'game_detail' game.id %}">{% if game.free_to_play %}Play Free{% else %}Get Game{% endif %}</a>
+                    <a class="button button-primary" href="{% url 'game_detail' game.id %}" aria-label="{% if game.free_to_play %}Play free{% else %}Get game{% endif %} for {{ game.name }}">{% if game.free_to_play %}Play Free{% else %}Get Game{% endif %}</a>
                 {% endif %}
-                <a class="button button-secondary" href="{% url 'gamer_discovery' %}?game={{ game.id }}">Find players</a>
+                <a class="button button-secondary" href="{% url 'gamer_discovery' %}?game={{ game.id }}" aria-label="Find players for {{ game.name }}">Find players for {{ game.name }}</a>
                 {% if viewer %}
-                    <a class="button button-ghost" href="#challenge-area">Challenge a friend</a>
+                    <a class="button button-ghost" href="#challenge-area" aria-label="Challenge a friend for {{ game.name }}">Challenge a friend</a>
                 {% endif %}
                 {% if upcoming_tournaments %}<a class="button button-ghost" href="#tournaments">View tournaments</a>{% endif %}
                 {% if related_events %}<a class="button button-ghost" href="#events">View events</a>{% endif %}

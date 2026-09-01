@@ -353,6 +353,7 @@ def gamer_discovery(request):
 	rank = request.GET.get("rank", "").strip()
 	availability = request.GET.get("availability", "").strip()
 	game_id = request.GET.get("game", "").strip()
+	selected_game = Game.objects.filter(id=game_id).first() if game_id else None
 
 	if query:
 		profiles = profiles.filter(
@@ -387,6 +388,7 @@ def gamer_discovery(request):
 			"rank_choices": GamerProfile.RANK_CHOICES,
 			"availability_choices": GamerProfile.AVAILABILITY_CHOICES,
 			"game_choices": Game.objects.order_by("name"),
+			"selected_game": selected_game,
 		},
 	)
 

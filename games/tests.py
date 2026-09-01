@@ -343,6 +343,7 @@ class GameHubTests(TestCase):
 		response = self.client.get(reverse("game_detail", args=[game.id]))
 		self.assertContains(response, reverse("gamer_discovery") + "?game=" + str(game.id))
 		self.assertContains(response, "Challenge a friend")
+		self.assertContains(response, "Find players for League of Legends")
 
 		post_response = self.client.post(
 			reverse("game_challenge_create", args=[game.id]),
@@ -378,3 +379,10 @@ class GameHubTests(TestCase):
 		response = self.client.get(reverse("game_detail", args=[game.id]))
 		self.assertContains(response, "Apex Weekend Cup")
 		self.assertContains(response, "Harare Apex Scrims")
+
+	def test_find_players_page_keeps_selected_game_context(self):
+		game = Game.objects.create(name="Valorant", genre="FPS")
+		response = self.client.get(reverse("gamer_discovery"), {"game": game.id})
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Find players for Valorant")
+		self.assertContains(response, "Players ready to queue for Valorant")

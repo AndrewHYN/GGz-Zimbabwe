@@ -8,8 +8,13 @@
         <div>
             <a class="back-link" href="{% url 'index' %}">&larr; Back to GGz</a>
             <p class="eyebrow">The community</p>
-            <h1>Find your <em>people.</em></h1>
-            <p class="lede">Search Zimbabwean players by game, city, rank, platform, or when they are ready to play.</p>
+            {% if selected_game %}
+                <h1>Find players for {{ selected_game.name }}</h1>
+                <p class="lede">Players ready to queue for {{ selected_game.name }} across Zimbabwe.</p>
+            {% else %}
+                <h1>Find your <em>people.</em></h1>
+                <p class="lede">Search Zimbabwean players by game, city, rank, platform, or when they are ready to play.</p>
+            {% endif %}
         </div>
         <div class="actions">
             <a class="button alt" href="{% url 'leaderboard' %}">View rankings</a>
@@ -33,7 +38,7 @@
         <div class="section-heading">
             <div>
                 <p class="eyebrow">Community roster</p>
-                <h2>Players ready to queue</h2>
+                <h2>{% if selected_game %}Players ready to queue for {{ selected_game.name }}{% else %}Players ready to queue{% endif %}</h2>
             </div>
             <div class="muted">{{ page.paginator.count }} results</div>
         </div>
