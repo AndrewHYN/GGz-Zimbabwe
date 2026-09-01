@@ -12,16 +12,21 @@
     <link rel="stylesheet" href="{% static 'main.css' %}">
 </head>
 <body>
-    <nav class="site-nav" aria-label="Main navigation">
-        <div class="brand">
-            <a href="{% url 'index' %}" style="color: var(--text-primary); display: flex; gap: 0.25rem; align-items: baseline;">GGz<span style="color: var(--accent-primary);">.</span></a>
+    <nav class="site-nav" id="primary-navigation" aria-label="Main navigation">
+        <button class="mobile-menu-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation">
+            Menu
+        </button>
+
+        <div class="brand" aria-label="GGz home">
+            <a href="{% url 'index' %}">GGz<span>.</span></a>
         </div>
 
         <div class="nav-menu">
             <div class="nav-cluster">
-                <!-- DISCOVER -->
+                <a href="{% url 'index' %}" class="nav-link">Home</a>
+
                 <details class="nav-dropdown">
-                    <summary class="nav-link">Discover</summary>
+                    <summary class="nav-more" aria-haspopup="true" aria-expanded="false">Discover</summary>
                     <ul class="nav-dropdown-menu">
                         <li><a href="{% url 'game_list' %}" class="nav-dropdown-item">All Games</a></li>
                         <li><a href="{% url 'geo_discovery' %}" class="nav-dropdown-item">Nearby Venues</a></li>
@@ -30,53 +35,50 @@
                     </ul>
                 </details>
 
-                <!-- PLAY -->
                 <a href="{% url 'game_list' %}" class="nav-link">Play</a>
 
-                <!-- COMPETE -->
                 <details class="nav-dropdown">
-                    <summary class="nav-link">Compete</summary>
+                    <summary class="nav-more" aria-haspopup="true" aria-expanded="false">Compete</summary>
                     <ul class="nav-dropdown-menu">
                         <li><a href="{% url 'tournament_list' %}" class="nav-dropdown-item">Tournaments</a></li>
                         <li><a href="{% url 'leaderboard' %}" class="nav-dropdown-item">Rankings</a></li>
-                        <li><a href="{% url 'tournament_list' %}" class="nav-dropdown-item">Live Matches</a></li>
+                        <li><a href="{% url 'event_list' %}" class="nav-dropdown-item">Live Events</a></li>
                     </ul>
                 </details>
 
-                <!-- COMMUNITY -->
                 <details class="nav-dropdown">
-                    <summary class="nav-link">Community</summary>
+                    <summary class="nav-more" aria-haspopup="true" aria-expanded="false">Community</summary>
                     <ul class="nav-dropdown-menu">
-                        <li><a href="{% url 'feed' %}" class="nav-dropdown-item">Activity Feed</a></li>
+                        <li><a href="{% url 'feed' %}" class="nav-dropdown-item">Community feed</a></li>
                         <li><a href="{% url 'gamer_discovery' %}" class="nav-dropdown-item">Find Players</a></li>
                         <li><a href="{% url 'team_list' %}" class="nav-dropdown-item">Teams</a></li>
                     </ul>
                 </details>
 
-                <!-- MARKETPLACE -->
-                <a href="{% url 'listing_list' %}" class="nav-link">Market</a>
+                <a href="{% url 'listing_list' %}" class="nav-link">Marketplace</a>
             </div>
 
             <div class="nav-tools">
                 <div class="nav-search">
-                    <form action="{% url 'global_search' %}" method="get" style="display: flex;">
-                        <input type="text" name="q" placeholder="Search games, players..." />
+                    <form action="{% url 'global_search' %}" method="get">
+                        <input type="text" name="q" placeholder="Search GGz" aria-label="Search GGz" />
                     </form>
                 </div>
 
                 {% if request.user.is_authenticated %}
-                    <a href="{% url 'notification_list' %}" class="nav-link" title="Notifications">
-                        🔔{% if unread_notification_count %}<span class="notification-badge">{{ unread_notification_count }}</span>{% endif %}
+                    <a href="{% url 'notification_list' %}" class="nav-link nav-icon-link" title="Notifications">
+                        <span aria-hidden="true">🔔</span>
+                        {% if unread_notification_count %}<span class="notification-badge">{{ unread_notification_count }}</span>{% endif %}
                     </a>
                 {% endif %}
 
                 {% if request.user.is_authenticated %}
                     <details class="account-menu">
-                        <summary class="nav-link" style="display: flex; gap: 0.5rem;">
+                        <summary class="nav-profile-summary nav-more" aria-label="Account menu" aria-haspopup="true" aria-expanded="false">
                             {% if request.user.gamer_profile.avatar %}
-                                <img class="avatar avatar-sm" src="{{ request.user.gamer_profile.avatar.url }}" alt="" style="width: 32px; height: 32px;">
+                                <img class="avatar avatar-sm" src="{{ request.user.gamer_profile.avatar.url }}" alt="{{ request.user.username }} avatar">
                             {% else %}
-                                <span class="avatar avatar-sm" style="width: 32px; height: 32px; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); color: white; display: flex; align-items: center; justify-content: center;">{{ request.user.username|slice:":1"|upper }}</span>
+                                <span class="avatar avatar-sm avatar-fallback">{{ request.user.username|slice:":1"|upper }}</span>
                             {% endif %}
                         </summary>
                         <div class="menu-panel">
@@ -91,7 +93,7 @@
                                 <a href="{% url 'conversation_list' %}">Messages{% if unread_message_count %} <span class="menu-badge">{{ unread_message_count }}</span>{% endif %}</a>
                                 <a href="{% url 'notification_list' %}">Notifications</a>
                             {% endif %}
-                            <form method="post" action="{% url 'logout' %}" style="margin-top: 0.5rem;">
+                            <form method="post" action="{% url 'logout' %}">
                                 {% csrf_token %}
                                 <button type="submit" class="nav-dropdown-item">Log out</button>
                             </form>

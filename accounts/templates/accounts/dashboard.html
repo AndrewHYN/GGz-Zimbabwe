@@ -3,17 +3,124 @@
 {% block title %}Dashboard | GGz{% endblock %}
 
 {% block content %}
-<main class="page-shell">
-    <p class="eyebrow">Your home base</p>
-    <h1>Welcome back, <em>{{ profile.gamer_tag }}.</em></h1>
-    <p class="lede">Keep your identity current, see what you play, and find the next session.</p>
-    <div class="dashboard-grid">
-        <section class="dashboard-summary">
-            {% if profile.avatar %}<span class="avatar avatar-profile"><img src="{{ profile.avatar.url }}" alt="{{ profile.gamer_tag }} avatar"></span>{% else %}<span class="avatar avatar-profile avatar-fallback">{{ profile.gamer_tag|slice:":1"|upper }}</span>{% endif %}
-            <div><p class="eyebrow">Player profile</p><h2>{{ profile.gamer_tag }}</h2><p class="muted">{{ profile.location|default:"Zimbabwe" }} · {{ profile.get_rank_display }}</p><div class="actions"><a class="button" href="{% url 'profile_detail' profile.gamer_tag %}">View profile</a><a class="button alt" href="{% url 'profile_edit' profile.gamer_tag %}">Edit profile</a></div></div>
-        </section>
-        <section class="dashboard-stats"><div class="stat"><span class="stat-label">Respect points</span><span class="stat-value">{{ profile.respect_points }}</span></div><div class="stat"><span class="stat-label">Games played</span><span class="stat-value">{{ game_count }}</span></div><div class="stat"><span class="stat-label">Players to discover</span><span class="stat-value">{{ gamer_count }}</span></div></section>
+<main class="page-shell dashboard-shell">
+    <div class="dashboard-header">
+        <div>
+            <p class="eyebrow">Your command center</p>
+            <h1>Welcome back, <em>{{ profile.gamer_tag }}.</em></h1>
+            <p class="lede">Keep your identity sharp, follow the next local match, and keep momentum in your gaming world.</p>
+        </div>
+        <div class="dashboard-header-actions">
+            <a class="button" href="{% url 'profile_detail' profile.gamer_tag %}">View profile</a>
+            <a class="button alt" href="{% url 'gamer_discovery' %}">Find players</a>
+        </div>
     </div>
-    <section class="dashboard-section"><div class="section-heading"><div><p class="eyebrow">Next move</p><h2>Find a better session.</h2></div><a class="button alt" href="{% url 'gamer_discovery' %}">Find players</a></div><p class="muted">Your dashboard will grow with tournaments, events, messages, and activity as those community features come online.</p></section>
+
+    <div class="dashboard-grid">
+        <section class="dashboard-summary panel-card">
+            {% if profile.avatar %}
+                <span class="avatar avatar-profile"><img src="{{ profile.avatar.url }}" alt="{{ profile.gamer_tag }} avatar"></span>
+            {% else %}
+                <span class="avatar avatar-profile avatar-fallback">{{ profile.gamer_tag|slice:":1"|upper }}</span>
+            {% endif %}
+            <div>
+                <p class="eyebrow">Player profile</p>
+                <h2>{{ profile.gamer_tag }}</h2>
+                <p class="muted">{{ profile.location|default:"Zimbabwe" }} · {{ profile.get_rank_display }} · {{ profile.availability }}</p>
+                <div class="actions">
+                    <a class="button" href="{% url 'profile_detail' profile.gamer_tag %}">View profile</a>
+                    <a class="button alt" href="{% url 'profile_edit' profile.gamer_tag %}">Edit profile</a>
+                </div>
+            </div>
+        </section>
+
+        <section class="dashboard-stats panel-card">
+            <div class="stat-block">
+                <span class="stat-label">Respect points</span>
+                <span class="stat-value">{{ profile.respect_points }}</span>
+            </div>
+            <div class="stat-block">
+                <span class="stat-label">Games tracked</span>
+                <span class="stat-value">{{ game_count }}</span>
+            </div>
+            <div class="stat-block">
+                <span class="stat-label">Players to discover</span>
+                <span class="stat-value">{{ gamer_count }}</span>
+            </div>
+        </section>
+    </div>
+
+    <section class="dashboard-section panel-card">
+        <div class="section-heading">
+            <div>
+                <p class="eyebrow">Next move</p>
+                <h2>Find your next session.</h2>
+            </div>
+            <a class="button alt" href="{% url 'gamer_discovery' %}">Find players</a>
+        </div>
+
+        <div class="mini-stat-grid">
+            <div class="mini-stat">
+                <span class="mini-stat-label">Competitive rank</span>
+                <strong>{{ profile.get_rank_display }}</strong>
+            </div>
+            <div class="mini-stat">
+                <span class="mini-stat-label">Availability</span>
+                <strong>{{ profile.availability }}</strong>
+            </div>
+            <div class="mini-stat">
+                <span class="mini-stat-label">Platform</span>
+                <strong>{{ profile.platform|default:"PC" }}</strong>
+            </div>
+        </div>
+    </section>
+
+    <div class="dashboard-rail-grid">
+        <section class="panel-card">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">Your tournaments</p>
+                    <h2>Compete</h2>
+                </div>
+                <a class="text-link" href="{% url 'tournament_list' %}">View all</a>
+            </div>
+            {% if my_tournaments %}
+                {% for tournament in my_tournaments %}
+                    <div class="mini-list-item">
+                        <div>
+                            <strong>{{ tournament.name }}</strong>
+                            <span>{{ tournament.game.name|default:"Tournament" }} • {{ tournament.status }}</span>
+                        </div>
+                        <a href="{% url 'tournament_detail' tournament.slug %}">Open</a>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p class="muted">No tournaments yet. Jump into the competitive hub to enter the next bracket.</p>
+            {% endif %}
+        </section>
+
+        <section class="panel-card">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">Your events</p>
+                    <h2>Community</h2>
+                </div>
+                <a class="text-link" href="{% url 'event_list' %}">View all</a>
+            </div>
+            {% if my_events %}
+                {% for event in my_events %}
+                    <div class="mini-list-item">
+                        <div>
+                            <strong>{{ event.name }}</strong>
+                            <span>{{ event.start_date|date:"M j, Y" }} • {{ event.location|default:"Zimbabwe" }}</span>
+                        </div>
+                        <a href="{% url 'event_detail' event.id %}">Open</a>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p class="muted">No events yet. Discover local scenes and public meetups around you.</p>
+            {% endif %}
+        </section>
+    </div>
 </main>
 {% endblock %}
