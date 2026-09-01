@@ -176,12 +176,7 @@
                 <div class="section-heading">
                     <h2>Tournament bracket</h2>
                 </div>
-                <div class="bracket-container">
-                    <div class="bracket">
-                        <!-- Bracket rendering would go here -->
-                        <p class="muted">Bracket visualization coming soon</p>
-                    </div>
-                </div>
+                {% include "tournaments/bracket_display.html" with matches=tournament.matches.all %}
             </div>
         </section>
 

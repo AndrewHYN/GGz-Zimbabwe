@@ -1,0 +1,260 @@
+{% comment %}
+Bracket display component - renders tournament bracket visualization
+Usage: {% include "tournaments/bracket_display.html" with matches=tournament.matches.all %}
+{% endcomment %}
+
+<div class="bracket-shell">
+    {% if matches %}
+        <div class="bracket-container">
+            {% regroup matches by round as rounds %}
+            <div class="bracket">
+                {% for round in rounds %}
+                    <div class="bracket-round" data-round="{{ round.grouper }}">
+                        <div class="round-header">
+                            <h4 class="round-title">
+                                {% if round.grouper == 1 %}
+                                    Round of {{ tournament.max_participants|add:"-1" }}
+                                {% elif round.grouper == 2 %}
+                                    Semifinals
+                                {% elif round.grouper == 3 %}
+                                    Finals
+                                {% else %}
+                                    Round {{ round.grouper }}
+                                {% endif %}
+                            </h4>
+                        </div>
+
+                        <div class="round-matches">
+                            {% for match in round.list %}
+                                <div class="bracket-match">
+                                    <div class="match-side">
+                                        <div class="match-player">
+                                            {% if match.player_one %}
+                                                <a href="{% url 'profile_detail' match.player_one.gamer_tag %}" class="player-name">
+                                                    {{ match.player_one.gamer_tag }}
+                                                </a>
+                                            {% else %}
+                                                <span class="player-name tbd">TBD</span>
+                                            {% endif %}
+                                            {% if match.winner == match.player_one %}
+                                                <span class="player-score winner">W</span>
+                                            {% elif match.status == "Completed" and match.player_one %}
+                                                <span class="player-score">L</span>
+                                            {% elif match.score %}
+                                                <span class="player-score">{{ match.score|slice:":1" }}</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+
+                                    <div class="match-divider"></div>
+
+                                    <div class="match-side">
+                                        <div class="match-player">
+                                            {% if match.player_two %}
+                                                <a href="{% url 'profile_detail' match.player_two.gamer_tag %}" class="player-name">
+                                                    {{ match.player_two.gamer_tag }}
+                                                </a>
+                                            {% else %}
+                                                <span class="player-name tbd">TBD</span>
+                                            {% endif %}
+                                            {% if match.winner == match.player_two %}
+                                                <span class="player-score winner">W</span>
+                                            {% elif match.status == "Completed" and match.player_two %}
+                                                <span class="player-score">L</span>
+                                            {% elif match.score %}
+                                                <span class="player-score">{{ match.score|slice:"1:2" }}</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+
+                                    {% if match.scheduled_at %}
+                                        <div class="match-scheduled">{{ match.scheduled_at|date:"M j H:i" }}</div>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% else %}
+        <div class="empty-state bracket-empty">
+            <h3>Bracket not yet generated</h3>
+            <p class="muted">The bracket will be displayed once matches are scheduled.</p>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+    .bracket-shell {
+        width: 100%;
+    }
+
+    .bracket-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        width: 100%;
+    }
+
+    .bracket {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 2rem;
+        min-width: min-content;
+        padding: 1rem 0;
+    }
+
+    .bracket-round {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        min-width: 200px;
+    }
+
+    .round-header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    .round-title {
+        font-size: 0.8rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-tertiary);
+        margin: 0;
+    }
+
+    .round-matches {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .bracket-match {
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        background: linear-gradient(180deg, rgba(18, 23, 30, 0.96), rgba(10, 14, 17, 0.96));
+        overflow: hidden;
+        transition: all var(--transition-base);
+    }
+
+    .bracket-match:hover {
+        border-color: rgba(99, 102, 241, 0.6);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    .match-side {
+        padding: 0.75rem;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .match-side:last-of-type {
+        border-bottom: none;
+    }
+
+    .match-player {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .player-name {
+        flex: 1;
+        color: var(--text-primary);
+        text-decoration: none;
+        font-weight: 500;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .player-name:hover {
+        color: var(--accent-primary);
+        text-decoration: underline;
+    }
+
+    .player-name.tbd {
+        color: var(--text-tertiary);
+        opacity: 0.6;
+    }
+
+    .player-score {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 32px;
+        height: 32px;
+        border-radius: var(--radius-md);
+        background: rgba(99, 102, 241, 0.15);
+        color: #b9c4ff;
+        font-weight: 700;
+        font-size: 0.9rem;
+        flex-shrink: 0;
+    }
+
+    .player-score.winner {
+        background: rgba(16, 185, 129, 0.2);
+        color: #8ef0be;
+        box-shadow: 0 0 12px rgba(16, 185, 129, 0.3);
+    }
+
+    .match-divider {
+        display: none;
+    }
+
+    .match-scheduled {
+        padding: 0.5rem 0.75rem;
+        background: rgba(99, 102, 241, 0.08);
+        border-top: 1px solid var(--border-subtle);
+        font-size: 0.7rem;
+        color: var(--text-tertiary);
+        text-align: center;
+    }
+
+    .bracket-empty {
+        text-align: center;
+        padding: 2rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+        .bracket {
+            gap: 1.5rem;
+        }
+
+        .bracket-round {
+            min-width: 180px;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .bracket {
+            gap: 1rem;
+        }
+
+        .bracket-round {
+            min-width: 160px;
+        }
+
+        .player-name {
+            font-size: 0.9rem;
+        }
+
+        .player-score {
+            min-width: 28px;
+            height: 28px;
+            font-size: 0.8rem;
+        }
+
+        .match-side {
+            padding: 0.5rem;
+        }
+
+        .round-title {
+            font-size: 0.7rem;
+        }
+    }
+</style>
