@@ -16,6 +16,7 @@ from django.utils import timezone
 
 from events.models import Event, Organization
 from games.models import Game
+from tournaments.models import Tournament
 
 from .forms import CommentForm, GamerProfileForm, PostForm, SignupForm
 from .models import (
@@ -702,7 +703,25 @@ def feed(request):
 	page = Paginator(posts, 10).get_page(request.GET.get("page"))
 	liked_post_ids = set(PostLike.objects.filter(user=viewer, post__in=page.object_list).values_list("post_id", flat=True)) if viewer else set()
 	saved_post_ids = set(PostSave.objects.filter(user=viewer, post__in=page.object_list).values_list("post_id", flat=True)) if viewer else set()
-	return render(request, "accounts/feed.html", {"page": page, "tab": tab, "post_form": PostForm(), "liked_post_ids": liked_post_ids, "saved_post_ids": saved_post_ids})
+	trending_games = Game.objects.order_by("-popularity", "name")[:5]
+	trending_players = GamerProfile.objects.select_related("user").order_by("-respect_points", "gamer_tag")[:5]
+	upcoming_tournaments = Tournament.objects.filter(status__in=("Registration Open", "Registration Closed", "Live")).select_related("organizer", "game").order_by("start_date")[:5]
+	upcoming_events = Event.objects.filter(status__in=("Upcoming", "Published", "Live")).select_related("organizer", "game").order_by("start_date")[:5]
+	return render(
+		request,
+		"accounts/feed.html",
+		{
+			"page": page,
+			"tab": tab,
+			"post_form": PostForm(),
+			"liked_post_ids": liked_post_ids,
+			"saved_post_ids": saved_post_ids,
+			"trending_games": trending_games,
+			"trending_players": trending_players,
+			"upcoming_tournaments": upcoming_tournaments,
+			"upcoming_events": upcoming_events,
+		},
+	)
 
 
 @login_required

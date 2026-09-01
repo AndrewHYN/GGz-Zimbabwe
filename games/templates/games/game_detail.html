@@ -104,7 +104,6 @@
         </div>
     </section>
 
-    {% if trailer_embed_url %}
     <section id="trailer" class="store-section game-trailer-section" aria-label="{{ game.name }} gameplay trailer">
         <div class="section-header">
             <div>
@@ -112,11 +111,16 @@
                 <h2>GAMEPLAY TRAILER</h2>
             </div>
         </div>
+        {% if trailer_embed_url %}
         <div class="trailer-frame">
-            <iframe src="{{ trailer_embed_url }}" title="{{ game.name }} official trailer" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+            <iframe src="{{ trailer_embed_url }}?autoplay=1&mute=1&playsinline=1&rel=0" title="{{ game.name }} official trailer" loading="lazy" allow="autoplay; accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" playsinline></iframe>
         </div>
+        {% else %}
+        <div class="trailer-placeholder">
+            <p>Trailer preview is being prepared for {{ game.name }}.</p>
+        </div>
+        {% endif %}
     </section>
-    {% endif %}
 
     <section class="store-section panel-section" id="reviews">
         <div class="section-header">

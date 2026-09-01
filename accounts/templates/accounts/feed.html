@@ -1,14 +1,120 @@
 {% extends "base.html" %}
 
-{% block title %}Feed | GGz{% endblock %}
+{% block title %}Community | GGz{% endblock %}
 
 {% block content %}
 <main class="page-shell feed-page">
     {% if messages %}<div class="flash-stack" aria-live="polite">{% for message in messages %}<div class="flash flash-{{ message.tags }}">{{ message }}</div>{% endfor %}</div>{% endif %}
-    <div class="section-heading"><div><p class="eyebrow">The community</p><h1>What’s happening.</h1><p class="lede">Gaming talk, achievements, and calls for a squad from across Zimbabwe.</p></div></div>
-    {% if request.user.is_authenticated %}<section class="post-composer"><p class="eyebrow">Share an update</p><form method="post" action="{% url 'post_create' %}" enctype="multipart/form-data">{% csrf_token %}<input type="hidden" name="next" value="/feed/">{{ post_form.as_p }}<button class="button" type="submit">Publish post</button></form></section>{% endif %}
-    <nav class="feed-tabs" aria-label="Feed views"><a class="{% if tab == 'for-you' %}active{% endif %}" href="?tab=for-you">For you</a><a class="{% if tab == 'following' %}active{% endif %}" href="?tab=following">Following</a><a class="{% if tab == 'latest' %}active{% endif %}" href="?tab=latest">Latest</a></nav>
-    <section class="post-list page-section">{% for post in page %}{% include "accounts/post_card.html" with post=post %}{% empty %}<div class="empty-state"><h2>No posts here yet.</h2><p class="muted">Be the first player to share something with the community.</p></div>{% endfor %}</section>
-    {% if page.has_other_pages %}<nav class="pagination" aria-label="Feed pages">{% if page.has_previous %}<a href="?tab={{ tab }}&page={{ page.previous_page_number }}">Previous</a>{% endif %}<span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>{% if page.has_next %}<a href="?tab={{ tab }}&page={{ page.next_page_number }}">Next</a>{% endif %}</nav>{% endif %}
+
+    <div class="feed-layout">
+        <aside class="feed-sidebar" aria-label="Primary community navigation">
+            <div class="feed-panel">
+                <p class="eyebrow">Community</p>
+                <nav class="feed-nav" aria-label="Community navigation">
+                    <a href="{% url 'feed' %}" class="feed-nav-item active">Home</a>
+                    <a href="{% url 'feed' %}?tab=following" class="feed-nav-item">Following</a>
+                    <a href="{% url 'gamer_discovery' %}" class="feed-nav-item">Discover</a>
+                    <a href="{% url 'game_list' %}" class="feed-nav-item">Games</a>
+                    <a href="{% url 'tournament_list' %}" class="feed-nav-item">Tournaments</a>
+                    <a href="{% url 'event_list' %}" class="feed-nav-item">Events</a>
+                    <a href="{% url 'team_list' %}" class="feed-nav-item">Teams</a>
+                    <a href="{% url 'gamer_discovery' %}" class="feed-nav-item">Gamers</a>
+                    <a href="{% url 'notification_list' %}" class="feed-nav-item">Bookmarks</a>
+                </nav>
+            </div>
+        </aside>
+
+        <section class="feed-main">
+            <header class="feed-header">
+                <div>
+                    <p class="eyebrow">The community</p>
+                    <h1>Community</h1>
+                </div>
+                <a class="button button-secondary" href="{% url 'gamer_discovery' %}">Find players</a>
+            </header>
+
+            <nav class="feed-tabs" aria-label="Feed views">
+                <a class="{% if tab == 'for-you' %}active{% endif %}" href="?tab=for-you">For You</a>
+                <a class="{% if tab == 'following' %}active{% endif %}" href="?tab=following">Following</a>
+                <a class="{% if tab == 'latest' %}active{% endif %}" href="?tab=latest">Latest</a>
+            </nav>
+
+            {% if request.user.is_authenticated %}
+            <section class="composer-card">
+                <div class="composer-header">
+                    <span class="eyebrow">Share your next play</span>
+                </div>
+                <form method="post" action="{% url 'post_create' %}" enctype="multipart/form-data" class="composer-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="/feed/">
+                    <label class="sr-only" for="id_body">What\'s happening in gaming?</label>
+                    {{ post_form.body }}
+                    <div class="composer-meta">
+                        {{ post_form.game }}
+                        {{ post_form.image }}
+                        <button class="button button-primary" type="submit">Post</button>
+                    </div>
+                </form>
+            </section>
+            {% endif %}
+
+            <section class="post-list" aria-label="Community feed">
+                {% for post in page %}
+                    {% include "accounts/post_card.html" with post=post %}
+                {% empty %}
+                    <div class="empty-state">
+                        <h2>No posts here yet.</h2>
+                        <p class="muted">Be the first player to share something with the community.</p>
+                    </div>
+                {% endfor %}
+            </section>
+
+            {% if page.has_other_pages %}
+            <nav class="pagination" aria-label="Feed pages">
+                {% if page.has_previous %}<a href="?tab={{ tab }}&page={{ page.previous_page_number }}">Previous</a>{% endif %}
+                <span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+                {% if page.has_next %}<a href="?tab={{ tab }}&page={{ page.next_page_number }}">Next</a>{% endif %}
+            </nav>
+            {% endif %}
+        </section>
+
+        <aside class="feed-sidebar right-sidebar" aria-label="Gaming discovery and trends">
+            <div class="feed-panel">
+                <h2>Trending games</h2>
+                {% for game in trending_games %}
+                    <a class="trend-row" href="{% url 'game_detail' game.id %}"><span>{{ forloop.counter }}.</span><strong>{{ game.name }}</strong><small>{{ game.popularity }}%</small></a>
+                {% empty %}
+                    <p class="muted">No trending titles yet.</p>
+                {% endfor %}
+            </div>
+
+            <div class="feed-panel">
+                <h2>Trending players</h2>
+                {% for profile in trending_players %}
+                    <a class="trend-row" href="{% url 'profile_detail' profile.gamer_tag %}"><span>◉</span><strong>{{ profile.gamer_tag }}</strong><small>{{ profile.rank }}</small></a>
+                {% empty %}
+                    <p class="muted">No active players yet.</p>
+                {% endfor %}
+            </div>
+
+            <div class="feed-panel">
+                <h2>Upcoming tournaments</h2>
+                {% for tournament in upcoming_tournaments %}
+                    <a class="trend-row" href="{% url 'tournament_detail' tournament.slug %}"><span>🏆</span><strong>{{ tournament.name }}</strong><small>{{ tournament.start_date|date:"M j" }}</small></a>
+                {% empty %}
+                    <p class="muted">No tournaments soon.</p>
+                {% endfor %}
+            </div>
+
+            <div class="feed-panel">
+                <h2>Upcoming events</h2>
+                {% for event in upcoming_events %}
+                    <a class="trend-row" href="{% url 'event_detail' event.id %}"><span>📅</span><strong>{{ event.name }}</strong><small>{{ event.start_date|date:"M j" }}</small></a>
+                {% empty %}
+                    <p class="muted">No events scheduled.</p>
+                {% endfor %}
+            </div>
+        </aside>
+    </div>
 </main>
 {% endblock %}

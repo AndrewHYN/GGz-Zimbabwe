@@ -79,34 +79,41 @@ class Game(models.Model):
 			return "Buy on Epic"
 		return "Get Game"
 
-	@property
-	def trailer_embed_url(self):
-		if not self.trailer_url:
-			return ""
-		url = self.trailer_url.strip()
+	@staticmethod
+	def _extract_youtube_video_id(url):
 		if not url:
 			return ""
-		parsed = urlparse(url)
-		host = (parsed.netloc or "").lower()
+		parsed = urlparse(url.strip())
+		host = (parsed.netloc or "").lower().replace("www.", "")
+		path = parsed.path or ""
+		path_parts = [part for part in path.split("/") if part]
 		if "youtube.com" in host or "youtu.be" in host:
-			if "/embed/" in (parsed.path or "").lower():
-				video_id = parsed.path.strip("/").split("/")[-1]
-				return f"https://www.youtube.com/embed/{video_id}" if video_id else ""
-			path_parts = [part for part in (parsed.path or "").split("/") if part]
-			if host in {"youtube.com", "www.youtube.com", "m.youtube.com"}:
+			if "/embed/" in path.lower():
+				video_id = path.lower().split("/embed/")[-1].split("/")[0]
+				return video_id if video_id and len(video_id) >= 11 else ""
+			if "youtu.be" in host and path_parts:
+				video_id = path_parts[-1]
+				return video_id if video_id and len(video_id) >= 11 else ""
+			if "youtube.com" in host:
 				video_id = parse_qs(parsed.query).get("v", [None])[0]
 				if not video_id and path_parts:
 					if len(path_parts) >= 2 and path_parts[0] == "shorts":
 						video_id = path_parts[1]
-					elif path_parts[0] != "embed":
+					elif "embed" in path_parts:
+						video_id = path_parts[path_parts.index("embed") + 1] if "embed" in path_parts else ""
+					else:
 						video_id = path_parts[-1]
-				if video_id:
-					return f"https://www.youtube.com/embed/{video_id}"
-			if "youtu.be" in host and path_parts:
-				video_id = path_parts[-1]
-				if video_id:
-					return f"https://www.youtube.com/embed/{video_id}"
+				return video_id if video_id and len(video_id) >= 11 else ""
 		return ""
+
+	@property
+	def trailer_embed_url(self):
+		if not self.trailer_url:
+			return ""
+		video_id = self._extract_youtube_video_id(self.trailer_url)
+		if not video_id:
+			return ""
+		return f"https://www.youtube.com/embed/{video_id}"
 
 	@property
 	def store_label(self):

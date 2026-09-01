@@ -1493,6 +1493,17 @@ a:hover { color: #a5b4fc; }
     width: 100%;
     height: 100%;
     border: 0;
+    background: #000;
+}
+
+.trailer-placeholder {
+    display: grid;
+    place-items: center;
+    min-height: 220px;
+    border: 1px dashed rgba(255,255,255,0.18);
+    border-radius: var(--radius-xl);
+    background: rgba(255,255,255,0.02);
+    color: var(--text-secondary);
 }
 
 @media (max-width: 960px) {
@@ -3740,11 +3751,176 @@ a:hover { color: #a5b4fc; }
     gap: 1rem;
 }
 
+.feed-page {
+    padding-top: 2rem;
+}
+
+.feed-layout {
+    display: grid;
+    grid-template-columns: minmax(220px, 0.82fr) minmax(0, 1.8fr) minmax(220px, 0.9fr);
+    gap: 1.25rem;
+    align-items: start;
+}
+
+.feed-sidebar,
+.feed-main {
+    display: grid;
+    gap: 1rem;
+}
+
+.feed-panel,
+.composer-card,
+.post-card {
+    border: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(18, 23, 30, 0.96), rgba(11, 15, 20, 0.96));
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
+}
+
+.feed-panel {
+    padding: 1rem;
+}
+
+.feed-panel h2 {
+    margin: 0 0 0.8rem;
+    font-size: 0.8rem;
+    line-height: 1.2;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+}
+
+.feed-nav {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.feed-nav-item,
+.trend-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.7rem 0.8rem;
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: all var(--transition-fast);
+}
+
+.feed-nav-item:hover,
+.trend-row:hover {
+    color: var(--text-primary);
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+}
+
+.feed-nav-item.active {
+    background: rgba(99, 102, 241, 0.12);
+    border: 1px solid rgba(99, 102, 241, 0.28);
+    color: var(--text-primary);
+}
+
+.feed-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.35rem 0.2rem 0.45rem;
+}
+
+.feed-header h1 {
+    margin: 0.2rem 0 0;
+}
+
+.feed-tabs {
+    display: flex;
+    gap: 0.6rem;
+    padding: 0.35rem;
+    border: 1px solid var(--border);
+    background: rgba(17, 22, 28, 0.76);
+    border-radius: 999px;
+    width: fit-content;
+}
+
+.feed-tabs a {
+    padding: 0.62rem 0.9rem;
+    border-radius: 999px;
+    text-decoration: none;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.feed-tabs a.active {
+    background: rgba(99, 102, 241, 0.15);
+    color: var(--text-primary);
+}
+
+.composer-card {
+    padding: 1rem;
+}
+
+.composer-header {
+    margin-bottom: 0.8rem;
+}
+
+.composer-form {
+    display: grid;
+    gap: 0.85rem;
+}
+
+.composer-form textarea,
+.composer-form select,
+.composer-form input[type="file"] {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: rgba(8, 12, 16, 0.85);
+    color: var(--text-primary);
+    padding: 0.85rem 0.9rem;
+    font: inherit;
+}
+
+.composer-form textarea {
+    min-height: 120px;
+    resize: vertical;
+}
+
+.composer-meta {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.composer-meta select,
+.composer-meta input[type="file"] {
+    flex: 1 1 180px;
+}
+
+.trend-row {
+    justify-content: flex-start;
+    border: 1px solid rgba(255,255,255,0.04);
+    margin-bottom: 0.4rem;
+}
+
+.trend-row strong,
+.trend-row small {
+    display: inline-flex;
+    align-items: center;
+}
+
+.trend-row small {
+    margin-left: auto;
+    color: var(--text-tertiary);
+}
+
 .post-card {
     border: 1px solid var(--border);
     padding: 1.5rem;
-    background: var(--bg-1);
-    border-radius: var(--radius-lg);
+    background: linear-gradient(180deg, rgba(18, 23, 30, 0.96), rgba(11, 15, 20, 0.96));
+    border-radius: var(--radius-xl);
     transition: all var(--transition-base);
     overflow: hidden;
 }
