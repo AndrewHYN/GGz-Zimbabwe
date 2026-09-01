@@ -154,6 +154,25 @@ class TournamentTests(TestCase):
 		response = self.client.post(reverse("tournament_delete", args=[self.tournament.slug]))
 		self.assertEqual(response.status_code, 404)
 
+	def test_tournament_detail_exposes_challenge_workflow(self):
+		self.client.login(username="player", password="pass-12345")
+		response = self.client.get(reverse("tournament_detail", args=[self.tournament.slug]))
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Challenge a player")
+		self.assertContains(response, "Send challenge")
+
+		response = self.client.post(
+			reverse("challenge_create", args=[self.tournament.slug]),
+			{
+				"opponent": self.organizer.id,
+				"game": self.game.id,
+				"tournament": self.tournament.id,
+				"scheduled_at": "2030-01-02T10:00",
+			},
+		)
+		self.assertEqual(response.status_code, 302)
+		self.assertTrue(Challenge.objects.filter(challenger=self.player, opponent=self.organizer).exists())
+
 	def test_challenge_cannot_target_self(self):
 		self.client.login(username="organizer", password="pass-12345")
 		response = self.client.post(reverse("challenge_create", args=[self.tournament.slug]), {"opponent": self.organizer.id, "game": self.game.id, "tournament": self.tournament.id})

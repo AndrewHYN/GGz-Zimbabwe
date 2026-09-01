@@ -31,6 +31,16 @@ def team_detail(request, slug):
 
     memberships = team.memberships.select_related("player__user").order_by("role", "player__gamer_tag")
     captains = list(team.memberships.filter(role="Captain").select_related("player__user"))
+    viewer = getattr(request.user, "gamer_profile", None)
+    is_team_manager = _is_team_manager(viewer, team)
+    member_ids = list(team.memberships.values_list("player_id", flat=True))
+    invite_candidates = []
+    if is_team_manager:
+        invite_candidates = list(
+            GamerProfile.objects.exclude(id__in=member_ids)
+            .exclude(id=team.owner_id)
+            .order_by("gamer_tag")
+        )
     upcoming_matches = (
         TournamentMatch.objects.filter(status__in=("Scheduled", "Live"), tournament__registrations__player__team_memberships__team=team)
         .filter(Q(player_one__team_memberships__team=team) | Q(player_two__team_memberships__team=team))
@@ -54,6 +64,10 @@ def team_detail(request, slug):
             "upcoming_matches": upcoming_matches,
             "completed_matches": completed_matches,
             "stats": {"wins": team.wins, "losses": team.losses, "matches_played": team.matches_played, "win_rate": team.win_rate},
+            "viewer": viewer,
+            "is_team_manager": is_team_manager,
+            "invite_candidates": invite_candidates,
+            "transfer_candidates": list(memberships.exclude(player=team.owner)),
         },
     )
 

@@ -19,6 +19,47 @@
     <div class="detail"><dt>Win rate</dt><dd>{{ stats.win_rate }}%</dd></div>
   </dl>
 
+  {% if is_team_manager %}
+    <section class="page-section management-panel">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Management</p>
+          <h2>Team controls</h2>
+        </div>
+      </div>
+
+      <div class="team-management-grid">
+        <form method="post" action="{% url 'team_invite' team.slug %}" class="management-form">
+          {% csrf_token %}
+          <label>
+            <span>Invite player</span>
+            <select name="invitee_id" {% if not invite_candidates %}disabled{% endif %}>
+              <option value="">{% if invite_candidates %}Choose a gamer{% else %}No eligible players{% endif %}</option>
+              {% for candidate in invite_candidates %}
+                <option value="{{ candidate.id }}">{{ candidate.gamer_tag }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <button class="button" type="submit" {% if not invite_candidates %}disabled{% endif %}>Send invite</button>
+        </form>
+
+        <form method="post" action="{% url 'team_transfer_ownership' team.slug %}" class="management-form">
+          {% csrf_token %}
+          <label>
+            <span>Transfer ownership</span>
+            <select name="new_owner_id" {% if not transfer_candidates %}disabled{% endif %}>
+              <option value="">{% if transfer_candidates %}Choose a new owner{% else %}No eligible member{% endif %}</option>
+              {% for member in transfer_candidates %}
+                <option value="{{ member.player.id }}">{{ member.player.gamer_tag }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <button class="button alt" type="submit" {% if not transfer_candidates %}disabled{% endif %}>Confirm transfer</button>
+        </form>
+      </div>
+    </section>
+  {% endif %}
+
   <section class="page-section">
     <h2>Roster</h2>
     <ul class="game-list">

@@ -102,6 +102,13 @@ class TeamInvitationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "already exists")
 
+    def test_team_detail_exposes_management_actions_for_team_owners(self):
+        self.client.login(username="owner", password="pass")
+        response = self.client.get(reverse("team_detail", args=(self.team.slug,)))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Invite player")
+        self.assertContains(response, "Transfer ownership")
+
     def test_team_detail_shows_competitive_stats_and_tournament_history(self):
         game = Game.objects.create(name="Apex Legends")
         team = Team.objects.create(owner=self.owner, game=game, name="Elite Squad", tag="ES", slug="elite-squad")

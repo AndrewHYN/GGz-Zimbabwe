@@ -253,6 +253,86 @@
         </section>
     {% endif %}
 
+    {% if request.user.is_authenticated and player and player != tournament.organizer %}
+        <section class="tournament-section challenge-section">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">Competition</p>
+                    <h2>Challenge a player</h2>
+                </div>
+            </div>
+
+            <form method="post" action="{% url 'challenge_create' tournament.slug %}" class="challenge-form">
+                {% csrf_token %}
+                <input type="hidden" name="tournament" value="{{ tournament.id }}">
+                <div class="challenge-grid">
+                    <label>
+                        <span>{{ challenge_form.opponent.label }}</span>
+                        {{ challenge_form.opponent }}
+                    </label>
+                    <label>
+                        <span>{{ challenge_form.game.label }}</span>
+                        {{ challenge_form.game }}
+                    </label>
+                    <label>
+                        <span>{{ challenge_form.scheduled_at.label }}</span>
+                        {{ challenge_form.scheduled_at }}
+                    </label>
+                    <button class="button" type="submit">Send challenge</button>
+                </div>
+                {% if challenge_form.non_field_errors %}
+                    <div class="form-errors">{{ challenge_form.non_field_errors }}</div>
+                {% endif %}
+            </form>
+
+            {% if incoming_challenges or outgoing_challenges %}
+                <div class="challenge-list">
+                    {% if incoming_challenges %}
+                        <div class="challenge-group">
+                            <h3>Incoming challenges</h3>
+                            {% for challenge in incoming_challenges %}
+                                <div class="challenge-row">
+                                    <div>
+                                        <strong>{{ challenge.challenger.gamer_tag }}</strong>
+                                        <small>{{ challenge.game.name }} · {{ challenge.scheduled_at|date:"M j, Y H:i"|default:"No date scheduled" }}</small>
+                                    </div>
+                                    <div class="row-actions">
+                                        <form method="post" action="{% url 'challenge_action' challenge.id 'accept' %}">
+                                            {% csrf_token %}
+                                            <button class="button" type="submit">Accept</button>
+                                        </form>
+                                        <form method="post" action="{% url 'challenge_action' challenge.id 'decline' %}">
+                                            {% csrf_token %}
+                                            <button class="button alt" type="submit">Decline</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    {% if outgoing_challenges %}
+                        <div class="challenge-group">
+                            <h3>Outgoing challenges</h3>
+                            {% for challenge in outgoing_challenges %}
+                                <div class="challenge-row">
+                                    <div>
+                                        <strong>{{ challenge.opponent.gamer_tag }}</strong>
+                                        <small>{{ challenge.game.name }} · {{ challenge.scheduled_at|date:"M j, Y H:i"|default:"No date scheduled" }}</small>
+                                    </div>
+                                    <form method="post" action="{% url 'challenge_action' challenge.id 'cancel' %}">
+                                        {% csrf_token %}
+                                        <button class="text-button text-button-danger" type="submit">Cancel</button>
+                                    </form>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </section>
+    {% endif %}
+
     <!-- Organizer Card -->
     <section class="tournament-section organizer-section">
         <div class="section-heading">

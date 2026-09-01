@@ -36,7 +36,14 @@ def tournament_detail(request, slug):
 	tournament = get_object_or_404(Tournament.objects.select_related("game", "organizer__user").prefetch_related("registrations__player", "matches__player_one", "matches__player_two"), slug=slug)
 	player = getattr(request.user, "gamer_profile", None)
 	registration = TournamentRegistration.objects.filter(tournament=tournament, player=player).first() if player else None
-	return render(request, "tournaments/tournament_detail.html", {"tournament": tournament, "registration": registration, "challenge_form": ChallengeForm()})
+	pending_challenges = []
+	incoming_challenges = []
+	outgoing_challenges = []
+	if player:
+		pending_challenges = list(tournament.challenges.select_related("challenger__user", "opponent__user", "game").order_by("-created_at"))
+		incoming_challenges = list(tournament.challenges.filter(opponent=player, status="Pending").select_related("challenger__user", "game").order_by("-created_at"))
+		outgoing_challenges = list(tournament.challenges.filter(challenger=player, status="Pending").select_related("opponent__user", "game").order_by("-created_at"))
+	return render(request, "tournaments/tournament_detail.html", {"tournament": tournament, "registration": registration, "challenge_form": ChallengeForm(initial={"tournament": tournament.id, "game": tournament.game_id}), "pending_challenges": pending_challenges, "incoming_challenges": incoming_challenges, "outgoing_challenges": outgoing_challenges, "player": player})
 
 
 @login_required
