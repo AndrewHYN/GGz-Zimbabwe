@@ -13,94 +13,97 @@
 </head>
 <body>
     <nav class="site-nav" id="primary-navigation" aria-label="Main navigation">
-        <button class="mobile-menu-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation">
-            Menu
-        </button>
+        <div class="nav-container">
+            <!-- Logo -->
+            <a href="{% url 'index' %}" class="nav-logo" aria-label="GGz home">
+                <strong>GGz</strong>
+                <span class="logo-accent">.</span>
+            </a>
 
-        <div class="brand" aria-label="GGz home">
-            <a href="{% url 'index' %}">GGz<span>.</span></a>
-        </div>
+            <!-- Mobile Menu Toggle -->
+            <button class="nav-mobile-toggle" id="nav-mobile-toggle" aria-expanded="false" aria-controls="nav-menu" aria-label="Toggle navigation menu">
+                <span></span><span></span><span></span>
+            </button>
 
-        <div class="nav-menu">
-            <div class="nav-cluster">
-                <a href="{% url 'index' %}" class="nav-link">Home</a>
+            <!-- Main Menu -->
+            <div class="nav-menu" id="nav-menu">
+                <a href="{% url 'index' %}" class="nav-primary-link">Home</a>
 
-                <details class="nav-dropdown">
-                    <summary class="nav-more" aria-haspopup="true" aria-expanded="false">Discover</summary>
-                    <ul class="nav-dropdown-menu">
-                        <li><a href="{% url 'game_list' %}" class="nav-dropdown-item">All Games</a></li>
-                        <li><a href="{% url 'geo_discovery' %}" class="nav-dropdown-item">Nearby Venues</a></li>
-                        <li><a href="{% url 'map_page' %}" class="nav-dropdown-item">Gaming Map</a></li>
-                        <li><a href="{% url 'leaderboard' %}" class="nav-dropdown-item">Leaderboards</a></li>
-                    </ul>
-                </details>
+                <div class="nav-dropdown">
+                    <button aria-expanded="false" aria-haspopup="true" class="nav-more">Discover</button>
+                    <div class="nav-dropdown-panel">
+                        <a href="{% url 'game_list' %}" class="nav-dropdown-link">All Games</a>
+                        <a href="{% url 'gamer_discovery' %}" class="nav-dropdown-link">Find Players</a>
+                        <a href="{% url 'geo_discovery' %}" class="nav-dropdown-link">Nearby Gaming</a>
+                        <a href="{% url 'leaderboard' %}" class="nav-dropdown-link">Leaderboards</a>
+                    </div>
+                </div>
 
-                <a href="{% url 'game_list' %}" class="nav-link">Play</a>
+                <div class="nav-dropdown">
+                    <button aria-expanded="false" aria-haspopup="true" class="nav-more">Community</button>
+                    <div class="nav-dropdown-panel">
+                        <a href="{% url 'feed' %}" class="nav-dropdown-link">Community feed</a>
+                        <a href="{% url 'gamer_discovery' %}" class="nav-dropdown-link">Players</a>
+                        <a href="{% url 'team_list' %}" class="nav-dropdown-link">Teams</a>
+                    </div>
+                </div>
 
-                <details class="nav-dropdown">
-                    <summary class="nav-more" aria-haspopup="true" aria-expanded="false">Compete</summary>
-                    <ul class="nav-dropdown-menu">
-                        <li><a href="{% url 'tournament_list' %}" class="nav-dropdown-item">Tournaments</a></li>
-                        <li><a href="{% url 'leaderboard' %}" class="nav-dropdown-item">Rankings</a></li>
-                        <li><a href="{% url 'event_list' %}" class="nav-dropdown-item">Live Events</a></li>
-                    </ul>
-                </details>
+                <div class="nav-dropdown">
+                    <button aria-expanded="false" aria-haspopup="true" class="nav-more">Compete</button>
+                    <div class="nav-dropdown-panel">
+                        <a href="{% url 'tournament_list' %}" class="nav-dropdown-link">Tournaments</a>
+                        <a href="{% url 'event_list' %}" class="nav-dropdown-link">Events</a>
+                        <a href="{% url 'leaderboard' %}" class="nav-dropdown-link">Rankings</a>
+                    </div>
+                </div>
 
-                <details class="nav-dropdown">
-                    <summary class="nav-more" aria-haspopup="true" aria-expanded="false">Community</summary>
-                    <ul class="nav-dropdown-menu">
-                        <li><a href="{% url 'feed' %}" class="nav-dropdown-item">Community feed</a></li>
-                        <li><a href="{% url 'gamer_discovery' %}" class="nav-dropdown-item">Find Players</a></li>
-                        <li><a href="{% url 'team_list' %}" class="nav-dropdown-item">Teams</a></li>
-                    </ul>
-                </details>
-
-                <a href="{% url 'listing_list' %}" class="nav-link">Marketplace</a>
+                <a href="{% url 'listing_list' %}" class="nav-primary-link">Marketplace</a>
             </div>
 
+            <!-- Right Side Tools -->
             <div class="nav-tools">
                 <div class="nav-search">
                     <form action="{% url 'global_search' %}" method="get">
-                        <input type="text" name="q" placeholder="Search GGz" aria-label="Search GGz" />
+                        <input type="text" name="q" placeholder="Search" aria-label="Search GGz" />
+                        <button type="submit" aria-label="Search">🔍</button>
                     </form>
                 </div>
 
                 {% if request.user.is_authenticated %}
-                    <a href="{% url 'notification_list' %}" class="nav-link nav-icon-link" title="Notifications">
-                        <span aria-hidden="true">🔔</span>
-                        {% if unread_notification_count %}<span class="notification-badge">{{ unread_notification_count }}</span>{% endif %}
+                    <a href="{% url 'notification_list' %}" class="nav-icon-button" title="Notifications" aria-label="Notifications">
+                        <span>🔔</span>
+                        {% if unread_notification_count %}<span class="nav-badge">{{ unread_notification_count }}</span>{% endif %}
                     </a>
                 {% endif %}
 
                 {% if request.user.is_authenticated %}
-                    <details class="account-menu">
-                        <summary class="nav-profile-summary nav-more" aria-label="Account menu" aria-haspopup="true" aria-expanded="false">
+                    <div class="nav-profile">
+                        <button class="nav-profile-button" id="nav-profile-toggle" aria-expanded="false" aria-haspopup="true" aria-label="Account menu">
                             {% if request.user.gamer_profile.avatar %}
-                                <img class="avatar avatar-sm" src="{{ request.user.gamer_profile.avatar.url }}" alt="{{ request.user.username }} avatar">
+                                <img class="nav-avatar" src="{{ request.user.gamer_profile.avatar.url }}" alt="{{ request.user.username }} avatar">
                             {% else %}
-                                <span class="avatar avatar-sm avatar-fallback">{{ request.user.username|slice:":1"|upper }}</span>
+                                <span class="nav-avatar nav-avatar-fallback">{{ request.user.username|slice:":1"|upper }}</span>
                             {% endif %}
-                        </summary>
-                        <div class="menu-panel">
-                            <div class="menu-identity">
+                        </button>
+                        <div class="nav-profile-panel" id="nav-profile-panel">
+                            <div class="nav-profile-header">
                                 <strong>{% if user_profile %}{{ user_profile.gamer_tag }}{% else %}{{ request.user.username }}{% endif %}</strong>
-                                <span>{{ request.user.email|default:"Gamer account" }}</span>
+                                <span class="nav-profile-email">{{ request.user.email|default:"Player account" }}</span>
                             </div>
                             {% if user_profile %}
-                                <a href="{% url 'dashboard' %}">Dashboard</a>
-                                <a href="{% url 'profile_detail' user_profile.gamer_tag %}">My Profile</a>
-                                <a href="{% url 'profile_edit' user_profile.gamer_tag %}">Edit Profile</a>
-                                <a href="{% url 'conversation_list' %}">Messages{% if unread_message_count %} <span class="menu-badge">{{ unread_message_count }}</span>{% endif %}</a>
-                                <a href="{% url 'notification_list' %}">Notifications</a>
+                                <a href="{% url 'dashboard' %}" class="nav-profile-link">Dashboard</a>
+                                <a href="{% url 'profile_detail' user_profile.gamer_tag %}" class="nav-profile-link">My Profile</a>
+                                <a href="{% url 'profile_edit' user_profile.gamer_tag %}" class="nav-profile-link">Settings</a>
+                                <a href="{% url 'conversation_list' %}" class="nav-profile-link">Messages{% if unread_message_count %} <span class="nav-badge">{{ unread_message_count }}</span>{% endif %}</a>
                             {% endif %}
-                            <form method="post" action="{% url 'logout' %}">
+                            <form method="post" action="{% url 'logout' %}" class="nav-logout-form">
                                 {% csrf_token %}
-                                <button type="submit" class="nav-dropdown-item">Log out</button>
+                                <button type="submit" class="nav-profile-link">Log out</button>
                             </form>
                         </div>
-                    </details>
+                    </div>
                 {% else %}
-                    <a href="{% url 'login' %}" class="nav-link">Log in</a>
+                    <a href="{% url 'login' %}" class="nav-cta">Log in</a>
                 {% endif %}
             </div>
         </div>
@@ -110,6 +113,59 @@
         {% if messages %}<div class="flash-stack global-flashes" aria-live="polite">{% for message in messages %}<div class="flash flash-{{ message.tags }}">{{ message }}</div>{% endfor %}</div>{% endif %}
         {% block content %}{% endblock %}
     </div>
+
+    <script>
+        // Navigation interactivity
+        document.addEventListener('DOMContentLoaded', () => {
+            // Mobile menu toggle
+            const mobileToggle = document.getElementById('nav-mobile-toggle');
+            const navMenu = document.getElementById('nav-menu');
+
+            if (mobileToggle) {
+                mobileToggle.addEventListener('click', () => {
+                    const isOpen = mobileToggle.getAttribute('aria-expanded') === 'true';
+                    mobileToggle.setAttribute('aria-expanded', !isOpen);
+                    navMenu.classList.toggle('is-open');
+                });
+            }
+
+            // Dropdown menus
+            const dropdownTriggers = document.querySelectorAll('.nav-more');
+            dropdownTriggers.forEach(trigger => {
+                trigger.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const isOpen = trigger.getAttribute('aria-expanded') === 'true';
+                    dropdownTriggers.forEach(t => t.setAttribute('aria-expanded', 'false'));
+                    if (!isOpen) {
+                        trigger.setAttribute('aria-expanded', 'true');
+                    }
+                });
+            });
+
+            // Profile menu toggle
+            const profileToggle = document.getElementById('nav-profile-toggle');
+            const profilePanel = document.getElementById('nav-profile-panel');
+
+            if (profileToggle) {
+                profileToggle.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const isOpen = profileToggle.getAttribute('aria-expanded') === 'true';
+                    profileToggle.setAttribute('aria-expanded', !isOpen);
+                    if (!isOpen) profilePanel.focus();
+                });
+            }
+
+            // Close menus when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.nav-dropdown') && !e.target.closest('.nav-more')) {
+                    dropdownTriggers.forEach(t => t.setAttribute('aria-expanded', 'false'));
+                }
+                if (!e.target.closest('.nav-profile') && profileToggle) {
+                    profileToggle.setAttribute('aria-expanded', 'false');
+                }
+            });
+        });
+    </script>
     <script src="{% static 'main.js' %}" defer></script>
 </body>
 </html>
