@@ -658,6 +658,7 @@ a:hover { color: #a5b4fc; }
 
 .avatar-sm { width: 32px; height: 32px; }
 .avatar-md { width: 40px; height: 40px; }
+.avatar-medium { width: 44px; height: 44px; }
 .avatar-lg { width: 56px; height: 56px; }
 .avatar-post { width: 32px; height: 32px; }
 
@@ -1283,8 +1284,8 @@ a:hover { color: #a5b4fc; }
 .player-grid,
 .listing-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
 }
 
 .gamer-card,
@@ -1300,6 +1301,40 @@ a:hover { color: #a5b4fc; }
     padding: 1.25rem;
     transition: transform var(--transition-base), border-color var(--transition-base), box-shadow var(--transition-base);
     overflow: hidden;
+}
+
+.gamer-card.compact {
+    gap: 0.7rem;
+    padding: 1rem;
+}
+
+.gamer-card.compact .gamer-card-head {
+    gap: 0.7rem;
+}
+
+.gamer-card.compact .gamer-card-head h2 {
+    font-size: 1rem;
+}
+
+.gamer-card.compact .gamer-meta {
+    gap: 0.35rem 0.55rem;
+    font-size: 0.72rem;
+}
+
+.gamer-card.compact .gamer-games,
+.gamer-card.compact .compact-meta {
+    margin: 0;
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
+.gamer-card.compact .gamer-card-foot {
+    padding-top: 0.45rem;
+}
+
+.gamer-card.compact .button {
+    padding: 0.7rem 0.9rem;
+    font-size: 0.78rem;
 }
 
 .gamer-card:hover,
@@ -2855,19 +2890,19 @@ a:hover { color: #a5b4fc; }
 }
 
 /* Leaderboard */
-.leaderboard {
+.leaderboard-list {
     display: grid;
-    gap: 0.5rem;
+    gap: 0.6rem;
 }
 
 .leaderboard-item {
     display: grid;
-    grid-template-columns: 42px 40px 1fr auto;
+    grid-template-columns: 32px 44px minmax(0, 1fr) auto;
     align-items: center;
-    gap: 1rem;
+    gap: 0.8rem;
     border: 1px solid var(--border);
-    padding: 1rem;
-    background: var(--bg-1);
+    padding: 0.85rem 1rem;
+    background: rgba(17, 22, 28, 0.9);
     color: var(--text-primary);
     text-decoration: none;
     transition: all var(--transition-fast);
@@ -2875,15 +2910,52 @@ a:hover { color: #a5b4fc; }
 }
 
 .leaderboard-item:hover {
-    border-color: var(--accent-primary);
-    background: var(--bg-2);
-    transform: translateX(2px);
+    border-color: rgba(99, 102, 241, 0.7);
+    background: rgba(23, 29, 36, 0.96);
+    transform: translateY(-1px);
+}
+
+.leaderboard-player {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    gap: 0.15rem;
+}
+
+.leaderboard-player b {
+    font-size: 0.98rem;
+    color: var(--text-primary);
+}
+
+.leaderboard-player small,
+.leaderboard-score {
+    color: var(--text-tertiary);
+    font-size: 0.76rem;
+}
+
+.leaderboard-score {
+    justify-self: end;
+    font-weight: 600;
+    color: var(--text-secondary);
 }
 
 .leaderboard-rank {
     color: var(--accent-danger);
-    font-size: 1rem;
+    font-size: 0.9rem;
     font-weight: 700;
+    text-align: center;
+}
+
+@media (max-width: 640px) {
+    .leaderboard-item {
+        grid-template-columns: 28px 40px minmax(0, 1fr);
+    }
+
+    .leaderboard-score {
+        grid-column: 2 / -1;
+        justify-self: start;
+        margin-left: 0.15rem;
+    }
 }
 
 /* Post/Activity Feed */

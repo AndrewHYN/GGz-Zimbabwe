@@ -30,7 +30,24 @@
     {% if promotion_requests %}
       <ul class="game-list">
         {% for request in promotion_requests %}
-          <li><strong>{{ request.request_type }}</strong><span class="muted"> · {{ request.status }} · {{ request.event.name }}</span></li>
+          <li>
+            <div class="promotion-request-item">
+              <div>
+                <strong>{{ request.request_type }}</strong>
+                <span class="muted"> · {{ request.status }} · {{ request.event.name }}</span>
+              </div>
+              <div class="row-actions">
+                <form method="post" action="{% url 'event_promotion_review' request.id 'approve' %}" class="inline-action">
+                  {% csrf_token %}
+                  <button class="button" type="submit">Approve</button>
+                </form>
+                <form method="post" action="{% url 'event_promotion_review' request.id 'reject' %}" class="inline-action">
+                  {% csrf_token %}
+                  <button class="button alt" type="submit">Reject</button>
+                </form>
+              </div>
+            </div>
+          </li>
         {% endfor %}
       </ul>
     {% else %}

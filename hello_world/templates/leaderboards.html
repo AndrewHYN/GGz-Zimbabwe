@@ -1,3 +1,31 @@
 {% extends "base.html" %}
 {% block title %}Leaderboards | GGz{% endblock %}
-{% block content %}<main class="page-shell utility-page"><p class="eyebrow">Competitive stats</p><h1>Who is setting the <em>pace?</em></h1><p class="lede">Real match and tournament data from the GGz community.</p><section class="leaderboard page-section">{% for profile in profiles %}<a class="leader-row" href="{% url 'profile_detail' profile.gamer_tag %}"><strong>{{ forloop.counter }}</strong>{% if profile.avatar %}<span class="avatar avatar-post"><img src="{{ profile.avatar.url }}" alt="{{ profile.gamer_tag }} avatar"></span>{% else %}<span class="avatar avatar-post avatar-fallback">{{ profile.gamer_tag|slice:":1"|upper }}</span>{% endif %}<span><b>{{ profile.gamer_tag }}</b><small>{{ profile.get_rank_display }} · {{ profile.match_wins }}W · {{ profile.match_losses }}L</small></span><span>{{ profile.respect_points }} respect</span></a>{% empty %}<div class="empty-state"><h2>No rankings yet.</h2><p class="muted">Competitive data will appear as players take part.</p></div>{% endfor %}</section></main>{% endblock %}
+{% block content %}
+<main class="page-shell utility-page">
+    <p class="eyebrow">Competitive stats</p>
+    <h1>Who is setting the <em>pace?</em></h1>
+    <p class="lede">Real match and tournament data from the GGz community.</p>
+    <section class="leaderboard-list page-section">
+        {% for profile in profiles %}
+            <a class="leaderboard-item" href="{% url 'profile_detail' profile.gamer_tag %}">
+                <span class="leaderboard-rank">{{ forloop.counter }}</span>
+                {% if profile.avatar %}
+                    <span class="avatar avatar-medium"><img src="{{ profile.avatar.url }}" alt="{{ profile.gamer_tag }} avatar"></span>
+                {% else %}
+                    <span class="avatar avatar-medium avatar-fallback">{{ profile.gamer_tag|slice:":1"|upper }}</span>
+                {% endif %}
+                <span class="leaderboard-player">
+                    <b>{{ profile.gamer_tag }}</b>
+                    <small>{{ profile.get_rank_display }} · {{ profile.match_wins }}W · {{ profile.match_losses }}L</small>
+                </span>
+                <span class="leaderboard-score">{{ profile.respect_points }} respect</span>
+            </a>
+        {% empty %}
+            <div class="empty-state">
+                <h2>No rankings yet.</h2>
+                <p class="muted">Competitive data will appear as players take part.</p>
+            </div>
+        {% endfor %}
+    </section>
+</main>
+{% endblock %}

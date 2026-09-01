@@ -140,4 +140,23 @@ class EventManagementTests(TestCase):
 		self.assertEqual(response.status_code, 200)
 		self.assertContains(response, "Venue Crew")
 
+	def test_organization_dashboard_exposes_promotion_review_actions(self):
+		org = Organization.objects.create(owner=self.profile, name="Pixel Forge", slug="pixel-forge-review", organization_type="Venue", description="Gaming lounge")
+		self.event.organization = org
+		self.event.save(update_fields=("organization",))
+		promotion = EventPromotionRequest.objects.create(
+			event=self.event,
+			requesting_organization=org,
+			request_type="Featured Event",
+			campaign_description="Highlight local venue showcase",
+			status="Pending",
+		)
+		self.client.login(username="event-owner", password="pass")
+		response = self.client.get(reverse("organization_dashboard", args=(org.slug,)))
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Approve")
+		self.assertContains(response, "Reject")
+		self.assertContains(response, reverse("event_promotion_review", args=(promotion.id, "approve")))
+		self.assertContains(response, reverse("event_promotion_review", args=(promotion.id, "reject")))
+
 # Create your tests here.

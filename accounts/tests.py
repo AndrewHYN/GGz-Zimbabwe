@@ -636,6 +636,20 @@ class SearchAndRankTests(TestCase):
 		self.assertContains(response, "gamers_page=1")
 		self.assertContains(response, "games_page=4")
 
+	def test_discovery_cards_use_compact_scan_layout(self):
+		GamerProfile.objects.create(user=User.objects.create_user(username="compactplayer"), gamer_tag="CompactPlayer", location="Harare", platform="PC", rank="Gold", availability="Available")
+		response = self.client.get(reverse("gamer_discovery"))
+		self.assertContains(response, 'class="gamer-card compact"')
+		self.assertContains(response, 'View profile')
+		self.assertContains(response, 'Search players')
+
+	def test_leaderboard_uses_compact_rank_list(self):
+		profile = GamerProfile.objects.create(user=User.objects.create_user(username="leaderboarduser"), gamer_tag="TopTier", respect_points=420)
+		response = self.client.get(reverse("leaderboard"))
+		self.assertContains(response, 'class="leaderboard-list page-section"')
+		self.assertContains(response, f'href="/profiles/{profile.gamer_tag}/"')
+		self.assertContains(response, 'Competitive stats')
+
 	def test_rank_display_uses_model_choice_label(self):
 		user = User.objects.create_user(username="ranked")
 		profile = GamerProfile.objects.create(user=user, gamer_tag="Ranked", rank="Diamond")
