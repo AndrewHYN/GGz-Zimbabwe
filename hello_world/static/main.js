@@ -149,12 +149,23 @@
   if (mapContainer) {
     const statusNode = document.getElementById('map-status');
     const insightsNode = document.getElementById('map-insights');
+    const locationCard = document.getElementById('radar-location-card');
     const layerInputs = Array.from(document.querySelectorAll('[data-layer]'));
+    const modeButtons = Array.from(document.querySelectorAll('[data-map-mode]'));
+    const searchInput = document.getElementById('radar-search-input');
+    const nearMeBtn = document.getElementById('near-me-btn');
+    const legendToggle = document.getElementById('map-legend-toggle');
+    const legend = document.getElementById('radar-legend');
     const defaultLat = Number(mapContainer.dataset.defaultLat || '-17.8252');
     const defaultLng = Number(mapContainer.dataset.defaultLng || '31.0335');
     const mapDataUrl = mapContainer.dataset.mapDataUrl || '/map-data/';
-    const provider = mapContainer.dataset.mapProvider || 'osm';
+    const provider = (mapContainer.dataset.mapProvider || 'google').toLowerCase();
     const apiKey = mapContainer.dataset.mapKey || '';
+    let map = null;
+    let renderMarkers = [];
+    let clusterer = null;
+    let lastData = null;
+    let mapReadyPromise = null;
 
     function updateStatus(message) {
       if (statusNode) statusNode.textContent = message;
@@ -165,96 +176,260 @@
       insightsNode.innerHTML = items.length ? items.map((item) => `<li>${item}</li>`).join('') : '<li>No public map markers in this view yet.</li>';
     }
 
-    function createMarker(icon, label, lat, lng, detail) {
-      const marker = document.createElement('div');
-      marker.className = 'marker-pin';
-      marker.textContent = icon;
-      marker.title = label;
-      marker.dataset.detail = detail;
-      marker.style.left = '50%';
-      marker.style.top = '50%';
-      marker.style.position = 'absolute';
-      marker.style.transform = 'translate(-50%, -50%)';
-      marker.style.fontSize = '1.1rem';
-      marker.style.cursor = 'pointer';
-      marker.style.filter = 'drop-shadow(0 4px 10px rgba(0,0,0,.35))';
+    function getMarkerIcon(kind) {
+      const icons = {
+        hotspot: '🔥',
+        location: '🎮',
+        radar_location: '🎮',
+        venue: '🎮',
+        event: '🎪',
+        tournament: '🏆',
+        organization: '🏢',
+        tech: '💻',
+        developer: '👨‍💻',
+      };
+      return icons[kind] || '📍';
+    }
+
+    function getMarkerColor(kind) {
+      const colors = {
+        hotspot: '#f59e0b',
+        location: '#60a5fa',
+        radar_location: '#60a5fa',
+        venue: '#60a5fa',
+        event: '#a78bfa',
+        tournament: '#f97316',
+        organization: '#34d399',
+        tech: '#2dd4bf',
+        developer: '#f472b6',
+      };
+      return colors[kind] || '#8b5cf6';
+    }
+
+    function setLocationCard(item) {
+      if (!locationCard) return;
+      if (!item) {
+        locationCard.innerHTML = '<p class="eyebrow">Selected location</p><h3>Choose a venue</h3><p class="muted">Select a marker or use the map filters to discover gaming hubs, tournaments, and events.</p>';
+        return;
+      }
+
+      const ratingText = item.rating_average !== null && item.rating_average !== undefined ? `${Number(item.rating_average).toFixed(1)}` : 'No ratings yet';
+      const ratingCount = item.rating_count || 0;
+      const scoreText = item.ggz_score !== null && item.ggz_score !== undefined ? `${Number(item.ggz_score).toFixed(1)} / 10` : 'No score yet';
+      const status = item.verification_status && String(item.verification_status).toUpperCase() === 'VERIFIED' ? '<span class="verified-badge">✓ Verified</span>' : '';
+      const actionUrl = item.url && item.url !== '#'
+        ? `<a class="primary-button" href="${item.url}">View Hub</a>`
+        : '<button type="button" class="primary-button" disabled>View Hub</button>';
+      const directionsUrl = item.latitude && item.longitude ? `https://www.google.com/maps/dir/?api=1&destination=${item.latitude},${item.longitude}` : '#';
+      const eventSummary = item.event_count ? `🎪 ${item.event_count} events` : '🎪 No events';
+      const tournamentSummary = item.tournament_count ? `🏆 ${item.tournament_count} tournaments` : '🏆 No tournaments';
+
+      locationCard.innerHTML = `
+        <p class="eyebrow">Selected location</p>
+        <h3>${item.name || 'GGz location'}</h3>
+        ${status}
+        <div class="radar-rating-row"><span class="stars">${item.rating_average ? '★★★★★' : '☆☆☆☆☆'}</span><span>${ratingText}</span></div>
+        <div class="stat-stack">
+          <div><strong>GGz Score</strong><span>${scoreText}</span></div>
+          <div><strong>Location</strong><span>${item.location || item.city || 'Public venue'}</span></div>
+          <div><strong>Activity</strong><span>${eventSummary}</span></div>
+          <div><strong>Tournaments</strong><span>${tournamentSummary}</span></div>
+        </div>
+        <div class="stack-buttons">
+          ${actionUrl}
+          <a class="secondary-button" href="${directionsUrl}" target="_blank" rel="noopener">Directions</a>
+        </div>
+      `;
+    }
+
+    function getActiveLayers() {
+      return new Set(layerInputs.filter((input) => input.checked).map((input) => input.dataset.layer));
+    }
+
+    function buildMapItems(data) {
+      const activeLayers = getActiveLayers();
+      const items = [];
+      if (activeLayers.has('hotspots')) {
+        for (const item of data.hotspots || []) {
+          items.push({ ...item, kind: 'hotspot', icon: getMarkerIcon('hotspot'), label: 'Gamer Hotspot' });
+        }
+      }
+      if (activeLayers.has('locations')) {
+        for (const item of data.locations || []) {
+          items.push({ ...item, kind: item.kind || 'radar_location', icon: getMarkerIcon('radar_location'), label: item.name, url: item.url || '#' });
+        }
+      }
+      if (activeLayers.has('venues')) {
+        for (const item of data.venues || []) {
+          items.push({ ...item, kind: 'venue', icon: getMarkerIcon('venue'), label: item.name, url: item.url || '#' });
+        }
+      }
+      if (activeLayers.has('events')) {
+        for (const item of data.events || []) {
+          items.push({ ...item, kind: 'event', icon: getMarkerIcon('event'), label: item.name, url: item.url || '#' });
+        }
+      }
+      if (activeLayers.has('tournaments')) {
+        for (const item of data.tournaments || []) {
+          items.push({ ...item, kind: 'tournament', icon: getMarkerIcon('tournament'), label: item.name, url: item.url || '#' });
+        }
+      }
+      if (activeLayers.has('organizations')) {
+        for (const item of data.organizations || []) {
+          items.push({ ...item, kind: 'organization', icon: getMarkerIcon('organization'), label: item.name, url: item.url || '#' });
+        }
+      }
+      return items;
+    }
+
+    function applySearch(items) {
+      const query = (searchInput && searchInput.value || '').trim().toLowerCase();
+      if (!query) return items;
+      return items.filter((item) => {
+        const haystack = [
+          item.name,
+          item.location,
+          item.city,
+          item.game,
+          item.organization,
+          item.location_type,
+          item.category,
+          item.kind,
+        ].filter(Boolean).join(' ').toLowerCase();
+        return haystack.includes(query);
+      });
+    }
+
+    function ensureGoogleMaps() {
+      if (provider !== 'google' || !apiKey) {
+        return Promise.resolve(null);
+      }
+      if (window.google && window.google.maps) {
+        return Promise.resolve(window.google);
+      }
+      if (!mapReadyPromise) {
+        mapReadyPromise = new Promise((resolve, reject) => {
+          const existing = document.querySelector('script[data-ggz-google-map]');
+          if (existing) {
+            existing.addEventListener('load', () => resolve(window.google), { once: true });
+            existing.addEventListener('error', () => reject(new Error('Google Maps failed to load')), { once: true });
+            return;
+          }
+          const script = document.createElement('script');
+          script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly&libraries=marker&loading=async`;
+          script.async = true;
+          script.defer = true;
+          script.dataset.ggzGoogleMap = 'true';
+          script.addEventListener('load', () => resolve(window.google), { once: true });
+          script.addEventListener('error', () => reject(new Error('Google Maps failed to load')), { once: true });
+          document.head.appendChild(script);
+        });
+      }
+      return mapReadyPromise;
+    }
+
+    function ensureClustererLibrary() {
+      if (window.MarkerClusterer || (window.markerClusterer && window.markerClusterer.MarkerClusterer)) {
+        return Promise.resolve();
+      }
+      return new Promise((resolve, reject) => {
+        const existing = document.querySelector('script[data-ggz-marker-clusterer]');
+        if (existing) {
+          existing.addEventListener('load', resolve, { once: true });
+          existing.addEventListener('error', () => reject(new Error('Clusterer failed')), { once: true });
+          return;
+        }
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/@googlemaps/markerclusterer@2.5.3/dist/index.umd.min.js';
+        script.async = true;
+        script.defer = true;
+        script.dataset.ggzMarkerClusterer = 'true';
+        script.addEventListener('load', resolve, { once: true });
+        script.addEventListener('error', () => reject(new Error('Clusterer failed')), { once: true });
+        document.head.appendChild(script);
+      });
+    }
+
+    function buildPinElement(kind) {
+      const color = getMarkerColor(kind);
+      const pin = document.createElement('div');
+      pin.className = 'ggz-marker-pin';
+      pin.style.background = color;
+      pin.style.borderColor = '#0f172a';
+      pin.innerHTML = `<span>${getMarkerIcon(kind)}</span>`;
+      return pin;
+    }
+
+    function createGoogleMarker(item) {
+      if (!window.google || !window.google.maps || !window.google.maps.marker || !window.google.maps.marker.AdvancedMarkerElement) {
+        return null;
+      }
+      const markerElement = buildPinElement(item.kind);
+      const marker = new google.maps.marker.AdvancedMarkerElement({
+        position: { lat: Number(item.latitude), lng: Number(item.longitude) },
+        map,
+        title: item.name || 'GGz location',
+        content: markerElement,
+      });
+      marker.addListener('click', () => {
+        setLocationCard(item);
+        if (item.latitude && item.longitude && map) {
+          map.panTo({ lat: Number(item.latitude), lng: Number(item.longitude) });
+          map.setZoom(Math.max(map.getZoom(), 12));
+        }
+      });
       return marker;
     }
 
-    function drawMap(data) {
-      const activeLayers = new Set(layerInputs.filter((input) => input.checked).map((input) => input.dataset.layer));
-      mapContainer.innerHTML = '';
-      mapContainer.style.position = 'relative';
-      mapContainer.style.minHeight = '460px';
-      mapContainer.style.background = 'linear-gradient(135deg, #0b1012 0%, #0f1d1d 100%)';
-      mapContainer.style.border = '1px solid var(--line)';
-      mapContainer.style.borderRadius = '18px';
-      mapContainer.style.overflow = 'hidden';
-      mapContainer.style.boxShadow = 'var(--shadow)';
-
-      const world = document.createElement('div');
-      world.style.position = 'absolute';
-      world.style.inset = '0';
-      world.style.background = 'radial-gradient(circle at center, rgba(200, 241, 105, 0.12), transparent 52%), linear-gradient(180deg, rgba(23,30,33,.2), rgba(9,12,13,.2))';
-      mapContainer.appendChild(world);
-
-      if (!activeLayers.size) {
-        updateStatus('No layers enabled');
-        renderInsights(['Enable one or more map layers to reveal the GGz discovery board.']);
+    async function renderMapMarkers(data) {
+      if (!map || !window.google || !window.google.maps) {
         return;
       }
-
-      const items = [];
-      if (activeLayers.has('hotspots')) items.push(...(data.hotspots || []).map((hotspot) => ({ ...hotspot, category: 'hotspot', icon: '🔥', label: 'Gamer Hotspot' })));
-      if (activeLayers.has('venues')) items.push(...(data.venues || []).map((venue) => ({ ...venue, category: 'venue', icon: '🎮', label: venue.name })));
-      if (activeLayers.has('tournaments')) items.push(...(data.tournaments || []).map((tournament) => ({ ...tournament, category: 'tournament', icon: '🏆', label: tournament.name })));
-      if (activeLayers.has('events')) items.push(...(data.events || []).map((event) => ({ ...event, category: 'event', icon: '📅', label: event.name })));
-      if (activeLayers.has('organizations')) items.push(...(data.organizations || []).map((organization) => ({ ...organization, category: 'organization', icon: '🏢', label: organization.name })));
+      const items = applySearch(buildMapItems(data));
+      if (clusterer) {
+        clusterer.clearMarkers();
+      }
+      renderMarkers.forEach((markerObj) => {
+        if (markerObj && markerObj.setMap) markerObj.setMap(null);
+      });
+      renderMarkers = [];
 
       if (!items.length) {
-        updateStatus('No public map markers right now');
-        renderInsights(['The map is healthy and empty. Add public venue, tournament, event, or hotspot data to populate it.']);
+        updateStatus('No public gaming markers in this view');
+        renderInsights(['No gaming hubs, events, or tournaments match the current filters.']);
+        setLocationCard(null);
         return;
       }
 
-      const bounds = items.reduce((acc, item) => {
-        acc.minLat = Math.min(acc.minLat, Number(item.latitude));
-        acc.maxLat = Math.max(acc.maxLat, Number(item.latitude));
-        acc.minLng = Math.min(acc.minLng, Number(item.longitude));
-        acc.maxLng = Math.max(acc.maxLng, Number(item.longitude));
-        return acc;
-      }, { minLat: Number.MAX_SAFE_INTEGER, maxLat: Number.MIN_SAFE_INTEGER, minLng: Number.MAX_SAFE_INTEGER, maxLng: Number.MIN_SAFE_INTEGER });
+      const validItems = items.filter((item) => Number.isFinite(Number(item.latitude)) && Number.isFinite(Number(item.longitude)));
+      const markerObjects = validItems.map((item) => {
+        const marker = createGoogleMarker(item);
+        if (marker) {
+          renderMarkers.push(marker);
+        }
+        return marker;
+      }).filter(Boolean);
 
-      const centerX = ((bounds.minLng + bounds.maxLng) / 2 - defaultLng) * 110000;
-      const centerY = ((defaultLat - ((bounds.minLat + bounds.maxLat) / 2)) * 110000) * 0.7;
-
-      items.forEach((item) => {
-        const x = ((Number(item.longitude) - defaultLng) * 110000) - centerX + 18;
-        const y = ((defaultLat - Number(item.latitude)) * 110000 * 0.7) - centerY + 18;
-        const marker = createMarker(item.icon, item.label, Number(item.latitude), Number(item.longitude), item);
-        marker.style.position = 'absolute';
-        marker.style.left = `${Math.min(Math.max((x / 420) * 100, 4), 96)}%`;
-        marker.style.top = `${Math.min(Math.max((y / 300) * 100, 4), 96)}%`;
-        marker.style.zIndex = '2';
-        marker.addEventListener('click', () => {
-          if (item.category === 'hotspot') {
-            const games = item.popular_games && item.popular_games.length ? item.popular_games.join(', ') : 'Local gaming culture';
-            updateStatus(`${item.gamer_count} gamers nearby`);
-            renderInsights([`Gamer Hotspot · ${item.gamer_count} gamers nearby`, `Popular games: ${games}`]);
-          } else if (item.url && item.url !== '#') {
-            window.location.href = item.url;
-          } else {
-            updateStatus(`${item.name}`);
-            renderInsights([`${item.label || item.name} is on the map.`]);
-          }
+      if (window.MarkerClusterer || (window.markerClusterer && window.markerClusterer.MarkerClusterer)) {
+        const ClustererCtor = window.MarkerClusterer || (window.markerClusterer && window.markerClusterer.MarkerClusterer);
+        clusterer = new ClustererCtor({
+          markers: markerObjects,
+          map,
+          algorithm: undefined,
         });
-        mapContainer.appendChild(marker);
-      });
+      } else {
+        markerObjects.forEach((marker) => marker.setMap(map));
+      }
 
-      updateStatus(`${items.length} public markers shown`);
+      const bounds = new google.maps.LatLngBounds();
+      validItems.forEach((item) => bounds.extend({ lat: Number(item.latitude), lng: Number(item.longitude) }));
+      if (validItems.length) {
+        map.fitBounds(bounds, 48);
+      }
+      updateStatus(`${validItems.length} public markers shown`);
       renderInsights([
         `${(data.hotspots || []).length} gamer hotspot${(data.hotspots || []).length === 1 ? '' : 's'} visible`,
-        `${(data.venues || []).length} venue${(data.venues || []).length === 1 ? '' : 's'}`,
+        `${(data.locations || []).length} radar location${(data.locations || []).length === 1 ? '' : 's'}`,
         `${(data.events || []).length} event${(data.events || []).length === 1 ? '' : 's'}`,
         `${(data.tournaments || []).length} tournament${(data.tournaments || []).length === 1 ? '' : 's'}`,
       ]);
@@ -262,21 +437,144 @@
 
     async function loadMapData() {
       updateStatus('Loading map data…');
-      if (!provider || provider === 'google' && !apiKey) {
-        updateStatus('No external provider key configured');
-      }
       try {
         const response = await fetch(mapDataUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
         if (!response.ok) throw new Error('Map request failed');
         const data = await response.json();
-        drawMap(data);
+        lastData = data;
+        if (map) {
+          renderMapMarkers(data);
+        }
       } catch (error) {
-        updateStatus('Map data unavailable');
+        updateStatus('Interactive map unavailable');
         renderInsights(['The map is available with graceful fallback, but no public data was loaded.']);
       }
     }
 
-    layerInputs.forEach((input) => input.addEventListener('change', loadMapData));
-    loadMapData();
+    function activateMapMode(mode) {
+      if (!map) return;
+      const buttonSet = new Set(modeButtons);
+      modeButtons.forEach((button) => button.classList.toggle('is-active', button.dataset.mapMode === mode));
+      if (mode === 'road') map.setMapTypeId('roadmap');
+      if (mode === 'satellite') map.setMapTypeId('satellite');
+      if (mode === 'hybrid') map.setMapTypeId('hybrid');
+      if (mode === '3d') {
+        map.setTilt(45);
+        map.setHeading(45);
+        map.setMapTypeId('roadmap');
+      }
+      if (mode === 'street') {
+        if (map.getStreetView()) {
+          map.getStreetView().setVisible(true);
+        }
+        map.setMapTypeId('roadmap');
+      }
+    }
+
+    function bindControls() {
+      modeButtons.forEach((button) => {
+        button.addEventListener('click', () => activateMapMode(button.dataset.mapMode));
+      });
+
+      layerInputs.forEach((input) => input.addEventListener('change', () => {
+        if (!lastData) return;
+        renderMapMarkers(lastData);
+      }));
+
+      if (searchInput) {
+        searchInput.addEventListener('input', () => {
+          if (!lastData) return;
+          renderMapMarkers(lastData);
+        });
+      }
+
+      if (legendToggle && legend) {
+        legendToggle.addEventListener('click', () => {
+          const isHidden = legend.hasAttribute('hidden');
+          legend.toggleAttribute('hidden', !isHidden);
+        });
+      }
+
+      if (nearMeBtn) {
+        nearMeBtn.addEventListener('click', () => {
+          if (!navigator.geolocation) {
+            updateStatus('Geolocation is unavailable in this browser');
+            return;
+          }
+          updateStatus('Requesting your location…');
+          navigator.geolocation.getCurrentPosition((position) => {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            if (map) {
+              map.setCenter({ lat, lng });
+              map.setZoom(12);
+            }
+            updateStatus('Nearby gaming results focused around your location');
+          }, () => {
+            updateStatus('Location access denied. Manual search and map navigation remain available.');
+          }, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 300000,
+          });
+        });
+      }
+    }
+
+    async function initMap() {
+      if (provider !== 'google' || !apiKey) {
+        updateStatus('Interactive map unavailable');
+        renderInsights(['Map service is not configured. GGz still exposes public venue and event data in the Radar list and detail views.']);
+        return;
+      }
+
+      try {
+        await ensureGoogleMaps();
+        if (!window.google || !window.google.maps) {
+          throw new Error('Google Maps library is unavailable');
+        }
+        await ensureClustererLibrary();
+
+        const mapOptions = {
+          center: { lat: defaultLat, lng: defaultLng },
+          zoom: 11,
+          mapId: 'GGZ_RADAR_MAP',
+          mapTypeControl: true,
+          streetViewControl: true,
+          fullscreenControl: true,
+          zoomControl: true,
+          gestureHandling: 'greedy',
+          disableDefaultUI: false,
+          mapTypeControlOptions: {
+            mapTypeIds: ['roadmap', 'satellite', 'hybrid', 'terrain'],
+          },
+        };
+        map = new google.maps.Map(mapContainer, mapOptions);
+        bindControls();
+        map.addListener('zoom_changed', () => {
+          if (lastData) renderMapMarkers(lastData);
+        });
+        map.addListener('bounds_changed', () => {
+          if (lastData) renderMapMarkers(lastData);
+        });
+        updateStatus('Map ready');
+        await loadMapData();
+      } catch (error) {
+        updateStatus('Interactive map unavailable');
+        if (locationCard) {
+          setLocationCard({
+            name: 'Map unavailable',
+            location: 'Public venue information remains available in the GGz data layer.',
+            rating_average: null,
+            ggz_score: null,
+            url: '#',
+          });
+        }
+        renderInsights(['The provider is unavailable or misconfigured. Public GGz venue and event data remain available in the rest of the app.']);
+      }
+    }
+
+    bindControls();
+    initMap();
   }
 })();

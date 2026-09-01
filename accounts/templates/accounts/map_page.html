@@ -17,6 +17,15 @@
         </div>
     </section>
 
+    <section class="radar-toolbar" aria-label="GGz Radar search and controls">
+        <label class="radar-search">
+            <span class="sr-only">Search GGz Radar</span>
+            <input id="radar-search-input" type="search" placeholder="Search venues, games, Harare, Tekken..." aria-label="Search Radar" />
+        </label>
+        <button type="button" class="secondary-button" id="near-me-btn">Near Me</button>
+        <button type="button" class="secondary-button" id="map-legend-toggle">Legend</button>
+    </section>
+
     <section class="radar-layout" aria-label="GGz Radar map discovery panel">
         <aside class="radar-sidebar">
             <div class="radar-panel">
@@ -48,22 +57,20 @@
                 <span class="badge-label">Discovery</span>
                 <strong>Public GGz locations</strong>
             </div>
+            <div class="radar-legend" id="radar-legend" hidden>
+                <span>🎮 Gaming Hub</span>
+                <span>🏆 Tournament</span>
+                <span>🎪 Event</span>
+                <span>💻 Tech</span>
+                <span>👨‍💻 Developer</span>
+            </div>
         </div>
 
         <aside class="radar-detail-panel">
-            <div class="radar-panel compact">
+            <div class="radar-panel compact" id="radar-location-card">
                 <p class="eyebrow">Selected location</p>
-                <h3>Harare Gaming Hub</h3>
-                <div class="radar-rating-row">
-                    <span class="stars">★★★★★</span>
-                    <span>4.7</span>
-                </div>
-                <div class="stat-stack">
-                    <div><strong>GGz Score</strong><span>8.8 / 10</span></div>
-                    <div><strong>Events</strong><span>3</span></div>
-                    <div><strong>Tournaments</strong><span>2</span></div>
-                </div>
-                <button type="button" class="primary-button">View Hub</button>
+                <h3>Choose a venue</h3>
+                <p class="muted">Select a marker or use the map filters to discover venues, events, and tournaments.</p>
             </div>
         </aside>
     </section>
