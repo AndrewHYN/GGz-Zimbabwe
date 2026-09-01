@@ -132,12 +132,14 @@ def game_detail(request, game_id):
 			"community_posts": community_posts,
 			"upcoming_tournaments": upcoming_tournaments,
 			"related_events": related_events,
-			"related_listings": Listing.objects.filter(game=game, status__in=("Available", "Reserved")).select_related("seller").prefetch_related("images")[:4],
+			"related_listings": related_listings,
 			"leaderboard": leaderboard,
 			"viewer": viewer,
 			"challenge_form": challenge_form,
 			"store_label": game.store_label,
 			"trailer_embed_url": game.trailer_embed_url,
+			"store_links": game.acquisition_links,
+			"primary_store_url": game.primary_store_url,
 		},
 	)
 
