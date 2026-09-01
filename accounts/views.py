@@ -227,6 +227,8 @@ def map_data(request):
 			"rating_average": item.average_rating,
 			"rating_count": item.rating_count,
 			"organization": item.organization.name,
+			"organization_url": reverse("organization_public_profile", args=[item.organization.slug]),
+			"description": item.description or item.organization.description,
 			"event_count": event_count,
 			"tournament_count": tournament_count,
 			"distance_km": round(distance, 1) if distance is not None else None,
@@ -299,8 +301,10 @@ def map_data(request):
 		"longitude": float(item.longitude),
 		"location": item.city or item.province or item.country or item.address or "Public location",
 		"organization_type": item.organization_type,
+		"description": item.description,
 		"distance_km": round(distance, 1) if lookup_lat is not None and lookup_lng is not None else None,
-		"url": "#",
+		"description": item.description,
+		"url": reverse("organization_public_profile", args=[item.slug]),
 	} for item, distance in [(item, _distance_km(lookup_lat, lookup_lng, item.latitude, item.longitude)) for item in organizations] if (lookup_lat is None or lookup_lng is None or (distance is not None and distance <= distance_limit))]
 
 	payload = {

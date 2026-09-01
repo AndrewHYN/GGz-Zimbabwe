@@ -534,7 +534,8 @@ class GGzMapTests(TestCase):
 		api_response = self.client.get(reverse("map_data"), {"q": "Tekken", "category": "Gaming Hub", "verified": "1"})
 		self.assertEqual(api_response.status_code, 200)
 		payload = api_response.json()
-		self.assertTrue(any(item["name"] == "Harare Gaming Hub" for item in payload["locations"]))
+		radar_location = next(item for item in payload["locations"] if item["name"] == "Harare Gaming Hub")
+		self.assertEqual(radar_location["organization_url"], "/organizations/harare-gaming-hub/")
 
 	def test_nearby_gaming_shows_three_gamers_and_discovery_link(self):
 		for index in range(4):
@@ -550,6 +551,13 @@ class GGzMapTests(TestCase):
 		self.assertEqual(response.status_code, 200)
 		self.assertEqual(response.content.decode().count('class="radar-mini-card radar-gamer-card"'), 3)
 		self.assertContains(response, "Show more gamers")
+
+	def test_near_me_distance_filter_includes_active_organizations(self):
+		owner = GamerProfile.objects.create(user=User.objects.create_user(username="radar-org-owner", password="pass"), gamer_tag="RadarOrgOwner")
+		organization = Organization.objects.create(owner=owner, name="Nearby Org", slug="nearby-org", organization_type="Venue")
+		organization.locations.create(name="Nearby Org Hub", latitude=-17.8252, longitude=31.0335, public_visible=True)
+		payload = self.client.get(reverse("map_data"), {"lat": "-17.8252", "lng": "31.0335", "distance": "5"}).json()
+		self.assertTrue(any(item["organization"] == "Nearby Org" for item in payload["locations"]))
 
 
 class RadarLocationTests(TestCase):

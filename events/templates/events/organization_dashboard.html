@@ -51,8 +51,18 @@
               <div class="row-actions">
                 <a class="button alt" href="{% url 'organization_location_edit' organization.slug location.id %}">Manage</a>
                 {% if location.public_visible %}<a class="button alt" href="{% url 'radar_location_detail' location.id %}" target="_blank" rel="noreferrer">View</a>{% endif %}
+                {% if location.public_visible %}
+                <form method="post" action="{% url 'organization_location_visibility' organization.slug location.id 'deactivate' %}" class="inline-action">
+                  {% csrf_token %}<button class="button alt" type="submit">Deactivate</button>
+                </form>
+                {% else %}
+                <form method="post" action="{% url 'organization_location_visibility' organization.slug location.id 'activate' %}" class="inline-action">
+                  {% csrf_token %}<button class="button" type="submit">Activate on Radar</button>
+                </form>
+                {% endif %}
               </div>
             </div>
+            {% if not location.public_visible %}<p class="portal-location-status">This location is saved but hidden. Activate it so gamers can discover your organization on GGz Radar.</p>{% endif %}
           </li>
         {% endfor %}
       </ul>

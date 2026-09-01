@@ -217,4 +217,30 @@ class EventManagementTests(TestCase):
 		self.assertContains(response, public_location.name)
 		self.assertNotContains(response, "Private Storage")
 
+	def test_public_organizations_page_and_location_activation(self):
+		org = Organization.objects.create(owner=self.profile, name="Radar Ready", slug="radar-ready", organization_type="Venue")
+		location = org.locations.create(name="Radar Ready Hub", city="Harare", latitude=-17.8252, longitude=31.0335, public_visible=False)
+		self.assertEqual(self.client.get(reverse("organization_list")).status_code, 200)
+		self.assertNotContains(self.client.get(reverse("organization_list")), "Radar Ready")
+		self.client.login(username="event-owner", password="pass")
+		response = self.client.post(reverse("organization_location_visibility", args=(org.slug, location.id, "activate")))
+		self.assertEqual(response.status_code, 302)
+		location.refresh_from_db()
+		self.assertTrue(location.public_visible)
+		self.assertContains(self.client.get(reverse("organization_list")), "Radar Ready")
+		self.client.post(reverse("organization_location_visibility", args=(org.slug, location.id, "deactivate")))
+		location.refresh_from_db()
+		self.assertFalse(location.public_visible)
+
+	def test_non_owner_cannot_change_location_visibility(self):
+		org = Organization.objects.create(owner=self.profile, name="Owner Hub", slug="owner-hub", organization_type="Venue")
+		location = org.locations.create(name="Owner Hub Main", latitude=-17.8252, longitude=31.0335, public_visible=False)
+		other = User.objects.create_user(username="visitor-owner", password="pass")
+		GamerProfile.objects.create(user=other, gamer_tag="VisitorOwner")
+		self.client.login(username="visitor-owner", password="pass")
+		response = self.client.post(reverse("organization_location_visibility", args=(org.slug, location.id, "activate")))
+		self.assertEqual(response.status_code, 403)
+		location.refresh_from_db()
+		self.assertFalse(location.public_visible)
+
 # Create your tests here.

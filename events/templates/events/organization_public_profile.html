@@ -8,6 +8,7 @@
       <h1>{{ organization.name }}</h1>
       <p class="lede">{{ organization.description|default:"A local part of Zimbabwe's gaming ecosystem." }}</p>
       {% if organization.verification_status == "Verified" %}<span class="verified-badge">✓ Verified organization</span>{% endif %}
+      {% if locations %}<span class="public-location-status">● Active on GGz Radar</span>{% else %}<span class="inactive-location-status">Location not currently published</span>{% endif %}
     </div>
     <a class="button alt" href="{% url 'map_page' %}">Explore on Radar</a>
   </header>
@@ -44,5 +45,11 @@
     <p class="eyebrow">Live activity</p><h2>Upcoming events</h2>
     {% if events %}<div class="radar-mini-grid">{% for event in events %}<div class="radar-mini-card"><p class="eyebrow">{{ event.status }}</p><h3><a href="{% url 'event_detail' event.id %}">{{ event.name }}</a></h3><p class="muted">{{ event.start_date|date:"M j, Y" }} · {{ event.game.name|default:"Community event" }}</p></div>{% endfor %}</div>{% else %}<p class="muted">No upcoming public events.</p>{% endif %}
   </section>
+  {% if is_owner and promotion_requests %}
+  <section class="radar-box organization-owner-tools">
+    <p class="eyebrow">Owner tools</p><h2>Promotion requests</h2>
+    {% for request in promotion_requests %}<div class="public-location-item"><div><strong>{{ request.request_type }}</strong><p class="muted">{{ request.status }} · {{ request.event.name }}</p></div><div class="row-actions"><form method="post" action="{% url 'event_promotion_review' request.id 'approve' %}">{% csrf_token %}<button class="button" type="submit">Approve</button></form><form method="post" action="{% url 'event_promotion_review' request.id 'reject' %}">{% csrf_token %}<button class="button alt" type="submit">Reject</button></form></div></div>{% endfor %}
+  </section>
+  {% endif %}
 </main>
 {% endblock %}

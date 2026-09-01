@@ -53,6 +53,11 @@ class OrganizationLocationForm(forms.ModelForm):
             location.save()
         return location
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk is None:
+            self.fields["public_visible"].initial = False
+
 
 class EventPromotionRequestForm(forms.ModelForm):
     class Meta:

@@ -113,14 +113,32 @@ def organization_portal(request):
 def organization_public_profile(request, slug):
 	organization = get_object_or_404(
 		Organization.objects.prefetch_related("locations__games", "locations__reviews__author__user", "events__game"),
-		Q(slug=slug) & (Q(location_public=True) | Q(locations__public_visible=True)),
+		slug=slug,
 	)
 	locations = organization.locations.filter(public_visible=True).order_by("name")
+	profile = getattr(request.user, "gamer_profile", None) if request.user.is_authenticated else None
 	return render(request, "events/organization_public_profile.html", {
 		"organization": organization,
 		"locations": locations,
 		"events": organization.events.filter(status__in=("Published", "Upcoming", "Live")).order_by("start_date")[:6],
+		"is_owner": bool(profile and organization.owner_id == profile.id),
+		"promotion_requests": organization.promotion_requests.all() if profile and organization.owner_id == profile.id else [],
 	})
+
+
+def organization_list(request):
+	query = (request.GET.get("q") or "").strip()
+	organizations = Organization.objects.filter(locations__public_visible=True).prefetch_related("locations").distinct().order_by("name")
+	if query:
+		organizations = organizations.filter(
+			Q(name__icontains=query)
+			| Q(description__icontains=query)
+			| Q(organization_type__icontains=query)
+			| Q(city__icontains=query)
+			| Q(country__icontains=query)
+			| Q(locations__name__icontains=query)
+		).distinct()
+	return render(request, "events/organization_list.html", {"organizations": organizations, "query": query})
 
 
 @login_required
@@ -173,6 +191,31 @@ def organization_location_edit(request, slug, location_id):
 
 
 @login_required
+def organization_location_visibility(request, slug, location_id, action):
+	profile = get_object_or_404(GamerProfile, user=request.user)
+	organization = get_object_or_404(Organization, slug=slug)
+	if organization.owner_id != profile.id:
+		return HttpResponseForbidden("You are not the owner of this organization.")
+	if request.method != "POST":
+		return HttpResponseForbidden("This action requires POST.")
+	location = get_object_or_404(OrganizationLocation, pk=location_id, organization=organization)
+	if action == "activate":
+		if location.latitude is None or location.longitude is None:
+			messages.error(request, "Add a valid map location before activating this venue.")
+		else:
+			location.public_visible = True
+			location.save(update_fields=("public_visible", "updated_at"))
+			messages.success(request, "Your location is now discoverable on GGz Radar.")
+	elif action == "deactivate":
+		location.public_visible = False
+		location.save(update_fields=("public_visible", "updated_at"))
+		messages.success(request, "Your location was removed from public Radar discovery.")
+	else:
+		return HttpResponseForbidden("Invalid location action.")
+	return redirect("organization_portal_dashboard", slug=organization.slug)
+
+
+@login_required
 def organization_create(request):
 	profile = get_object_or_404(GamerProfile, user=request.user)
 	form = OrganizationForm(request.POST or None, request.FILES or None)
@@ -185,7 +228,7 @@ def organization_create(request):
 				organization.slug = f"{organization.slug}-{Organization.objects.count() + 1}"
 		organization.save()
 		messages.success(request, "Your organization was created.")
-		return redirect("organization_dashboard", slug=organization.slug)
+		return redirect("organization_portal_dashboard", slug=organization.slug)
 	return render(request, "events/organization_form.html", {"form": form, "title": "Create organization"})
 
 

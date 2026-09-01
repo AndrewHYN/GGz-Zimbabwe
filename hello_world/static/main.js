@@ -222,8 +222,11 @@
       const ratingCount = item.rating_count || 0;
       const scoreText = item.ggz_score !== null && item.ggz_score !== undefined ? `${Number(item.ggz_score).toFixed(1)} / 10` : 'No score yet';
       const status = item.verification_status && String(item.verification_status).toUpperCase() === 'VERIFIED' ? '<span class="verified-badge">✓ Verified</span>' : '';
-      const actionUrl = item.url && item.url !== '#'
-        ? `<a class="primary-button" href="${item.url}">View Hub</a>`
+      const organizationUrl = item.organization_url && item.organization_url !== '#' ? item.organization_url : '';
+      const actionUrl = organizationUrl
+        ? `<a class="primary-button" href="${organizationUrl}">View Organization</a>`
+        : item.url && item.url !== '#'
+          ? `<a class="primary-button" href="${item.url}">View Hub</a>`
         : '<button type="button" class="primary-button" disabled>View Hub</button>';
       const directionsUrl = item.latitude && item.longitude ? `https://www.google.com/maps/dir/?api=1&destination=${item.latitude},${item.longitude}` : '#';
       const eventSummary = item.event_count ? `🎪 ${item.event_count} events` : '🎪 No events';
@@ -240,6 +243,7 @@
           <div><strong>Activity</strong><span>${eventSummary}</span></div>
           <div><strong>Tournaments</strong><span>${tournamentSummary}</span></div>
         </div>
+        ${item.description ? `<p class="muted radar-card-description">${item.description}</p>` : ''}
         <div class="stack-buttons">
           ${actionUrl}
           <a class="secondary-button" href="${directionsUrl}" target="_blank" rel="noopener">Directions</a>

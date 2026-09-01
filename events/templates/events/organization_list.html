@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Organizations | GGz{% endblock %}
+{% block content %}
+<main class="page-shell organization-directory-page">
+  <header class="organization-directory-header">
+    <div><p class="eyebrow">GGz community</p><h1>Organizations</h1><p class="lede">Discover the venues, studios, teams, and communities shaping Zimbabwe's gaming scene.</p></div>
+    <form class="organization-search" method="get" role="search"><label class="sr-only" for="organization-search-input">Search organizations</label><input id="organization-search-input" type="search" name="q" value="{{ query }}" placeholder="Search organizations, cities, or gaming hubs"><button class="button" type="submit">Search</button></form>
+  </header>
+  {% if organizations %}
+  <section class="organization-directory-grid" aria-label="Public organizations">
+    {% for organization in organizations %}
+    <article class="organization-directory-card">
+      <div class="organization-card-mark">{{ organization.name|slice:":1"|upper }}</div>
+      <div class="organization-card-body"><p class="eyebrow">{{ organization.get_organization_type_display }}</p><h2>{{ organization.name }}</h2><p>{{ organization.description|truncatewords:22|default:"Gaming community and local operator." }}</p><p class="muted">{{ organization.locations.all.0.city|default:organization.city|default:"Zimbabwe" }}</p><span class="public-location-status">● Active on Radar</span><div class="row-actions"><a class="button" href="{% url 'organization_public_profile' organization.slug %}">View organization</a><a class="button alt" href="{% url 'map_page' %}">View on Radar</a></div></div>
+    </article>
+    {% endfor %}
+  </section>
+  {% else %}<section class="empty-state"><h2>No organizations found</h2><p class="muted">Try a different city, organization name, or gaming category.</p></section>{% endif %}
+</main>
+{% endblock %}
