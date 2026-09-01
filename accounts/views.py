@@ -14,7 +14,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
-from events.models import Event, Organization, OrganizationLocation
+from events.models import Event, Organization, OrganizationLocation, OrganizationLocationRating, OrganizationLocationReview
 from games.models import Game
 from tournaments.models import Tournament
 
@@ -135,22 +135,28 @@ def map_data(request):
 		"url": "#",
 	} for item in venues]
 	locations = OrganizationLocation.objects.filter(public_visible=True, latitude__isnull=False, longitude__isnull=False).exclude(latitude=0, longitude=0).select_related("organization").order_by("name")
-	location_payload = [{
-		"id": item.pk,
-		"kind": "radar_location",
-		"name": item.name,
-		"latitude": float(item.latitude),
-		"longitude": float(item.longitude),
-		"location": item.city or item.country or item.address or "Public location",
-		"location_type": item.location_type,
-		"verification_status": item.verification_status,
-		"subscription_status": item.subscription_status,
-		"ggz_score": item.ggz_score,
-		"rating_average": item.average_rating,
-		"rating_count": item.rating_count,
-		"organization": item.organization.name,
-		"url": reverse("radar_location_detail", args=[item.pk]),
-	} for item in locations]
+	location_payload = []
+	for item in locations:
+		event_count = Event.objects.filter(organization_id=item.organization_id, status__in=("Published", "Upcoming", "Live")).count()
+		tournament_count = Tournament.objects.filter(venue__isnull=False, venue__name__icontains=item.name, status__in=("Registration Open", "Live", "Registration Closed")).count()
+		location_payload.append({
+			"id": item.pk,
+			"kind": "radar_location",
+			"name": item.name,
+			"latitude": float(item.latitude),
+			"longitude": float(item.longitude),
+			"location": item.city or item.country or item.address or "Public location",
+			"location_type": item.location_type,
+			"verification_status": item.verification_status,
+			"subscription_status": item.subscription_status,
+			"ggz_score": item.ggz_score,
+			"rating_average": item.average_rating,
+			"rating_count": item.rating_count,
+			"organization": item.organization.name,
+			"event_count": event_count,
+			"tournament_count": tournament_count,
+			"url": reverse("radar_location_detail", args=[item.pk]),
+		})
 	events = Event.objects.filter(location_public=True, latitude__isnull=False, longitude__isnull=False).exclude(latitude=0, longitude=0).select_related("game").order_by("start_date")
 	event_payload = [{
 		"id": item.pk,
@@ -220,7 +226,7 @@ def map_page(request):
 
 
 def radar_location_detail(request, location_id):
-	location = get_object_or_404(OrganizationLocation.objects.select_related("organization").prefetch_related("games", "ratings", "reviews__author__user"), pk=location_id)
+	location = get_object_or_404(OrganizationLocation.objects.select_related("organization").prefetch_related("games", "ratings", "reviews__author__user", "reviews__author__user__user"), pk=location_id)
 	if not location.public_visible:
 		return HttpResponseForbidden("This Radar location is not public.")
 	upcoming_events = Event.objects.filter(organization=location.organization, status__in=("Published", "Upcoming", "Live")).select_related("game")[:5]
@@ -228,12 +234,93 @@ def radar_location_detail(request, location_id):
 	if location.organization:
 		from tournaments.models import Tournament
 		upcoming_tournaments = Tournament.objects.filter(venue__isnull=False, venue__name__icontains=location.name, status__in=("Registration Open", "Live", "Registration Closed")).select_related("game")[:5]
+	viewer = getattr(request.user, "gamer_profile", None) if request.user.is_authenticated else None
+	user_rating = None
+	if viewer and request.user.is_authenticated:
+		user_rating = location.ratings.filter(user=request.user).order_by("-created_at").first()
+	user_review = None
+	if viewer:
+		user_review = location.reviews.filter(author=viewer).order_by("-created_at").first()
 	return render(request, "accounts/radar_location_detail.html", {
 		"location": location,
 		"organization": location.organization,
 		"upcoming_events": upcoming_events,
 		"upcoming_tournaments": upcoming_tournaments,
+		"user_rating": user_rating,
+		"user_review": user_review,
+		"score_breakdown": [
+			("Verified venue", location.is_verified),
+			("Average rating", location.average_rating is not None),
+			("Active tournament host", bool(upcoming_tournaments)),
+			("Active event host", bool(upcoming_events)),
+			("Venue profile complete", bool(location.description or location.games.exists() or location.amenities)),
+		],
 	})
+
+
+@login_required
+def radar_location_rating_create(request, location_id):
+	location = get_object_or_404(OrganizationLocation.objects.select_related("organization"), pk=location_id)
+	if not location.public_visible:
+		return HttpResponseForbidden("This Radar location is not public.")
+	try:
+		rating_value = int(request.POST.get("rating", "0"))
+	except (TypeError, ValueError):
+		messages.error(request, "The submitted rating was invalid.")
+		return redirect("radar_location_detail", location_id=location.id)
+	if rating_value not in {1, 2, 3, 4, 5}:
+		messages.error(request, "The submitted rating was invalid.")
+		return redirect("radar_location_detail", location_id=location.id)
+	item, created = OrganizationLocationRating.objects.update_or_create(
+		location=location,
+		user=request.user,
+		defaults={"value": rating_value},
+	)
+	item.value = rating_value
+	item.save(update_fields=("value", "updated_at"))
+	messages.success(request, "Thanks for rating this venue." if created else "Your rating was updated.")
+	return redirect("radar_location_detail", location_id=location.id)
+
+
+@login_required
+def radar_location_review_create(request, location_id):
+	location = get_object_or_404(OrganizationLocation.objects.select_related("organization"), pk=location_id)
+	if not location.public_visible:
+		return HttpResponseForbidden("This Radar location is not public.")
+	profile = get_object_or_404(GamerProfile, user=request.user)
+	review_text = (request.POST.get("review_text") or "").strip()
+	if not review_text:
+		messages.error(request, "Review text cannot be blank.")
+		return redirect("radar_location_detail", location_id=location.id)
+	try:
+		rating_value = int(request.POST.get("rating", "0"))
+	except (TypeError, ValueError):
+		messages.error(request, "The submitted rating was invalid.")
+		return redirect("radar_location_detail", location_id=location.id)
+	if rating_value not in {1, 2, 3, 4, 5}:
+		messages.error(request, "The submitted rating was invalid.")
+		return redirect("radar_location_detail", location_id=location.id)
+	review, created = OrganizationLocationReview.objects.get_or_create(
+		location=location,
+		author=profile,
+		defaults={"rating": rating_value, "review_text": review_text},
+	)
+	review.rating = rating_value
+	review.review_text = review_text
+	review.save(update_fields=("rating", "review_text", "updated_at"))
+	messages.success(request, "Review posted." if created else "Review updated.")
+	return redirect("radar_location_detail", location_id=location.id)
+
+
+@login_required
+def radar_location_review_delete(request, location_id, review_id):
+	location = get_object_or_404(OrganizationLocation, pk=location_id)
+	review = get_object_or_404(OrganizationLocationReview.objects.select_related("author__user"), pk=review_id, location=location)
+	if review.author.user_id != request.user.id and not request.user.is_staff:
+		return HttpResponseForbidden("You cannot delete someone else’s review.")
+	review.delete()
+	messages.success(request, "Your review was removed.")
+	return redirect("radar_location_detail", location_id=location.id)
 
 
 def geo_discovery(request):

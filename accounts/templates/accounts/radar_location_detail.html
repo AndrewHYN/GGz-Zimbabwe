@@ -7,8 +7,9 @@
             <p class="eyebrow">GGz Radar</p>
             <h1>{{ location.name }}</h1>
             {% if location.is_verified %}<span class="verified-badge">✓ Verified</span>{% endif %}
+            {% if location.subscription_status %}<span class="subscription-badge">{{ location.subscription_status }}</span>{% endif %}
             <div class="radar-rating-row">
-                <span class="stars">{% if location.average_rating %}{% for i in "12345" %}{% if forloop.counter <= location.average_rating|floatformat:0 %}★{% else %}☆{% endif %}{% endfor %}{% else %}No ratings yet{% endif %}</span>
+                <span class="stars">{% if location.average_rating %}{% for i in "12345" %}{% if forloop.counter <= location.average_rating|floatformat:0 %}★{% else %}☆{% endif %}{% endfor %}{% else %}☆☆☆☆☆{% endif %}</span>
                 <span>{% if location.average_rating %}{{ location.average_rating|floatformat:1 }}{% else %}No ratings yet{% endif %}</span>
             </div>
             <p class="subtle-copy">{{ location.city }}{% if location.city and location.country %}, {% endif %}{{ location.country }}</p>
@@ -22,13 +23,31 @@
 
     <section class="radar-detail-grid">
         <article class="radar-box">
-            <h2>About</h2>
+            <h2>Overview</h2>
             <p>{{ location.description|default:"This gaming location is listed in GGz Radar and is ready for community discovery." }}</p>
             <div class="detail-meta">
                 <span><strong>Type:</strong> {{ location.location_type }}</span>
                 <span><strong>Subscription:</strong> {{ location.subscription_status }}</span>
+                <span><strong>Verification:</strong> {{ location.verification_status }}</span>
                 <span><strong>Open hours:</strong> {{ location.opening_hours|default:"Hours not provided" }}</span>
             </div>
+            {% if organization %}
+            <div class="organization-link-block">
+                <h3>Organization</h3>
+                <a href="{% url 'organization_dashboard' organization.slug %}">{{ organization.name }}</a>
+            </div>
+            {% endif %}
+        </article>
+
+        <article class="radar-box">
+            <h2>Rating & Score</h2>
+            <p><strong>{{ location.average_rating|default:"No ratings yet" }}</strong> {% if location.average_rating %}average rating{% else %}average rating{% endif %}</p>
+            <p><strong>{{ location.ratings.count }}</strong> ratings</p>
+            <ul class="mini-list">
+                {% for label, active in score_breakdown %}
+                    <li>{% if active %}✓{% else %}—{% endif %} {{ label }}</li>
+                {% endfor %}
+            </ul>
         </article>
 
         <article class="radar-box">
@@ -54,10 +73,10 @@
             {% if upcoming_events or upcoming_tournaments %}
                 <ul class="mini-list">
                     {% for event in upcoming_events %}
-                        <li><a href="{% url 'event_detail' event.id %}">{{ event.name }}</a> • {{ event.start_date|date:"d M" }}</li>
+                        <li><a href="{% url 'event_detail' event.id %}">{{ event.name }}</a> • {{ event.start_date|date:"d M" }} • {{ event.status }}</li>
                     {% endfor %}
                     {% for tournament in upcoming_tournaments %}
-                        <li><a href="{% url 'tournament_detail' tournament.slug %}">{{ tournament.name }}</a> • {{ tournament.start_date|date:"d M" }}</li>
+                        <li><a href="{% url 'tournament_detail' tournament.slug %}">{{ tournament.name }}</a> • {{ tournament.start_date|date:"d M" }} • {{ tournament.status }}</li>
                     {% endfor %}
                 </ul>
             {% else %}
@@ -75,10 +94,52 @@
                             <span>{{ review.rating }}★</span>
                         </div>
                         <p>“{{ review.review_text }}”</p>
+                        <small>{{ review.created_at|date:"M j, Y" }}</small>
+                        {% if user.is_authenticated and review.author.user_id == user.id %}
+                            <form method="post" action="{% url 'radar_location_review_delete' location.id review.id %}">{% csrf_token %}<button type="submit" class="link-button">Delete review</button></form>
+                        {% endif %}
                     </div>
                 {% endfor %}
             {% else %}
                 <p class="muted">No community reviews yet.</p>
+            {% endif %}
+        </article>
+
+        <article class="radar-box">
+            <h2>Rate this venue</h2>
+            {% if user.is_authenticated %}
+                <form method="post" action="{% url 'radar_location_rating_create' location.id %}">{% csrf_token %}
+                    <label for="location-rating">Your rating</label>
+                    <select id="location-rating" name="rating" aria-label="Rate this venue">
+                        <option value="">Choose a rating</option>
+                        {% for value in '12345' %}
+                            <option value="{{ value }}" {% if user_rating and user_rating.value == value|add:0 %}selected{% endif %}>{{ value }} star{{ value|pluralize }}</option>
+                        {% endfor %}
+                    </select>
+                    <button class="primary-button" type="submit">{% if user_rating %}Update rating{% else %}Submit rating{% endif %}</button>
+                </form>
+            {% else %}
+                <p class="muted"><a href="{% url 'login' %}?next={% url 'radar_location_detail' location.id %}">Log in</a> to rate this venue.</p>
+            {% endif %}
+        </article>
+
+        <article class="radar-box">
+            <h2>Write a review</h2>
+            {% if user.is_authenticated %}
+                <form method="post" action="{% url 'radar_location_review_create' location.id %}">{% csrf_token %}
+                    <label for="review-rating">Rating</label>
+                    <select id="review-rating" name="rating" aria-label="Review rating">
+                        <option value="">Choose a rating</option>
+                        {% for value in '12345' %}
+                            <option value="{{ value }}" {% if user_review and user_review.rating == value|add:0 %}selected{% endif %}>{{ value }} star{{ value|pluralize }}</option>
+                        {% endfor %}
+                    </select>
+                    <label for="review-text">Your review</label>
+                    <textarea id="review-text" name="review_text" rows="4" placeholder="Share your experience...">{% if user_review %}{{ user_review.review_text }}{% endif %}</textarea>
+                    <button class="primary-button" type="submit">{% if user_review %}Update review{% else %}Post review{% endif %}</button>
+                </form>
+            {% else %}
+                <p class="muted"><a href="{% url 'login' %}?next={% url 'radar_location_detail' location.id %}">Log in</a> to review this venue.</p>
             {% endif %}
         </article>
 
@@ -92,7 +153,10 @@
                 {% if location.website %}<li><a href="{{ location.website }}" target="_blank" rel="noopener">Website</a></li>{% endif %}
             </ul>
             {% if location.latitude and location.longitude %}
-                <a class="primary-button" href="https://www.google.com/maps/dir/?api=1&destination={{ location.latitude }},{{ location.longitude }}" target="_blank" rel="noopener">Directions</a>
+                <div class="stack-buttons">
+                    <a class="primary-button" href="https://www.google.com/maps/dir/?api=1&destination={{ location.latitude }},{{ location.longitude }}" target="_blank" rel="noopener">Directions</a>
+                    <a class="secondary-button" href="https://www.google.com/maps?q={{ location.latitude }},{{ location.longitude }}&layer=c" target="_blank" rel="noopener">Street View</a>
+                </div>
             {% endif %}
         </article>
     </section>
