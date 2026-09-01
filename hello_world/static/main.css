@@ -1092,7 +1092,9 @@ a:hover { color: #a5b4fc; }
 .cover-link {
     position: relative;
     display: block;
-    height: 240px;
+    aspect-ratio: 16 / 9;
+    min-height: 170px;
+    height: auto;
     border-bottom: 1px solid var(--border);
     background: rgba(255,255,255,0.03);
     overflow: hidden;
@@ -1103,6 +1105,10 @@ a:hover { color: #a5b4fc; }
 }
 
 .cover-link img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
     transition: transform 220ms ease;
 }
 
@@ -1316,6 +1322,18 @@ a:hover { color: #a5b4fc; }
     color: var(--text-tertiary);
 }
 
+.game-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    line-height: 1.5;
+}
+
+.game-card-meta .meta-separator {
+    color: var(--text-tertiary);
+}
+
 .trailer-frame {
     position: relative;
     width: 100%;
@@ -1376,7 +1394,8 @@ a:hover { color: #a5b4fc; }
     .button-primary,
     .button-secondary,
     .button-ghost {
-        width: 100%;
+        width: auto;
+        max-width: 100%;
     }
 }
 

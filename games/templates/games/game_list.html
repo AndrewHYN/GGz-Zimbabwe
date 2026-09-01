@@ -82,7 +82,13 @@
                             <span class="pill">{% if game.free_to_play %}Free{% else %}{{ game.display_price }}{% endif %}</span>
                         </div>
                         <h3><a href="{% url 'game_detail' game.id %}">{{ game.name }}</a></h3>
-                        <p class="muted">{{ game.developer|default:"GGz community" }}{% if game.release_year %} · {{ game.release_year }}{% endif %}</p>
+                        <p class="muted game-card-meta">
+                            {% if game.developer %}<span>{{ game.developer }}</span>{% endif %}
+                            {% if game.developer and game.release_year %}<span class="meta-separator">·</span>{% endif %}
+                            {% if game.release_year %}<span>{{ game.release_year }}</span>{% endif %}
+                            {% if game.release_year or game.developer %}<span class="meta-separator">·</span>{% endif %}
+                            <span>{% if game.free_to_play %}Free{% else %}Paid{% endif %}</span>
+                        </p>
                         <div class="card-actions">
                             <a class="button button-secondary" href="{% url 'game_detail' game.id %}">{% if game.free_to_play %}Play Free{% else %}Get Game{% endif %}</a>
                             <a class="button button-ghost" href="{% url 'gamer_discovery' %}?game={{ game.id }}">Players</a>
