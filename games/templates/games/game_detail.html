@@ -26,10 +26,23 @@
             </div>
 
             <div class="actions detail-actions">
-                {% if game.store_url %}
-                    <a class="button button-primary" href="{{ game.store_url }}" target="_blank" rel="noopener noreferrer" aria-label="{{ store_label }} for {{ game.name }}">{{ store_label }}</a>
+                {% if store_links %}
+                    {% for link in store_links %}
+                        <a class="button button-primary" href="{{ link.url }}" target="_blank" rel="noopener noreferrer" aria-label="{{ link.aria_label }} for {{ game.name }}">
+                            {{ link.label }}
+                            <span class="sr-only">{{ link.aria_label }}</span>
+                        </a>
+                    {% endfor %}
+                {% elif primary_store_url %}
+                    <a class="button button-primary" href="{{ primary_store_url }}" target="_blank" rel="noopener noreferrer" aria-label="{{ store_label }} for {{ game.name }}">
+                        {{ store_label }}
+                        <span class="sr-only">{{ store_label|upper }}</span>
+                    </a>
                 {% else %}
-                    <a class="button button-primary" href="{% url 'game_detail' game.id %}" aria-label="{% if game.free_to_play %}Play free{% else %}Get game{% endif %} for {{ game.name }}">{% if game.free_to_play %}Play Free{% else %}Get Game{% endif %}</a>
+                    <a class="button button-primary" href="{% url 'game_detail' game.id %}" aria-label="{% if game.free_to_play %}Play free{% else %}Get game{% endif %} for {{ game.name }}">
+                        {% if game.free_to_play %}Play Free{% else %}Get Game{% endif %}
+                        <span class="sr-only">{% if game.free_to_play %}PLAY FREE{% else %}GET GAME{% endif %}</span>
+                    </a>
                 {% endif %}
                 <a class="button button-secondary" href="{% url 'gamer_discovery' %}?game={{ game.id }}" aria-label="Find players for {{ game.name }}">Find players for {{ game.name }}</a>
                 {% if viewer %}
@@ -51,15 +64,15 @@
     </section>
 
     {% if trailer_embed_url %}
-    <section class="store-section">
+    <section class="store-section game-trailer-section" aria-label="{{ game.name }} trailer">
         <div class="section-header">
             <div>
-                <p class="eyebrow">Trailer</p>
+                <p class="eyebrow">Game Trailer</p>
                 <h2>{{ game.name }} preview</h2>
             </div>
         </div>
         <div class="trailer-frame">
-            <iframe src="{{ trailer_embed_url }}" title="{{ game.name }} trailer" loading="lazy" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+            <iframe src="{{ trailer_embed_url }}" title="{{ game.name }} official trailer" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
         </div>
     </section>
     {% endif %}

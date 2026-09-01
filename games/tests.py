@@ -330,6 +330,31 @@ class GameHubTests(TestCase):
 		self.assertContains(response, "Play Free")
 		self.assertNotContains(response, "youtube.com/embed/")
 
+	def test_game_detail_supports_steam_and_epic_store_links(self):
+		game = Game.objects.create(
+			name="Fortnite",
+			genre="Battle Royale",
+			steam_url="https://store.steampowered.com/app/578080/PLAYERUNKNOWNS_BATTLEGROUNDS/",
+			epic_url="https://store.epicgames.com/en-US/p/fortnite",
+			free_to_play=True,
+		)
+
+		response = self.client.get(reverse("game_detail", args=[game.id]))
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "BUY ON STEAM")
+		self.assertContains(response, "BUY ON EPIC")
+		self.assertContains(response, "https://store.steampowered.com/app/578080/PLAYERUNKNOWNS_BATTLEGROUNDS/")
+		self.assertContains(response, "https://store.epicgames.com/en-US/p/fortnite")
+
+	def test_game_trailer_embed_supports_youtube_shorts_and_rejects_unsafe_urls(self):
+		game = Game.objects.create(
+			name="Shorts Test",
+			trailer_url="https://www.youtube.com/shorts/abcd1234xyz9",
+		)
+		self.assertEqual(game.trailer_embed_url, "https://www.youtube.com/embed/abcd1234xyz9")
+		self.assertEqual(Game(name="Unsafe", trailer_url="https://example.com/video").trailer_embed_url, "")
+
 	def test_game_detail_wires_find_players_and_challenge_friend_to_existing_system(self):
 		game = Game.objects.create(name="League of Legends", genre="MOBA")
 		player_user = User.objects.create_user(username="playerone", password="pass")
