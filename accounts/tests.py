@@ -625,6 +625,16 @@ class NotificationAndMessagingTests(TestCase):
 
 
 class SearchAndRankTests(TestCase):
+	def test_homepage_hero_ctas_use_button_hierarchy(self):
+		user = User.objects.create_user(username="navuser", password="strong-password-123")
+		GamerProfile.objects.create(user=user, gamer_tag="NavPlayer", location="Harare")
+		self.client.login(username="navuser", password="strong-password-123")
+		response = self.client.get(reverse("index"))
+		self.assertContains(response, 'Open my GGz')
+		self.assertContains(response, 'Browse games')
+		self.assertContains(response, 'button button-primary')
+		self.assertContains(response, 'button button-secondary')
+
 	def test_authenticated_navbar_renders_player_menu(self):
 		user = User.objects.create_user(username="navuser", password="strong-password-123")
 		GamerProfile.objects.create(user=user, gamer_tag="NavPlayer", location="Harare")
