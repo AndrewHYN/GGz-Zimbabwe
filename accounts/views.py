@@ -394,6 +394,16 @@ def gamer_discovery(request):
 @login_required
 def dashboard(request):
 	profile = getattr(request.user, "gamer_profile", None)
+	if profile is None:
+		return redirect("signup")
+
+	from teams.models import TeamInvitation
+	from tournaments.models import Tournament
+
+	my_tournaments = Tournament.objects.filter(organizer=profile).select_related("game").order_by("-start_date")[:3]
+	my_events = Event.objects.filter(organizer=profile).select_related("game").order_by("-start_date")[:3]
+	pending_team_invitations = TeamInvitation.objects.filter(invitee=profile, status="Pending").select_related("team").count()
+
 	return render(
 		request,
 		"accounts/dashboard.html",
@@ -401,6 +411,9 @@ def dashboard(request):
 			"profile": profile,
 			"game_count": profile.games.count() if profile else 0,
 			"gamer_count": GamerProfile.objects.exclude(user=request.user).count(),
+			"my_tournaments": my_tournaments,
+			"my_events": my_events,
+			"pending_team_invitations": pending_team_invitations,
 		},
 	)
 

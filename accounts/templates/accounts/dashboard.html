@@ -79,10 +79,13 @@
         <section class="panel-card">
             <div class="section-heading">
                 <div>
-                    <p class="eyebrow">Your tournaments</p>
+                    <p class="eyebrow">My tournaments</p>
                     <h2>Compete</h2>
                 </div>
-                <a class="text-link" href="{% url 'tournament_list' %}">View all</a>
+                <div class="actions compact-actions">
+                    <a class="button alt" href="{% url 'tournament_create' %}">Create tournament</a>
+                    <a class="text-link" href="{% url 'tournament_list' %}">View all</a>
+                </div>
             </div>
             {% if my_tournaments %}
                 {% for tournament in my_tournaments %}
@@ -102,10 +105,13 @@
         <section class="panel-card">
             <div class="section-heading">
                 <div>
-                    <p class="eyebrow">Your events</p>
+                    <p class="eyebrow">My events</p>
                     <h2>Community</h2>
                 </div>
-                <a class="text-link" href="{% url 'event_list' %}">View all</a>
+                <div class="actions compact-actions">
+                    <a class="button alt" href="{% url 'event_create' %}">Create event</a>
+                    <a class="text-link" href="{% url 'event_list' %}">View all</a>
+                </div>
             </div>
             {% if my_events %}
                 {% for event in my_events %}
@@ -122,5 +128,18 @@
             {% endif %}
         </section>
     </div>
+
+    <section class="dashboard-section panel-card">
+        <div class="section-heading">
+            <div>
+                <p class="eyebrow">Team activity</p>
+                <h2>Squad management</h2>
+            </div>
+            <div class="actions compact-actions">
+                <a class="button alt" href="{% url 'team_create' %}">Create team</a>
+                <a class="button alt" href="{% url 'team_invitations' %}">Team invitations{% if pending_team_invitations %} ({{ pending_team_invitations }}){% endif %}</a>
+            </div>
+        </div>
+    </section>
 </main>
 {% endblock %}

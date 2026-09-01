@@ -6,6 +6,7 @@ from games.models import Game
 
 from .models import Block, Conversation, ConversationParticipant, Follow, FriendRequest, Friendship, GamerProfile, Message, MessageRequest, Notification, Post, PostLike, RespectTransaction, Venue
 from events.models import Event, Organization
+from teams.models import Team, TeamInvitation
 
 
 class HealthAndConfigTests(TestCase):
@@ -56,6 +57,16 @@ class GamerProfileWorkflowTests(TestCase):
 		response = self.client.get(reverse("dashboard"))
 		self.assertContains(response, "TendaiZW")
 		self.assertContains(response, "Players to discover")
+
+	def test_dashboard_surfaces_key_member_workflows(self):
+		self.client.login(username="tendai", password="strong-password-123")
+		response = self.client.get(reverse("dashboard"))
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "My tournaments")
+		self.assertContains(response, "Create tournament")
+		self.assertContains(response, "My events")
+		self.assertContains(response, "Create event")
+		self.assertContains(response, "Team invitations")
 
 	def test_discovery_filters_by_location_and_platform(self):
 		response = self.client.get(

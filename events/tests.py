@@ -41,6 +41,21 @@ class EventManagementTests(TestCase):
 		self.assertContains(response, "Edit event")
 		self.assertContains(response, "Delete event")
 
+	def test_event_detail_exposes_promotion_workflow(self):
+		self.client.login(username="event-owner", password="pass")
+		organization = Organization.objects.create(
+			owner=self.profile,
+			name="Harare Esports Hub",
+			slug="harare-esports-hub",
+			organization_type="Venue",
+			description="Gaming venue and event partner.",
+		)
+		self.event.organization = organization
+		self.event.save(update_fields=("organization",))
+		response = self.client.get(reverse("event_detail", args=(self.event.id,)))
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Request promotion")
+
 	def test_event_list_supports_search_and_game_filtering(self):
 		game = self.event.game
 		Event.objects.create(organizer=self.profile, game=game, name="Harare LAN Night", description="Local play", start_date=timezone.now() + timedelta(days=2), status="Upcoming")

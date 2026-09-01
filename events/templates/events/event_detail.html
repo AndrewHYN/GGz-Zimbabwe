@@ -21,6 +21,7 @@
                     <div class="event-header-actions">
                         {% if request.user == event.organizer.user %}
                             <a class="button alt" href="{% url 'event_edit' event.id %}">Edit event</a>
+                            <a class="button" href="{% url 'event_promotion_request' event.id %}">Request promotion</a>
                         {% else %}
                             {% if not event.rsvps|length or user not in event.rsvps.values_list %}
                                 <form method="post" action="{% url 'event_rsvp' event.id %}" class="inline-action">
