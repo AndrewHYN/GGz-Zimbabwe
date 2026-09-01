@@ -121,6 +121,8 @@ class TournamentTests(TestCase):
 		self.assertContains(response, "Matches")
 		self.assertContains(response, "Generate bracket")
 		self.assertContains(response, "Delete tournament")
+		self.assertContains(response, 'method="post"', html=False)
+		self.assertContains(response, f'action="{reverse("generate_bracket", args=[self.tournament.slug])}"', html=False)
 
 	def test_organizer_can_toggle_registration_and_cancel_tournament(self):
 		self.client.login(username="organizer", password="pass-12345")

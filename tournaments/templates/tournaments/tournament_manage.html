@@ -66,10 +66,11 @@
             {% endif %}
 
             {% if not tournament.matches.exists %}
-                <a href="{% url 'generate_bracket' tournament.slug %}" class="button alt">
-                    <div>Generate bracket</div>
+                <form method="post" action="{% url 'generate_bracket' tournament.slug %}" class="action-form">
+                    {% csrf_token %}
+                    <button class="button alt" type="submit">Generate bracket</button>
                     <small>Create match schedule</small>
-                </a>
+                </form>
             {% else %}
                 <a href="{% url 'match_create' tournament.slug %}" class="button alt">
                     <div>Schedule match</div>
