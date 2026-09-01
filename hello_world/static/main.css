@@ -3433,6 +3433,8 @@ a:hover { color: #a5b4fc; }
 .back-link {
     display: inline-flex;
     align-items: center;
+    justify-self: start;
+    width: fit-content;
     gap: 0.5rem;
     margin-bottom: 2rem;
     padding: 0.5rem 1rem;
