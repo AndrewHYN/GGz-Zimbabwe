@@ -3,54 +3,228 @@
 {% block title %}{{ game.name }} | GGz{% endblock %}
 
 {% block content %}
-<main class="page-shell">
+<main class="page-shell game-detail-page">
     <a class="back-link" href="{% url 'game_list' %}">&larr; Back to games</a>
-    <section class="game-detail game-hero">
-        <div>
+
+    <section class="game-detail-hero">
+        <div class="detail-visual">
             {% if game.cover_art_url %}
-                <img class="game-detail-cover" src="{{ game.cover_art_url }}" alt="{{ game.name }} official cover art">
+                <img src="{{ game.cover_art_url }}" alt="{{ game.name }} cover art">
+            {% else %}
+                <div class="detail-fallback">GGz</div>
             {% endif %}
-            {% if not game.cover_art_url %}<div class="game-detail-cover game-detail-cover-fallback" aria-hidden="true">GGz</div>{% endif %}
         </div>
-        <div>
-            <p class="eyebrow">Game profile</p>
+        <div class="detail-copy">
+            <p class="eyebrow">{{ game.genre|default:"Game" }}</p>
             <h1>{{ game.name }}</h1>
-            {% if game.genre or game.platform %}<p class="game-meta">{{ game.genre }}{% if game.genre and game.platform %} | {% endif %}{{ game.platform }}</p>{% endif %}
-            {% if game.description %}<p class="lede">{{ game.description }}</p>{% endif %}
-            <dl class="details game-facts">{% if game.developer %}<div class="detail"><dt>Developer</dt><dd>{{ game.developer }}</dd></div>{% endif %}{% if game.publisher %}<div class="detail"><dt>Publisher</dt><dd>{{ game.publisher }}</dd></div>{% endif %}{% if game.release_year %}<div class="detail"><dt>Released</dt><dd>{{ game.release_year }}</dd></div>{% endif %}{% if game.player_count %}<div class="detail"><dt>Players</dt><dd>{{ game.player_count }}</dd></div>{% endif %}<div class="detail"><dt>GGz players</dt><dd>{{ game.players.count }}</dd></div></dl>
-            <div class="actions"><a class="button" href="{% url 'gamer_discovery' %}?game={{ game.id }}">Find players</a><a class="button alt" href="#community">Community</a><a class="button alt" href="{% url 'game_leaderboard' game.id %}">Leaderboard</a></div>
+            <p class="lede">{{ game.description|default:"A GGz community favorite for players looking to connect and compete." }}</p>
+            <div class="meta-row">
+                {% if game.developer %}<span>{{ game.developer }}</span>{% endif %}
+                {% if game.publisher %}<span>{{ game.publisher }}</span>{% endif %}
+                {% if game.release_year %}<span>{{ game.release_year }}</span>{% endif %}
+                {% if game.free_to_play %}<span>Free to play</span>{% else %}<span>Paid</span>{% endif %}
+            </div>
+
+            <div class="actions detail-actions">
+                {% if game.store_url %}
+                    <a class="button button-primary" href="{{ game.store_url }}" target="_blank" rel="noopener noreferrer">{{ store_label }}</a>
+                {% else %}
+                    <a class="button button-primary" href="{% url 'game_detail' game.id %}">{% if game.free_to_play %}Play Free{% else %}Get Game{% endif %}</a>
+                {% endif %}
+                <a class="button button-secondary" href="{% url 'gamer_discovery' %}?game={{ game.id }}">Find players</a>
+                {% if viewer %}
+                    <a class="button button-ghost" href="#challenge-area">Challenge a friend</a>
+                {% endif %}
+                {% if upcoming_tournaments %}<a class="button button-ghost" href="#tournaments">View tournaments</a>{% endif %}
+                {% if related_events %}<a class="button button-ghost" href="#events">View events</a>{% endif %}
+            </div>
+
+            <dl class="game-facts">
+                {% if game.developer %}<div class="detail"><dt>Developer</dt><dd>{{ game.developer }}</dd></div>{% endif %}
+                {% if game.publisher %}<div class="detail"><dt>Publisher</dt><dd>{{ game.publisher }}</dd></div>{% endif %}
+                {% if game.platform %}<div class="detail"><dt>Platform</dt><dd>{{ game.platform }}</dd></div>{% endif %}
+                {% if game.release_year %}<div class="detail"><dt>Release</dt><dd>{{ game.release_year }}</dd></div>{% endif %}
+                {% if game.player_count %}<div class="detail"><dt>Players</dt><dd>{{ game.player_count }} players</dd></div>{% endif %}
+                <div class="detail"><dt>GGz players</dt><dd>{{ game.players.count }}</dd></div>
+            </dl>
         </div>
     </section>
-    {% if leaderboard %}
-    <section class="page-section">
-        <p class="eyebrow">Competitive rankings</p>
-        <h2>Top {{ game.name }} players</h2>
-        <div class="leaderboard-table">
-            <table role="table" aria-label="Top players at {{ game.name }}">
-                <thead>
-                    <tr><th>Rank</th><th>Player</th><th>Wins</th><th>Matches</th><th>Win rate</th></tr>
-                </thead>
-                <tbody>
-                    {% for player, wins, matches, win_rate in leaderboard %}
-                    <tr>
-                        <td class="rank-cell">{{ forloop.counter }}</td>
-                        <td><a class="text-link" href="{% url 'profile_detail' player.gamer_tag %}">{{ player.gamer_tag }}</a></td>
-                        <td class="number">{{ wins }}</td>
-                        <td class="number">{{ matches }}</td>
-                        <td class="number">{{ win_rate }}%</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+
+    {% if trailer_embed_url %}
+    <section class="store-section">
+        <div class="section-header">
+            <div>
+                <p class="eyebrow">Trailer</p>
+                <h2>{{ game.name }} preview</h2>
+            </div>
         </div>
-        <a class="button" href="{% url 'game_leaderboard' game.id %}">View full leaderboard</a>
+        <div class="trailer-frame">
+            <iframe src="{{ trailer_embed_url }}" title="{{ game.name }} trailer" loading="lazy" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        </div>
     </section>
     {% endif %}
-    <section id="community" class="page-section community-hub"><p class="eyebrow">The community</p><h2>GGz players</h2><div class="player-grid">{% for player in game.players.all|slice:":8" %}<article class="player-card"><a class="post-author" href="{% url 'profile_detail' player.gamer_tag %}">{% if player.avatar %}<span class="avatar avatar-post"><img src="{{ player.avatar.url }}" alt="{{ player.gamer_tag }} avatar"></span>{% else %}<span class="avatar avatar-post avatar-fallback">{{ player.gamer_tag|slice:":1"|upper }}</span>{% endif %}<span><strong>{{ player.gamer_tag }}</strong><small>{{ player.location|default:"Zimbabwe" }}</small></span></a><div class="gamer-meta"><span>{{ player.rank }}</span><span>{{ player.get_availability_display }}</span></div></article>{% empty %}<p class="muted empty-state">No players found yet. Be the first GGz gamer to join this game.</p>{% endfor %}</div>
-    <h2 class="community-subheading">Looking for players</h2><div class="player-grid">{% for player in available_players|slice:":4" %}<article class="player-card"><a class="text-link" href="{% url 'profile_detail' player.gamer_tag %}">{{ player.gamer_tag }}</a><p class="muted">{{ player.location|default:"Zimbabwe" }} · {{ player.platform|default:"Any platform" }}</p><span class="status-dot">Available to play</span></article>{% empty %}<p class="muted empty-state">No one is looking for players right now. Check back soon.</p>{% endfor %}</div>
-    <h2 class="community-subheading">Recent posts</h2><div class="post-list">{% for post in community_posts %}{% include "accounts/post_card.html" with post=post %}{% empty %}<p class="muted empty-state">No community posts yet. Create the first post.</p>{% endfor %}</div>
-    <h2 class="community-subheading">Upcoming tournaments</h2><div class="player-grid">{% for tournament in upcoming_tournaments %}<article class="player-card"><a class="text-link" href="{% url 'tournament_detail' tournament.slug %}">{{ tournament.name }}</a><p class="muted">{{ tournament.start_date|date:"M j, Y" }} · {{ tournament.format }} · {{ tournament.status }}</p></article>{% empty %}<p class="muted empty-state">No upcoming tournaments. Check back soon.</p>{% endfor %}</div>
-    <h2 class="community-subheading">Marketplace</h2><div class="player-grid">{% for listing in related_listings %}<article class="player-card"><a class="text-link" href="{% url 'listing_detail' listing.id %}">{{ listing.title }}</a><p class="muted">{{ listing.price }} · {{ listing.location }}</p><small>{{ listing.seller.gamer_tag }}</small></article>{% empty %}<p class="muted empty-state">No related marketplace listings yet.</p>{% endfor %}</div>
-    <div class="community-placeholder"><h2>More community moments soon.</h2><p class="muted">Upcoming tournaments, events, and related marketplace listings will appear here.</p></div></section>
+
+    <div class="detail-layout">
+        <div class="detail-main">
+            <section class="store-section panel-section" id="community">
+                <div class="section-header">
+                    <div>
+                        <p class="eyebrow">Community</p>
+                        <h2>GGz players</h2>
+                    </div>
+                    <a class="text-link" href="{% url 'gamer_discovery' %}?game={{ game.id }}">Find players</a>
+                </div>
+                <div class="player-inline-list">
+                    {% for player in available_players %}
+                        <article class="player-mini-card">
+                            <a href="{% url 'profile_detail' player.gamer_tag %}">{{ player.gamer_tag }}</a>
+                            <small>{{ player.rank }} · {{ player.platform|default:"PC" }}</small>
+                        </article>
+                    {% empty %}
+                        <p class="muted empty-card">No one is currently available to play.</p>
+                    {% endfor %}
+                </div>
+            </section>
+
+            {% if viewer %}
+            <section class="store-section panel-section" id="challenge-area">
+                <div class="section-header">
+                    <div>
+                        <p class="eyebrow">Challenge</p>
+                        <h2>Challenge a friend</h2>
+                    </div>
+                </div>
+                <form method="post" action="{% url 'game_challenge_create' game.id %}" class="challenge-form">
+                    {% csrf_token %}
+                    <div class="challenge-grid">
+                        <label>
+                            <span>Opponent</span>
+                            <select name="opponent">
+                                <option value="">Choose a player</option>
+                                {% for player in game.players.all %}
+                                    {% if player != viewer %}
+                                        <option value="{{ player.id }}">{{ player.gamer_tag }}</option>
+                                    {% endif %}
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label>
+                            <span>Schedule</span>
+                            <input type="datetime-local" name="scheduled_at">
+                        </label>
+                    </div>
+                    <button class="button button-primary" type="submit">Send challenge</button>
+                </form>
+            </section>
+            {% endif %}
+
+            {% if upcoming_tournaments %}
+            <section class="store-section panel-section" id="tournaments">
+                <div class="section-header">
+                    <div>
+                        <p class="eyebrow">Tournaments</p>
+                        <h2>Upcoming tournaments</h2>
+                    </div>
+                </div>
+                <div class="info-stack">
+                    {% for tournament in upcoming_tournaments %}
+                        <article class="info-card">
+                            <div class="card-topline">
+                                <span class="tag">{{ tournament.format }}</span>
+                                <span class="pill">{{ tournament.status }}</span>
+                            </div>
+                            <h3><a href="{% url 'tournament_detail' tournament.slug %}">{{ tournament.name }}</a></h3>
+                            <p class="muted">{{ tournament.start_date|date:"M j, Y" }} · {{ tournament.location|default:"Online" }}</p>
+                            <div class="inline-actions">
+                                <a class="button button-secondary" href="{% url 'tournament_detail' tournament.slug %}">View</a>
+                            </div>
+                        </article>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endif %}
+
+            {% if related_events %}
+            <section class="store-section panel-section" id="events">
+                <div class="section-header">
+                    <div>
+                        <p class="eyebrow">Events</p>
+                        <h2>Community events</h2>
+                    </div>
+                </div>
+                <div class="info-stack">
+                    {% for event in related_events %}
+                        <article class="info-card">
+                            <div class="card-topline"><span class="tag">{{ event.location|default:"GGz" }}</span><span class="pill">{{ event.status }}</span></div>
+                            <h3><a href="{% url 'event_detail' event.id %}">{{ event.name }}</a></h3>
+                            <p class="muted">{{ event.start_date|date:"M j, Y" }} · {{ event.location|default:"Zimbabwe" }}</p>
+                        </article>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endif %}
+
+            {% if community_posts %}
+            <section class="store-section panel-section">
+                <div class="section-header">
+                    <div>
+                        <p class="eyebrow">Community</p>
+                        <h2>Recent posts</h2>
+                    </div>
+                </div>
+                <div class="post-list">
+                    {% for post in community_posts %}
+                        {% include "accounts/post_card.html" with post=post %}
+                    {% endfor %}
+                </div>
+            </section>
+            {% endif %}
+        </div>
+
+        <aside class="detail-sidebar">
+            {% if leaderboard %}
+            <section class="store-section panel-section">
+                <div class="section-header">
+                    <div>
+                        <p class="eyebrow">Leaderboard</p>
+                        <h2>Top {{ game.name }} players</h2>
+                    </div>
+                </div>
+                <div class="leaderboard-list">
+                    {% for player, wins, matches, win_rate in leaderboard %}
+                        <div class="leaderboard-item">
+                            <span class="rank">#{{ forloop.counter }}</span>
+                            <div>
+                                <a href="{% url 'profile_detail' player.gamer_tag %}">{{ player.gamer_tag }}</a>
+                                <small>{{ wins }}W · {{ matches }}G</small>
+                            </div>
+                            <strong>{{ win_rate }}%</strong>
+                        </div>
+                    {% endfor %}
+                </div>
+                <a class="button button-secondary" href="{% url 'game_leaderboard' game.id %}">View full leaderboard</a>
+            </section>
+            {% endif %}
+
+            {% if related_listings %}
+            <section class="store-section panel-section">
+                <div class="section-header">
+                    <div>
+                        <p class="eyebrow">Marketplace</p>
+                        <h2>Related listings</h2>
+                    </div>
+                </div>
+                <div class="info-stack mini-stack">
+                    {% for listing in related_listings %}
+                        <article class="info-card compact-card">
+                            <h3><a href="{% url 'listing_detail' listing.id %}">{{ listing.title }}</a></h3>
+                            <p class="muted">{{ listing.price }} · {{ listing.location|default:"Zimbabwe" }}</p>
+                        </article>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endif %}
+        </aside>
+    </div>
 </main>
 {% endblock %}

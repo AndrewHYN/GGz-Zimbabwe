@@ -1,10 +1,15 @@
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.db.models import Q, Count, Case, When, IntegerField
 from django.core.paginator import Paginator, EmptyPage
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
 from marketplace.models import Listing
 from accounts.models import Block, GamerProfile
-from tournaments.models import Tournament, TournamentMatch
+from tournaments.models import Challenge, Tournament, TournamentMatch
+from events.models import Event
 
 from .models import Game
 
@@ -41,9 +46,59 @@ def _compute_game_stats(game):
 	return sorted(stats, key=lambda x: (-x[1], -x[2], -x[3], x[0].gamer_tag.lower()))
 
 
+def _game_queryset():
+	return Game.objects.order_by("-featured", "-popularity", "name")
+
+
 def game_list(request):
-	games = Game.objects.order_by("name")
-	return render(request, "games/game_list.html", {"games": games})
+	q = request.GET.get("q", "").strip()
+	genre = request.GET.get("genre", "").strip()
+	free_only = request.GET.get("free", "") == "1"
+	featured_only = request.GET.get("featured", "") == "1"
+	sort = request.GET.get("sort", "popular")
+	games = _game_queryset()
+	if q:
+		games = games.filter(Q(name__icontains=q) | Q(description__icontains=q) | Q(developer__icontains=q) | Q(genre__icontains=q))
+	if genre:
+		games = games.filter(genre__icontains=genre)
+	if free_only:
+		games = games.filter(free_to_play=True)
+	if featured_only:
+		games = games.filter(featured=True)
+	if sort == "newest":
+		games = games.order_by("-release_year", "name")
+	elif sort == "alpha":
+		games = games.order_by("name")
+	elif sort == "popular":
+		games = games.order_by("-popularity", "-featured", "name")
+	elif sort == "release":
+		games = games.order_by("-release_year", "-popularity", "name")
+	featured_games = games.filter(featured=True)[:5]
+	popular_games = games.filter(popularity__gt=0)[:8]
+	free_games = games.filter(free_to_play=True)[:6]
+	new_games = games.filter(release_year__isnull=False).order_by("-release_year")[:6]
+	local_games = games.filter(local_developer=True)[:6]
+	sponsored_games = games.filter(sponsored=True)[:6]
+	categories = sorted({game.genre.strip() for game in games.exclude(genre="") if game.genre.strip()})
+	return render(
+		request,
+		"games/game_list.html",
+		{
+			"games": games,
+			"featured_games": featured_games,
+			"popular_games": popular_games,
+			"free_games": free_games,
+			"new_games": new_games,
+			"local_games": local_games,
+			"sponsored_games": sponsored_games,
+			"categories": categories,
+			"query": q,
+			"selected_genre": genre,
+			"selected_sort": sort,
+			"free_only": free_only,
+			"featured_only": featured_only,
+		},
+	)
 
 
 def game_detail(request, game_id):
@@ -58,19 +113,31 @@ def game_detail(request, game_id):
 	)
 	viewer = getattr(request.user, "gamer_profile", None)
 	blocked_ids = {value for pair in Block.objects.filter(Q(blocker=viewer) | Q(blocked=viewer)).values_list("blocker_id", "blocked_id") for value in pair} if viewer else set()
-
 	leaderboard = _compute_game_stats(game)[:10]
-
+	available_players = game.players.select_related("user").order_by("gamer_tag")[:8]
+	community_posts = game.posts.exclude(author_id__in=blocked_ids)[:5]
+	upcoming_tournaments = Tournament.objects.filter(game=game, status__in=("Registration Open", "Registration Closed")).select_related("organizer")[:4]
+	related_events = Event.objects.filter(game=game, status__in=("Upcoming", "Published", "Live")).select_related("organizer")[:4]
+	related_listings = Listing.objects.filter(game=game, status__in=("Available", "Reserved")).select_related("seller").prefetch_related("images")[:4]
+	challenge_form = None
+	if viewer:
+		from tournaments.forms import ChallengeForm
+		challenge_form = ChallengeForm(initial={"game": game.id, "opponent": ""})
 	return render(
 		request,
 		"games/game_detail.html",
 		{
 			"game": game,
-			"available_players": game.players.filter(availability="Available"),
-			"community_posts": game.posts.exclude(author_id__in=blocked_ids)[:5],
-			"upcoming_tournaments": Tournament.objects.filter(game=game, status__in=("Registration Open", "Registration Closed")).select_related("organizer")[:4],
+			"available_players": available_players,
+			"community_posts": community_posts,
+			"upcoming_tournaments": upcoming_tournaments,
+			"related_events": related_events,
 			"related_listings": Listing.objects.filter(game=game, status__in=("Available", "Reserved")).select_related("seller").prefetch_related("images")[:4],
 			"leaderboard": leaderboard,
+			"viewer": viewer,
+			"challenge_form": challenge_form,
+			"store_label": game.store_label,
+			"trailer_embed_url": game.trailer_embed_url,
 		},
 	)
 
@@ -93,3 +160,32 @@ def game_leaderboard(request, game_id):
 			"leaderboard": page_obj.object_list,
 		},
 	)
+
+
+@login_required
+def game_challenge_create(request, game_id):
+	game = get_object_or_404(Game, id=game_id)
+	profile = get_object_or_404(GamerProfile, user=request.user)
+	opponent_id = request.POST.get("opponent")
+	if not opponent_id:
+		messages.error(request, "Choose a friend to challenge.")
+		return redirect("game_detail", game_id=game.id)
+	opponent = get_object_or_404(GamerProfile, id=opponent_id)
+	if opponent == profile:
+		messages.error(request, "You cannot challenge yourself.")
+		return redirect("game_detail", game_id=game.id)
+	scheduled_at = request.POST.get("scheduled_at") or None
+	if scheduled_at:
+		scheduled_dt = parse_datetime(scheduled_at)
+		if scheduled_dt and timezone.is_naive(scheduled_dt):
+			scheduled_dt = timezone.make_aware(scheduled_dt, timezone.get_current_timezone())
+		scheduled_at = scheduled_dt
+	challenge = Challenge.objects.create(
+		challenger=profile,
+		opponent=opponent,
+		game=game,
+		status="Pending",
+		scheduled_at=scheduled_at,
+	)
+	messages.success(request, "Challenge sent.")
+	return redirect("game_detail", game_id=game.id)

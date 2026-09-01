@@ -1,9 +1,13 @@
+from datetime import timedelta
+
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from accounts.models import GamerProfile, Post
 from django.contrib.auth.models import User
-from tournaments.models import Tournament, TournamentMatch
+from tournaments.models import Challenge, Tournament, TournamentMatch
+from events.models import Event
 
 from .models import Game
 
@@ -277,3 +281,100 @@ class GameHubTests(TestCase):
 		stats = _compute_game_stats(game)
 		self.assertEqual(stats[0][0].id, player_b.id)
 		self.assertEqual(stats[1][0].id, player_a.id)
+
+	def test_game_storefront_displays_featured_free_and_local_sections(self):
+		game = Game.objects.create(
+			name="Valorant",
+			genre="FPS",
+			developer="Riot Games",
+			cover_art_url="https://example.com/valorant.jpg",
+			free_to_play=True,
+			featured=True,
+			local_developer=False,
+			sponsored=False,
+			store_url="https://store.epicgames.com/p/valorant",
+		)
+		response = self.client.get(reverse("game_list"))
+
+		self.assertContains(response, "Featured")
+		self.assertContains(response, "FREE TO PLAY")
+		self.assertContains(response, "Popular Games")
+		self.assertContains(response, str(game.name))
+		self.assertContains(response, "https://store.epicgames.com/p/valorant")
+
+	def test_game_detail_renders_store_cta_and_safe_youtube_embed(self):
+		game = Game.objects.create(
+			name="Counter-Strike 2",
+			genre="Shooter",
+			developer="Valve",
+			cover_art_url="https://example.com/cs2.jpg",
+			store_url="https://store.steampowered.com/app/730/",
+			trailer_url="https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+			free_to_play=False,
+		)
+
+		response = self.client.get(reverse("game_detail", args=[game.id]))
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Buy on Steam")
+		self.assertContains(response, "https://store.steampowered.com/app/730/")
+		self.assertContains(response, "https://www.youtube.com/embed/dQw4w9WgXcQ")
+		self.assertNotContains(response, "javascript:")
+
+	def test_game_detail_missing_trailer_does_not_render_broken_player(self):
+		game = Game.objects.create(name="Dota 2", genre="MOBA", free_to_play=True)
+
+		response = self.client.get(reverse("game_detail", args=[game.id]))
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Play Free")
+		self.assertNotContains(response, "youtube.com/embed/")
+
+	def test_game_detail_wires_find_players_and_challenge_friend_to_existing_system(self):
+		game = Game.objects.create(name="League of Legends", genre="MOBA")
+		player_user = User.objects.create_user(username="playerone", password="pass")
+		player = GamerProfile.objects.create(user=player_user, gamer_tag="PlayerOneZW", availability="Available")
+		player.games.add(game)
+		opponent_user = User.objects.create_user(username="playertwo", password="pass")
+		opponent = GamerProfile.objects.create(user=opponent_user, gamer_tag="PlayerTwoZW")
+		opponent.games.add(game)
+
+		self.client.force_login(player_user)
+		response = self.client.get(reverse("game_detail", args=[game.id]))
+		self.assertContains(response, reverse("gamer_discovery") + "?game=" + str(game.id))
+		self.assertContains(response, "Challenge a friend")
+
+		post_response = self.client.post(
+			reverse("game_challenge_create", args=[game.id]),
+			{"opponent": opponent.id, "scheduled_at": (timezone.now() + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M")},
+		)
+		self.assertEqual(post_response.status_code, 302)
+		self.assertTrue(Challenge.objects.filter(challenger=player, opponent=opponent, game=game).exists())
+
+	def test_game_detail_surfaces_related_tournaments_and_events(self):
+		organizer_user = User.objects.create_user(username="organizer3", password="pass")
+		organizer = GamerProfile.objects.create(user=organizer_user, gamer_tag="Organizer3ZW")
+		game = Game.objects.create(name="Apex Legends", genre="Battle Royale")
+		Tournament.objects.create(
+			organizer=organizer,
+			game=game,
+			name="Apex Weekend Cup",
+			slug="apex-weekend-cup",
+			description="Testing",
+			format="3v3",
+			start_date=timezone.now() + timedelta(days=3),
+			registration_deadline=timezone.now() + timedelta(days=1),
+			status="Registration Open",
+		)
+		Event.objects.create(
+			organizer=organizer,
+			game=game,
+			name="Harare Apex Scrims",
+			description="Testing", 
+			start_date=timezone.now() + timedelta(days=2),
+			status="Upcoming",
+		)
+
+		response = self.client.get(reverse("game_detail", args=[game.id]))
+		self.assertContains(response, "Apex Weekend Cup")
+		self.assertContains(response, "Harare Apex Scrims")
