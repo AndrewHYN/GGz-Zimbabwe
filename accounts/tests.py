@@ -625,6 +625,29 @@ class NotificationAndMessagingTests(TestCase):
 
 
 class SearchAndRankTests(TestCase):
+	def test_authenticated_navbar_renders_player_menu(self):
+		user = User.objects.create_user(username="navuser", password="strong-password-123")
+		GamerProfile.objects.create(user=user, gamer_tag="NavPlayer", location="Harare")
+		self.client.login(username="navuser", password="strong-password-123")
+		response = self.client.get(reverse("index"))
+		self.assertContains(response, 'id="nav-profile-toggle"')
+		self.assertContains(response, 'aria-controls="nav-profile-panel"')
+		self.assertContains(response, 'aria-haspopup="true"')
+		self.assertContains(response, "Message requests")
+		self.assertContains(response, "Log out")
+
+	def test_logout_route_logs_user_out_and_redirects(self):
+		user = User.objects.create_user(username="logoutuser", password="strong-password-123")
+		GamerProfile.objects.create(user=user, gamer_tag="LogoutPlayer", location="Harare")
+		self.client.login(username="logoutuser", password="strong-password-123")
+		response = self.client.post(reverse("logout"))
+		self.assertRedirects(response, "/accounts/login/")
+		self.assertFalse(response.wsgi_request.user.is_authenticated)
+		self.assertNotIn("_auth_user_id", self.client.session)
+
+		logged_out_response = self.client.get(reverse("index"))
+		self.assertContains(logged_out_response, "Log in")
+
 	def test_navigation_dropdowns_render_accessible_triggers(self):
 		response = self.client.get(reverse("index"))
 		self.assertContains(response, 'class="nav-more"')
