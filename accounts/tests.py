@@ -528,6 +528,14 @@ class SocialPostTests(TestCase):
 		self.assertRedirects(response, reverse("post_detail", args=[post.id]))
 		self.assertEqual(post.comments.count(), 1)
 
+	def test_user_can_save_and_unsave_post(self):
+		post = Post.objects.create(author=self.other_profile, body="Save this update")
+		self.client.login(username="andrew", password="strong-password-123")
+		self.client.post(reverse("post_save_toggle", args=[post.id]))
+		self.assertTrue(post.saved_by.filter(user=self.profile).exists())
+		self.client.post(reverse("post_save_toggle", args=[post.id]))
+		self.assertFalse(post.saved_by.filter(user=self.profile).exists())
+
 
 class RespectTests(TestCase):
 	def setUp(self):

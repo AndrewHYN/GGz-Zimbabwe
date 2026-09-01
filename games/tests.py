@@ -41,6 +41,19 @@ class GameHubTests(TestCase):
 		self.assertContains(response, "2025")
 		self.assertContains(response, "22")
 
+	def test_game_detail_renders_real_youtube_trailer_for_mortal_kombat(self):
+		game = Game.objects.create(
+			name="Mortal Kombat",
+			trailer_url="https://www.youtube.com/watch?v=V5uCZuKtyr0",
+		)
+
+		response = self.client.get(reverse("game_detail", args=[game.id]))
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "GAMEPLAY TRAILER")
+		self.assertContains(response, "https://www.youtube.com/embed/V5uCZuKtyr0")
+		self.assertContains(response, 'title="Mortal Kombat official trailer"')
+
 	def test_game_detail_shows_only_related_posts(self):
 		user = User.objects.create_user(username="gamer")
 		profile = GamerProfile.objects.create(user=user, gamer_tag="GamerZW")

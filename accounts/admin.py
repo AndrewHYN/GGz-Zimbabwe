@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Block, Comment, Conversation, ConversationParticipant, Follow, FriendRequest, Friendship, GamerProfile, Message, Notification, Post, PostLike, Report, RespectTransaction, Venue
+from .models import Block, Comment, Conversation, ConversationParticipant, Follow, FriendRequest, Friendship, GamerProfile, Message, Notification, Post, PostLike, PostSave, Report, RespectTransaction, Venue
 
 
 @admin.register(Venue)
@@ -66,6 +66,12 @@ class CommentAdmin(admin.ModelAdmin):
 
 @admin.register(PostLike)
 class PostLikeAdmin(admin.ModelAdmin):
+    list_display = ("user", "post", "created_at")
+    search_fields = ("user__gamer_tag",)
+
+
+@admin.register(PostSave)
+class PostSaveAdmin(admin.ModelAdmin):
     list_display = ("user", "post", "created_at")
     search_fields = ("user__gamer_tag",)
 

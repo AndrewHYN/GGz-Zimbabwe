@@ -1,6 +1,23 @@
 <article class="post-card">
-    <header class="post-header"><a class="post-author" href="{% url 'profile_detail' post.author.gamer_tag %}">{% if post.author.avatar %}<span class="avatar avatar-post"><img src="{{ post.author.avatar.url }}" alt="{{ post.author.gamer_tag }} avatar"></span>{% else %}<span class="avatar avatar-post avatar-fallback">{{ post.author.gamer_tag|slice:":1"|upper }}</span>{% endif %}<span><strong>{{ post.author.gamer_tag }}</strong><small>{{ post.created_at|timesince }} ago{% if post.game %} · {{ post.game.name }}{% endif %}</small></span></a>{% if request.user == post.author.user %}<span class="post-owner-actions"><a class="text-link" href="{% url 'post_edit' post.id %}">Edit</a><form class="inline-action" method="post" action="{% url 'post_delete' post.id %}">{% csrf_token %}<button class="text-button" type="submit">Delete</button></form></span>{% endif %}</header>
+    <header class="post-header">
+        <a class="post-author" href="{% url 'profile_detail' post.author.gamer_tag %}">
+            {% if post.author.avatar %}<span class="avatar avatar-post"><img src="{{ post.author.avatar.url }}" alt="{{ post.author.gamer_tag }} avatar"></span>{% else %}<span class="avatar avatar-post avatar-fallback">{{ post.author.gamer_tag|slice:":1"|upper }}</span>{% endif %}
+            <span><strong>{{ post.author.gamer_tag }}</strong><small>{{ post.created_at|timesince }} ago{% if post.game %} · {{ post.game.name }}{% endif %}</small></span>
+        </a>
+        {% if request.user == post.author.user %}
+        <span class="post-owner-actions">
+            <a class="text-link" href="{% url 'post_edit' post.id %}">Edit</a>
+            <form class="inline-action" method="post" action="{% url 'post_delete' post.id %}">{% csrf_token %}<button class="text-button" type="submit">Delete</button></form>
+        </span>
+        {% endif %}
+    </header>
+    {% if post.game %}<div class="post-context"><a href="{% url 'game_detail' post.game.id %}">🎮 {{ post.game.name }}</a></div>{% endif %}
     <p class="post-body">{{ post.body|linebreaksbr }}</p>
     {% if post.image %}<img class="post-image" src="{{ post.image.url }}" alt="Image shared by {{ post.author.gamer_tag }}">{% endif %}
-    <footer class="post-footer"><form class="inline-action" method="post" action="{% url 'post_like' post.id %}">{% csrf_token %}<input type="hidden" name="next" value="/feed/"><button class="text-button like-button{% if post.id in liked_post_ids %} is-liked{% endif %}" type="submit" aria-pressed="{% if post.id in liked_post_ids %}true{% else %}false{% endif %}"><span aria-hidden="true">{% if post.id in liked_post_ids %}&#9829;{% else %}&#9825;{% endif %}</span> {{ post.likes.count }} Like{% if post.likes.count != 1 %}s{% endif %}</button></form><a class="text-link" href="{% url 'post_detail' post.id %}">{{ post.comments.count }} Comment{% if post.comments.count != 1 %}s{% endif %}</a>{% if request.user.is_authenticated and request.user != post.author.user %}<form class="inline-action" method="post" action="{% url 'post_report' post.id %}">{% csrf_token %}<button class="text-button" type="submit">Report</button></form>{% endif %}</footer>
+    <footer class="post-footer">
+        <form class="inline-action" method="post" action="{% url 'post_like' post.id %}">{% csrf_token %}<input type="hidden" name="next" value="/feed/"><button class="text-button like-button{% if post.id in liked_post_ids %} is-liked{% endif %}" type="submit" aria-pressed="{% if post.id in liked_post_ids %}true{% else %}false{% endif %}"><span aria-hidden="true">{% if post.id in liked_post_ids %}&#9829;{% else %}&#9825;{% endif %}</span> {{ post.likes.count }} Like{% if post.likes.count != 1 %}s{% endif %}</button></form>
+        <a class="text-link" href="{% url 'post_detail' post.id %}">{{ post.comments.count }} Comment{% if post.comments.count != 1 %}s{% endif %}</a>
+        <form class="inline-action" method="post" action="{% url 'post_save_toggle' post.id %}">{% csrf_token %}<input type="hidden" name="next" value="/feed/"><button class="text-button save-button{% if post.id in saved_post_ids %} is-saved{% endif %}" type="submit" aria-pressed="{% if post.id in saved_post_ids %}true{% else %}false{% endif %}"><span aria-hidden="true">{% if post.id in saved_post_ids %}🔖{% else %}📑{% endif %}</span> {% if post.id in saved_post_ids %}Saved{% else %}Save{% endif %}</button></form>
+        {% if request.user.is_authenticated and request.user != post.author.user %}<form class="inline-action" method="post" action="{% url 'post_report' post.id %}">{% csrf_token %}<button class="text-button" type="submit">Report</button></form>{% endif %}
+    </footer>
 </article>

@@ -298,6 +298,18 @@ class PostLike(models.Model):
         ]
 
 
+class PostSave(models.Model):
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="saved_by")
+    user = models.ForeignKey(GamerProfile, on_delete=models.CASCADE, related_name="saved_posts")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=("post", "user"), name="unique_post_save")
+        ]
+        ordering = ("-created_at",)
+
+
 class RespectTransaction(models.Model):
     giver = models.ForeignKey(
         GamerProfile, on_delete=models.CASCADE, related_name="respect_given"

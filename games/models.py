@@ -83,22 +83,29 @@ class Game(models.Model):
 	def trailer_embed_url(self):
 		if not self.trailer_url:
 			return ""
-		parsed = urlparse(self.trailer_url)
+		url = self.trailer_url.strip()
+		if not url:
+			return ""
+		parsed = urlparse(url)
 		host = (parsed.netloc or "").lower()
-		if host in {"youtube.com", "www.youtube.com", "m.youtube.com"}:
-			video_id = parse_qs(parsed.query).get("v", [None])[0]
-			if not video_id and parsed.path:
-				path_parts = [part for part in parsed.path.split("/") if part]
-				if len(path_parts) >= 2 and path_parts[0] == "shorts":
-					video_id = path_parts[1]
-				elif len(path_parts) >= 1 and path_parts[0] != "embed":
-					video_id = path_parts[-1]
-			if video_id:
-				return f"https://www.youtube.com/embed/{video_id}"
-		if "youtu.be" in host:
-			video_id = parsed.path.strip("/").split("/")[-1]
-			if video_id:
-				return f"https://www.youtube.com/embed/{video_id}"
+		if "youtube.com" in host or "youtu.be" in host:
+			if "/embed/" in (parsed.path or "").lower():
+				video_id = parsed.path.strip("/").split("/")[-1]
+				return f"https://www.youtube.com/embed/{video_id}" if video_id else ""
+			path_parts = [part for part in (parsed.path or "").split("/") if part]
+			if host in {"youtube.com", "www.youtube.com", "m.youtube.com"}:
+				video_id = parse_qs(parsed.query).get("v", [None])[0]
+				if not video_id and path_parts:
+					if len(path_parts) >= 2 and path_parts[0] == "shorts":
+						video_id = path_parts[1]
+					elif path_parts[0] != "embed":
+						video_id = path_parts[-1]
+				if video_id:
+					return f"https://www.youtube.com/embed/{video_id}"
+			if "youtu.be" in host and path_parts:
+				video_id = path_parts[-1]
+				if video_id:
+					return f"https://www.youtube.com/embed/{video_id}"
 		return ""
 
 	@property

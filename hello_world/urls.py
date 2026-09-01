@@ -85,6 +85,7 @@ urlpatterns = [
     path("feed/posts/<int:post_id>/edit/", account_views.post_edit, name="post_edit"),
     path("feed/posts/<int:post_id>/delete/", account_views.post_delete, name="post_delete"),
     path("feed/posts/<int:post_id>/like/", account_views.post_like, name="post_like"),
+    path("feed/posts/<int:post_id>/save/", account_views.post_save_toggle, name="post_save_toggle"),
     path("feed/posts/<int:post_id>/report/", account_views.post_report, name="post_report"),
     path("accounts/", include("django.contrib.auth.urls")),
     path("__reload__/", include("django_browser_reload.urls")),

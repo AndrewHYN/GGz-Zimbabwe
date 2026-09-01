@@ -18,7 +18,26 @@ from events.models import Event, Organization
 from games.models import Game
 
 from .forms import CommentForm, GamerProfileForm, PostForm, SignupForm
-from .models import Block, Comment, Conversation, ConversationParticipant, Follow, FriendRequest, Friendship, GamerProfile, Message, MessageRequest, Notification, Post, PostLike, Report, RespectTransaction, Venue, notify
+from .models import (
+	Block,
+	Comment,
+	Conversation,
+	ConversationParticipant,
+	Follow,
+	FriendRequest,
+	Friendship,
+	GamerProfile,
+	Message,
+	MessageRequest,
+	Notification,
+	Post,
+	PostLike,
+	PostSave,
+	Report,
+	RespectTransaction,
+	Venue,
+	notify,
+)
 
 
 def _notify(recipient, actor, notification_type, message, target_url=""):
@@ -682,7 +701,8 @@ def feed(request):
 		).distinct()
 	page = Paginator(posts, 10).get_page(request.GET.get("page"))
 	liked_post_ids = set(PostLike.objects.filter(user=viewer, post__in=page.object_list).values_list("post_id", flat=True)) if viewer else set()
-	return render(request, "accounts/feed.html", {"page": page, "tab": tab, "post_form": PostForm(), "liked_post_ids": liked_post_ids})
+	saved_post_ids = set(PostSave.objects.filter(user=viewer, post__in=page.object_list).values_list("post_id", flat=True)) if viewer else set()
+	return render(request, "accounts/feed.html", {"page": page, "tab": tab, "post_form": PostForm(), "liked_post_ids": liked_post_ids, "saved_post_ids": saved_post_ids})
 
 
 @login_required
@@ -735,7 +755,8 @@ def post_detail(request, post_id):
 			return redirect("post_detail", post_id=post.id)
 	viewer = getattr(request.user, "gamer_profile", None)
 	liked_post_ids = {post.id} if viewer and PostLike.objects.filter(post=post, user=viewer).exists() else set()
-	return render(request, "accounts/post_detail.html", {"post": post, "comment_form": form, "liked_post_ids": liked_post_ids})
+	saved_post_ids = {post.id} if viewer and PostSave.objects.filter(post=post, user=viewer).exists() else set()
+	return render(request, "accounts/post_detail.html", {"post": post, "comment_form": form, "liked_post_ids": liked_post_ids, "saved_post_ids": saved_post_ids})
 
 
 @login_required
@@ -750,6 +771,22 @@ def post_like(request, post_id):
 			_notify(post.author, profile, "like", f"{profile.gamer_tag} liked your post", f"/feed/posts/{post.id}/")
 	if request.headers.get("x-requested-with") == "XMLHttpRequest":
 		return JsonResponse({"ok": True, "liked": created, "count": post.likes.count()})
+	return redirect(request.POST.get("next") or "feed")
+
+
+@login_required
+def post_save_toggle(request, post_id):
+	post = get_object_or_404(_visible_posts(getattr(request.user, "gamer_profile", None)), id=post_id)
+	profile = get_object_or_404(GamerProfile, user=request.user)
+	save_item = PostSave.objects.filter(post=post, user=profile).first()
+	if save_item:
+		save_item.delete()
+		liked = False
+	else:
+		PostSave.objects.create(post=post, user=profile)
+		liked = True
+	if request.headers.get("x-requested-with") == "XMLHttpRequest":
+		return JsonResponse({"ok": True, "saved": liked, "count": post.saved_by.count()})
 	return redirect(request.POST.get("next") or "feed")
 
 
