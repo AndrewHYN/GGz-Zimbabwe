@@ -129,6 +129,16 @@ class GamerProfileWorkflowTests(TestCase):
 		self.assertContains(response, "TendaiZW")
 		self.assertContains(response, "Following")
 
+	def test_message_requests_have_a_requests_dashboard(self):
+		self.client.login(username="tendai", password="strong-password-123")
+		self.client.post(reverse("message_request_action", args=["RudoZW", "send"]))
+		self.client.logout()
+		self.client.login(username="rudo", password="strong-password-123")
+		response = self.client.get(reverse("message_requests"))
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "TendaiZW")
+		self.assertContains(response, "Accept")
+
 	def test_geo_discovery_focuses_on_nearby_players_and_events(self):
 		venue = Venue.objects.create(
 			name="The Gamer Hub",

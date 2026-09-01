@@ -797,6 +797,14 @@ def conversation_list(request):
 
 
 @login_required
+def message_requests(request):
+	profile = get_object_or_404(GamerProfile, user=request.user)
+	incoming = MessageRequest.objects.filter(recipient=profile).select_related("sender__user", "recipient__user").order_by("-created_at")
+	outgoing = MessageRequest.objects.filter(sender=profile).select_related("recipient__user").order_by("-created_at")
+	return render(request, "accounts/message_requests.html", {"profile": profile, "incoming": incoming, "outgoing": outgoing})
+
+
+@login_required
 def conversation_detail(request, conversation_id):
 	profile = get_object_or_404(GamerProfile, user=request.user)
 	conversation = get_object_or_404(Conversation.objects.prefetch_related("participants", "messages__sender"), id=conversation_id, participants=profile)

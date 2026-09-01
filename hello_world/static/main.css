@@ -2951,6 +2951,64 @@ a:hover { color: #a5b4fc; }
     padding-top: 1rem;
 }
 
+/* Site Footer */
+.site-footer {
+    margin-top: 4rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(8, 11, 14, 0.8);
+}
+
+.footer-inner {
+    width: min(1280px, calc(100% - 2rem));
+    margin: 0 auto;
+    padding: 2.5rem 0 1.25rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.8fr);
+    gap: 2rem;
+}
+
+.footer-brand {
+    display: grid;
+    gap: 1rem;
+}
+
+.footer-brand p {
+    max-width: 32rem;
+    color: var(--text-secondary);
+}
+
+.footer-links {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.5rem;
+}
+
+.footer-links h3 {
+    margin-bottom: 0.75rem;
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+}
+
+.footer-links a {
+    display: block;
+    margin-bottom: 0.55rem;
+    color: var(--text-secondary);
+}
+
+.footer-bottom {
+    width: min(1280px, calc(100% - 2rem));
+    margin: 0 auto;
+    padding: 1rem 0 2rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    color: var(--text-tertiary);
+    font-size: 0.8rem;
+}
+
 /* Notifications */
 .notification-list {
     display: grid;
@@ -2981,6 +3039,53 @@ a:hover { color: #a5b4fc; }
 }
 
 /* Messages */
+.request-section {
+    display: grid;
+    gap: 1rem;
+}
+
+.request-list {
+    display: grid;
+    gap: 1rem;
+}
+
+.request-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: rgba(17, 23, 30, 0.8);
+}
+
+.request-user {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.request-user strong {
+    display: block;
+}
+
+.request-user small {
+    color: var(--text-tertiary);
+}
+
+.request-status {
+    justify-self: start;
+}
+
+.request-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
 .message-list {
     display: grid;
     gap: 0.5rem;

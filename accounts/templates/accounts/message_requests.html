@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Message requests | GGz{% endblock %}
+{% block content %}
+<main class="page-shell utility-page">
+    <a class="back-link" href="{% url 'conversation_list' %}">&larr; Back to messages</a>
+    <p class="eyebrow">Private messages</p>
+    <h1>Message requests</h1>
+    <p class="lede">Review incoming requests and keep your community conversations intentional.</p>
+
+    <section class="page-section request-section">
+        <div class="section-heading">
+            <div>
+                <p class="eyebrow">Incoming</p>
+                <h2>Pending requests</h2>
+            </div>
+        </div>
+        {% if incoming %}
+            <div class="request-list">
+                {% for request_item in incoming %}
+                    <div class="request-card {% if request_item.status == 'Accepted' %}is-accepted{% endif %}">
+                        <div class="request-user">
+                            {% if request_item.sender.avatar %}
+                                <span class="avatar avatar-md"><img src="{{ request_item.sender.avatar.url }}" alt="{{ request_item.sender.gamer_tag }} avatar"></span>
+                            {% else %}
+                                <span class="avatar avatar-md avatar-fallback">{{ request_item.sender.gamer_tag|slice:":1"|upper }}</span>
+                            {% endif %}
+                            <div>
+                                <strong>{{ request_item.sender.gamer_tag }}</strong>
+                                <small>{{ request_item.created_at|timesince }} ago</small>
+                            </div>
+                        </div>
+                        <div class="request-status">
+                            <span class="status-tag status-{{ request_item.status|lower }}">{{ request_item.status }}</span>
+                        </div>
+                        <div class="request-actions">
+                            {% if request_item.status == 'Pending' %}
+                                <form method="post" action="{% url 'message_request_action' request_item.sender.gamer_tag 'accept' %}">{% csrf_token %}<button class="button" type="submit">Accept</button></form>
+                                <form method="post" action="{% url 'message_request_action' request_item.sender.gamer_tag 'decline' %}">{% csrf_token %}<button class="button alt" type="submit">Decline</button></form>
+                            {% else %}
+                                <a class="button alt" href="{% url 'profile_detail' request_item.sender.gamer_tag %}">View profile</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state"><h3>No incoming requests</h3><p class="muted">When someone wants to message you, it will show up here.</p></div>
+        {% endif %}
+    </section>
+
+    <section class="page-section request-section">
+        <div class="section-heading">
+            <div>
+                <p class="eyebrow">Outgoing</p>
+                <h2>Sent requests</h2>
+            </div>
+        </div>
+        {% if outgoing %}
+            <div class="request-list">
+                {% for request_item in outgoing %}
+                    <div class="request-card">
+                        <div class="request-user">
+                            {% if request_item.recipient.avatar %}
+                                <span class="avatar avatar-md"><img src="{{ request_item.recipient.avatar.url }}" alt="{{ request_item.recipient.gamer_tag }} avatar"></span>
+                            {% else %}
+                                <span class="avatar avatar-md avatar-fallback">{{ request_item.recipient.gamer_tag|slice:":1"|upper }}</span>
+                            {% endif %}
+                            <div>
+                                <strong>{{ request_item.recipient.gamer_tag }}</strong>
+                                <small>{{ request_item.created_at|timesince }} ago</small>
+                            </div>
+                        </div>
+                        <div class="request-status"><span class="status-tag status-{{ request_item.status|lower }}">{{ request_item.status }}</span></div>
+                        <div class="request-actions">
+                            {% if request_item.status == 'Pending' %}
+                                <form method="post" action="{% url 'message_request_action' request_item.recipient.gamer_tag 'delete' %}">{% csrf_token %}<button class="text-button" type="submit">Cancel</button></form>
+                            {% else %}
+                                <a class="button alt" href="{% url 'profile_detail' request_item.recipient.gamer_tag %}">Open profile</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state"><h3>No sent requests</h3><p class="muted">You can request a conversation from any player profile.</p></div>
+        {% endif %}
+    </section>
+</main>
+{% endblock %}

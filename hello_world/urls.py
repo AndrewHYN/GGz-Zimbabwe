@@ -76,6 +76,7 @@ urlpatterns = [
     path("notifications/<int:notification_id>/unread/", account_views.notification_unread, name="notification_unread"),
     path("notifications/read-all/", account_views.notifications_read_all, name="notifications_read_all"),
     path("messages/", account_views.conversation_list, name="conversation_list"),
+    path("messages/requests/", account_views.message_requests, name="message_requests"),
     path("messages/<int:conversation_id>/", account_views.conversation_detail, name="conversation_detail"),
     path("messages/start/<str:gamer_tag>/", account_views.conversation_start, name="conversation_start"),
     path("messages/request/<str:gamer_tag>/<str:action>/", account_views.message_request_action, name="message_request_action"),

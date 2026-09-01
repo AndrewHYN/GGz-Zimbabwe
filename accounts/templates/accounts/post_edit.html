@@ -3,5 +3,19 @@
 {% block title %}Edit post | GGz{% endblock %}
 
 {% block content %}
-<main class="page-shell form-page"><a class="back-link" href="{% url 'post_detail' post.id %}">&larr; Back to post</a><div class="form-card"><p class="eyebrow">Your post</p><h1>Edit update</h1><form method="post" enctype="multipart/form-data">{% csrf_token %}{{ form.as_p }}<button class="button" type="submit">Save changes</button></form></div></main>
+<main class="page-shell form-page">
+    <a class="back-link" href="{% url 'post_detail' post.id %}">&larr; Back to post</a>
+    <div class="form-card form-card-wide">
+        <p class="eyebrow">Your post</p>
+        <h1>Edit update</h1>
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <div class="form-actions compact-actions">
+                <button class="button" type="submit">Save changes</button>
+                <a class="button alt" href="{% url 'post_detail' post.id %}">Cancel</a>
+            </div>
+        </form>
+    </div>
+</main>
 {% endblock %}
