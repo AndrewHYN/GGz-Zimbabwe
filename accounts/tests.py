@@ -150,6 +150,12 @@ class GamerProfileWorkflowTests(TestCase):
 		self.assertContains(response, "TendaiZW")
 		self.assertContains(response, "Accept")
 
+	def test_message_requests_dashboard_is_not_captured_by_profile_action_route(self):
+		self.client.login(username="tendai", password="strong-password-123")
+		response = self.client.get("/profiles/messages/requests/")
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Message requests")
+
 	def test_geo_discovery_focuses_on_nearby_players_and_events(self):
 		venue = Venue.objects.create(
 			name="The Gamer Hub",
