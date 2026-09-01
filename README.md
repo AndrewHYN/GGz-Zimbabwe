@@ -31,6 +31,22 @@ Required environment variables:
 - `DB_ENGINE`: defaults to SQLite for local development; set to `django.db.backends.postgresql` for production PostgreSQL
 - `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`: database settings for non-SQLite environments
 - `STATIC_URL`, `STATIC_ROOT`, `MEDIA_URL`, `MEDIA_ROOT`: static/media configuration
+- `GGZ_MAP_PROVIDER`: set to `google` for the production intent of Radar; `osm` remains the safe fallback when no provider key is configured
+- `GGZ_MAP_API_KEY`: Google Maps JavaScript API key for full provider-backed map features and optional Street View/3D behavior
+- `GGZ_MAP_DEFAULT_LATITUDE`, `GGZ_MAP_DEFAULT_LONGITUDE`: default center coordinates for the GGz Zimbabwe discovery map
+
+## GGz Radar map provider decision
+
+GGz Radar uses the Google Maps Platform as the primary map engine.
+
+Why this is the correct fit for the current product:
+
+- Street View is a explicit product requirement for physical venue inspection, and Google provides that in the same geographic ecosystem as road, satellite, hybrid, and 3D experiences.
+- The product goal is a premium gaming discovery layer with map browsing, directions, venue discovery, and future geographic expansion; Google Maps matches that requirement set more directly than a GIS-first stack.
+- The existing GGz app already has a lightweight JSON map API and location data structure, so the architecture can stay simple while still supporting provider-native map features when the API key is present.
+- ArcGIS would be viable if the product shifted toward GIS-heavy planning and geospatial analysis in a later phase, but it is not the better fit for the current requirement mix of Street View, city discovery, venue context, and mapping ease.
+
+The implementation intentionally keeps one primary provider to avoid the unnecessary complexity of mixed-map architecture. When no key is configured, the app gracefully falls back to a safe, non-crashing public-data experience instead of breaking the page.
 
 Production-ready guidance:
 
