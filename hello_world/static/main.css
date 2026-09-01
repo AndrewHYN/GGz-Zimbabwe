@@ -2643,15 +2643,17 @@ a:hover { color: #a5b4fc; }
     }
 }
 
-.nav-menu {
-    width: 100%;
-    flex-direction: column;
-    gap: 1rem;
-}
+@media (max-width: 900px) {
+    .nav-menu {
+        width: 100%;
+        flex-direction: column;
+        gap: 1rem;
+    }
 
-.nav-cluster {
-    width: 100%;
-    flex-direction: column;
+    .nav-cluster {
+        width: 100%;
+        flex-direction: column;
+    }
 }
     
     .nav-tools {
