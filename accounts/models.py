@@ -275,6 +275,37 @@ class Post(models.Model):
         return f"{self.author.gamer_tag}: {self.body[:40]}"
 
 
+class ExternalFeedItem(models.Model):
+    CONTENT_TYPE_CHOICES = [
+        ("NEWS", "News"),
+        ("VIDEO", "Video"),
+        ("TRAILER", "Trailer"),
+        ("ANNOUNCEMENT", "Announcement"),
+        ("UPDATE", "Update"),
+        ("ESPORTS", "Esports"),
+    ]
+
+    game = models.ForeignKey("games.Game", on_delete=models.SET_NULL, blank=True, null=True, related_name="external_feed_items")
+    source_name = models.CharField(max_length=120)
+    source_url = models.URLField(blank=True)
+    title = models.CharField(max_length=300)
+    excerpt = models.TextField(blank=True)
+    url = models.URLField()
+    image_url = models.URLField(blank=True)
+    video_url = models.URLField(blank=True)
+    published_at = models.DateTimeField(blank=True, null=True)
+    content_type = models.CharField(max_length=20, choices=CONTENT_TYPE_CHOICES, default="NEWS")
+    external_id = models.CharField(max_length=255, unique=True, db_index=True)
+    fetched_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ("-published_at", "-fetched_at")
+
+    def __str__(self):
+        return f"{self.source_name}: {self.title[:60]}"
+
+
 class Comment(models.Model):
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="comments")
     author = models.ForeignKey(

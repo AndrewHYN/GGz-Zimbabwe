@@ -81,6 +81,7 @@ urlpatterns = [
     path("messages/start/<str:gamer_tag>/", account_views.conversation_start, name="conversation_start"),
     path("messages/request/<str:gamer_tag>/<str:action>/", account_views.message_request_action, name="message_request_action"),
     path("feed/create/", account_views.post_create, name="post_create"),
+    path("feed/refresh/", account_views.feed_refresh, name="feed_refresh"),
     path("feed/posts/<int:post_id>/", account_views.post_detail, name="post_detail"),
     path("feed/posts/<int:post_id>/edit/", account_views.post_edit, name="post_edit"),
     path("feed/posts/<int:post_id>/delete/", account_views.post_delete, name="post_delete"),

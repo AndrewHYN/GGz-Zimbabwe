@@ -323,6 +323,27 @@
             </section>
             {% endif %}
 
+            {% if game_news %}
+            <section class="store-section panel-section">
+                <div class="section-header">
+                    <div>
+                        <p class="eyebrow">Latest gaming news</p>
+                        <h2>Public updates</h2>
+                    </div>
+                </div>
+                <div class="info-stack">
+                    {% for item in game_news %}
+                        <article class="info-card compact-card">
+                            <div class="card-topline"><span class="tag">{{ item.source_name }}</span><span class="pill">{{ item.content_type|title }}</span></div>
+                            <h3><a href="{{ item.url }}" target="_blank" rel="noreferrer">{{ item.title }}</a></h3>
+                            <p class="muted">{{ item.excerpt }}</p>
+                            {% if item.game %}<div class="game-community-tag">🎮 {{ item.game.name }}</div>{% endif %}
+                        </article>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endif %}
+
             {% if community_posts %}
             <section class="store-section panel-section">
                 <div class="section-header">

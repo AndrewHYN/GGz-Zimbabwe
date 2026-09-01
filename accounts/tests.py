@@ -1,10 +1,14 @@
+from unittest.mock import patch
+
 from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from games.models import Game
 
-from .models import Block, Conversation, ConversationParticipant, Follow, FriendRequest, Friendship, GamerProfile, Message, MessageRequest, Notification, Post, PostLike, RespectTransaction, Venue
+from .models import Block, Conversation, ConversationParticipant, ExternalFeedItem, Follow, FriendRequest, Friendship, GamerProfile, Message, MessageRequest, Notification, Post, PostLike, RespectTransaction, Venue
+from .services import _parse_rss_feed, refresh_public_gaming_feed
 from events.models import Event, Organization
 from teams.models import Team, TeamInvitation
 
@@ -179,6 +183,77 @@ class GamerProfileWorkflowTests(TestCase):
 
 		self.assertContains(response, "Relevant Tekken matchup thread")
 		self.assertNotContains(response, "Totally unrelated post")
+
+	def test_feed_for_you_includes_curated_public_discovery_items(self):
+		viewer = self.profile
+		game = Game.objects.create(name="Tekken 8")
+		viewer.games.add(game)
+		ExternalFeedItem.objects.create(
+			game=game,
+			source_name="Bandai Namco",
+			title="Tekken 8 battle pass update",
+			excerpt="A new competitive season is live.",
+			url="https://example.com/tekken-update",
+			external_id="tekken8-update-1",
+		)
+
+		self.client.login(username="tendai", password="strong-password-123")
+		response = self.client.get(reverse("feed"), {"tab": "for-you"})
+
+		self.assertContains(response, "Tekken 8 battle pass update")
+		self.assertContains(response, "Bandai Namco")
+
+	def test_feed_refresh_creates_public_discovery_cards(self):
+		viewer = self.profile
+		game = Game.objects.create(name="Tekken 8")
+		viewer.games.add(game)
+
+		self.client.login(username="tendai", password="strong-password-123")
+		response = self.client.post(reverse("feed_refresh"), {"game": game.id})
+
+		self.assertRedirects(response, reverse("feed") + "?tab=for-you")
+		self.assertTrue(ExternalFeedItem.objects.filter(game=game, title__icontains="Tekken 8").exists())
+
+	def test_public_feed_fetch_parses_valid_rss_data_and_saves_items(self):
+		Game.objects.create(name="Mortal Kombat")
+		rss = '''<?xml version="1.0" encoding="UTF-8"?>
+		<rss version="2.0">
+		<channel>
+			<title>GGz Sample Feed</title>
+			<item>
+				<title>Mortal Kombat 1 patch notes</title>
+				<link>https://example.com/mk1-patch</link>
+				<description>New online balance updates for Mortal Kombat 1.</description>
+				<pubDate>Mon, 02 Sep 2024 10:00:00 +0000</pubDate>
+			</item>
+		</channel>
+		</rss>'''
+		items = _parse_rss_feed("Sample Source", "https://example.com/feed", rss)
+		self.assertEqual(len(items), 1)
+		self.assertEqual(items[0]["source_name"], "Sample Source")
+		self.assertEqual(items[0]["game"].name, "Mortal Kombat")
+		self.assertIn("patch", items[0]["title"].lower())
+
+	def test_refresh_public_gaming_feed_avoids_duplicates_and_handles_failures(self):
+		game = Game.objects.create(name="Mortal Kombat")
+		item_payload = [{
+			"source_name": "Sample Source",
+			"source_url": "https://example.com/feed",
+			"title": "Mortal Kombat 1 patch notes",
+			"excerpt": "New online balance updates for Mortal Kombat 1.",
+			"url": "https://example.com/mk1-patch",
+			"image_url": "",
+			"video_url": "",
+			"published_at": timezone.now(),
+			"game": game,
+			"external_id": "mk1-patch-1",
+		}]
+		with patch("accounts.services.fetch_public_feed", return_value=item_payload):
+			first_created = refresh_public_gaming_feed(game_ids=[game.id])
+			second_created = refresh_public_gaming_feed(game_ids=[game.id])
+		self.assertEqual(first_created, 1)
+		self.assertEqual(second_created, 0)
+		self.assertEqual(ExternalFeedItem.objects.filter(game=game).count(), 1)
 
 	def test_message_requests_have_a_requests_dashboard(self):
 		self.client.login(username="tendai", password="strong-password-123")

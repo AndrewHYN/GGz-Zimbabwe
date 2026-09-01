@@ -24,6 +24,7 @@ from .models import (
 	Comment,
 	Conversation,
 	ConversationParticipant,
+	ExternalFeedItem,
 	Follow,
 	FriendRequest,
 	Friendship,
@@ -39,6 +40,7 @@ from .models import (
 	Venue,
 	notify,
 )
+from .services import refresh_public_gaming_feed
 
 
 def _notify(recipient, actor, notification_type, message, target_url=""):
@@ -690,6 +692,64 @@ def _visible_posts(viewer):
 	return posts
 
 
+def _ensure_external_feed_items_for_game(game):
+	if not game:
+		return []
+	seed_items = [
+		{
+			"source_name": "Official Community",
+			"title": f"{game.name} community update",
+			"excerpt": f"Fresh public updates, creator highlights, and match-day notes for {game.name}.",
+			"url": f"https://www.example.com/{game.name.lower().replace(' ', '-')}-community-update",
+			"source_url": "https://www.example.com/",
+			"content_type": "UPDATE",
+		},
+		{
+			"source_name": "GGz Gaming Desk",
+			"title": f"{game.name} seasonal spotlight",
+			"excerpt": f"A quick look at the latest competitive rhythm, rewards, and player buzz around {game.name}.",
+			"url": f"https://www.example.com/{game.name.lower().replace(' ', '-')}-spotlight",
+			"source_url": "https://www.example.com/",
+			"content_type": "NEWS",
+		},
+	]
+	created = []
+	for index, payload in enumerate(seed_items):
+		item, is_new = ExternalFeedItem.objects.get_or_create(
+			external_id=f"{game.pk}-{index}-{payload['title']}",
+			defaults={
+				"game": game,
+				"source_name": payload["source_name"],
+				"source_url": payload["source_url"],
+				"title": payload["title"],
+				"excerpt": payload["excerpt"],
+				"url": payload["url"],
+				"image_url": "",
+				"video_url": "",
+				"published_at": timezone.now(),
+				"content_type": payload["content_type"],
+				"is_active": True,
+			},
+		)
+		if is_new:
+			created.append(item)
+	return created or list(ExternalFeedItem.objects.filter(game=game).order_by("-published_at")[:2])
+
+
+def _for_you_discovery_items(viewer, limit=5):
+	if not viewer:
+		return []
+	interest_game_ids = list(viewer.games.values_list("id", flat=True))
+	if not interest_game_ids:
+		return list(ExternalFeedItem.objects.select_related("game").filter(is_active=True).order_by("-published_at")[:limit])
+	items = ExternalFeedItem.objects.filter(Q(game_id__in=interest_game_ids) | Q(game__players=viewer), is_active=True).select_related("game").distinct()
+	if not items.exists():
+		for game in Game.objects.filter(id__in=interest_game_ids):
+			_ensure_external_feed_items_for_game(game)
+		items = ExternalFeedItem.objects.filter(Q(game_id__in=interest_game_ids) | Q(game__players=viewer), is_active=True).select_related("game").distinct()
+	return list(items.order_by("-published_at")[:limit])
+
+
 def feed(request):
 	viewer = getattr(request.user, "gamer_profile", None)
 	posts = _visible_posts(viewer)
@@ -712,6 +772,10 @@ def feed(request):
 	page = Paginator(posts, 10).get_page(request.GET.get("page"))
 	liked_post_ids = set(PostLike.objects.filter(user=viewer, post__in=page.object_list).values_list("post_id", flat=True)) if viewer else set()
 	saved_post_ids = set(PostSave.objects.filter(user=viewer, post__in=page.object_list).values_list("post_id", flat=True)) if viewer else set()
+	if tab == "for-you":
+		discovery_items = _for_you_discovery_items(viewer, limit=5) if viewer else list(ExternalFeedItem.objects.filter(is_active=True).select_related("game").order_by("-published_at")[:5])
+	else:
+		discovery_items = []
 	trending_games = Game.objects.order_by("-popularity", "name")[:5]
 	trending_players = GamerProfile.objects.select_related("user").order_by("-respect_points", "gamer_tag")[:5]
 	upcoming_tournaments = Tournament.objects.filter(status__in=("Registration Open", "Registration Closed", "Live")).select_related("organizer", "game").order_by("start_date")[:5]
@@ -726,12 +790,30 @@ def feed(request):
 			"post_form": PostForm(),
 			"liked_post_ids": liked_post_ids,
 			"saved_post_ids": saved_post_ids,
+			"discovery_items": discovery_items,
 			"trending_games": trending_games,
 			"trending_players": trending_players,
 			"upcoming_tournaments": upcoming_tournaments,
 			"upcoming_events": upcoming_events,
 		},
 	)
+
+
+@login_required
+def feed_refresh(request):
+	viewer = getattr(request.user, "gamer_profile", None)
+	if request.method != "POST":
+		return redirect("feed")
+	game_id = request.POST.get("game")
+	if game_id:
+		game = get_object_or_404(Game, id=game_id)
+		refresh_public_gaming_feed(game_ids=[game.id])
+	elif viewer:
+		refresh_public_gaming_feed(game_ids=list(viewer.games.values_list("id", flat=True)))
+	else:
+		refresh_public_gaming_feed()
+	messages.success(request, "Your GGz gaming discovery feed refreshed.")
+	return redirect(f"{reverse('feed')}?tab=for-you")
 
 
 @login_required

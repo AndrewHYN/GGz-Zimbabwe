@@ -7,7 +7,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from marketplace.models import Listing
-from accounts.models import Block, GamerProfile
+from accounts.models import Block, ExternalFeedItem, GamerProfile
 from tournaments.models import Challenge, Tournament, TournamentMatch
 from events.models import Event
 
@@ -123,6 +123,7 @@ def game_detail(request, game_id):
 	leaderboard = _compute_game_stats(game)[:10]
 	available_players = game.players.select_related("user").order_by("gamer_tag")[:8]
 	community_posts = game.posts.exclude(author_id__in=blocked_ids)[:5]
+	game_news = ExternalFeedItem.objects.filter(game=game, is_active=True).order_by("-published_at")[:4]
 	upcoming_tournaments = Tournament.objects.filter(game=game, status__in=("Registration Open", "Registration Closed", "Live")).select_related("organizer")[:4]
 	related_events = Event.objects.filter(game=game, status__in=("Upcoming", "Published", "Live")).select_related("organizer")[:4]
 	related_listings = Listing.objects.filter(game=game, status__in=("Available", "Reserved")).select_related("seller").prefetch_related("images")[:4]
@@ -141,6 +142,7 @@ def game_detail(request, game_id):
 			"game": game,
 			"available_players": available_players,
 			"community_posts": community_posts,
+			"game_news": game_news,
 			"upcoming_tournaments": upcoming_tournaments,
 			"related_events": related_events,
 			"related_listings": related_listings,

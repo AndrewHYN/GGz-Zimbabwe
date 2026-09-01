@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Block, Comment, Conversation, ConversationParticipant, Follow, FriendRequest, Friendship, GamerProfile, Message, Notification, Post, PostLike, PostSave, Report, RespectTransaction, Venue
+from .models import Block, Comment, Conversation, ConversationParticipant, ExternalFeedItem, Follow, FriendRequest, Friendship, GamerProfile, Message, Notification, Post, PostLike, PostSave, Report, RespectTransaction, Venue
 
 
 @admin.register(Venue)
@@ -48,6 +48,14 @@ class FollowAdmin(admin.ModelAdmin):
 class BlockAdmin(admin.ModelAdmin):
     list_display = ("blocker", "blocked", "created_at")
     search_fields = ("blocker__gamer_tag", "blocked__gamer_tag")
+
+
+@admin.register(ExternalFeedItem)
+class ExternalFeedItemAdmin(admin.ModelAdmin):
+    list_display = ("title", "source_name", "game", "content_type", "published_at", "is_active")
+    list_filter = ("content_type", "is_active", "game")
+    search_fields = ("title", "source_name", "game__name")
+    ordering = ("-published_at",)
 
 
 @admin.register(Post)

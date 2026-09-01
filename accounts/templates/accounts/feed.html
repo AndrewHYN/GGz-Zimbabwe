@@ -13,13 +13,8 @@
                 <nav class="feed-nav" aria-label="Community navigation">
                     <a href="{% url 'feed' %}" class="feed-nav-item active">Home</a>
                     <a href="{% url 'feed' %}?tab=following" class="feed-nav-item">Following</a>
+                    <a href="{% url 'team_list' %}" class="feed-nav-item">Groups</a>
                     <a href="{% url 'gamer_discovery' %}" class="feed-nav-item">Discover</a>
-                    <a href="{% url 'game_list' %}" class="feed-nav-item">Games</a>
-                    <a href="{% url 'tournament_list' %}" class="feed-nav-item">Tournaments</a>
-                    <a href="{% url 'event_list' %}" class="feed-nav-item">Events</a>
-                    <a href="{% url 'team_list' %}" class="feed-nav-item">Teams</a>
-                    <a href="{% url 'gamer_discovery' %}" class="feed-nav-item">Gamers</a>
-                    <a href="{% url 'notification_list' %}" class="feed-nav-item">Bookmarks</a>
                 </nav>
             </div>
         </aside>
@@ -38,6 +33,38 @@
                 <a class="{% if tab == 'following' %}active{% endif %}" href="?tab=following{% if game_id %}&game={{ game_id }}{% endif %}">Following</a>
                 <a class="{% if tab == 'latest' %}active{% endif %}" href="?tab=latest{% if game_id %}&game={{ game_id }}{% endif %}">Latest</a>
             </nav>
+
+            {% if tab == 'for-you' and request.user.is_authenticated %}
+            <section class="feed-panel discovery-panel" aria-label="For You discovery">
+                <div class="discovery-header">
+                    <div>
+                        <p class="eyebrow">For You</p>
+                        <h2>Fresh public gaming updates</h2>
+                    </div>
+                    <form method="post" action="{% url 'feed_refresh' %}">
+                        {% csrf_token %}
+                        <button class="button button-secondary" type="submit">Refresh</button>
+                    </form>
+                </div>
+                {% if discovery_items %}
+                <div class="discovery-list">
+                    {% for item in discovery_items %}
+                    <article class="discovery-card">
+                        <div class="discovery-meta">
+                            <span>{{ item.source_name }}</span>
+                            <span>{{ item.content_type|title }}</span>
+                        </div>
+                        <h3><a href="{{ item.url }}" target="_blank" rel="noreferrer">{{ item.title }}</a></h3>
+                        <p>{{ item.excerpt }}</p>
+                        <a class="text-link" href="{{ item.url }}" target="_blank" rel="noreferrer">Read update</a>
+                    </article>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="muted">Follow a few games to unlock public gaming discovery cards.</p>
+                {% endif %}
+            </section>
+            {% endif %}
 
             {% if request.user.is_authenticated %}
             <section class="composer-card">
