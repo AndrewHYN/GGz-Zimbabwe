@@ -53,6 +53,7 @@ def _game_queryset():
 def game_list(request):
 	q = request.GET.get("q", "").strip()
 	genre = request.GET.get("genre", "").strip()
+	platform = request.GET.get("platform", "").strip()
 	free_only = request.GET.get("free", "") == "1"
 	featured_only = request.GET.get("featured", "") == "1"
 	sort = request.GET.get("sort", "popular")
@@ -61,6 +62,8 @@ def game_list(request):
 		games = games.filter(Q(name__icontains=q) | Q(description__icontains=q) | Q(developer__icontains=q) | Q(genre__icontains=q))
 	if genre:
 		games = games.filter(genre__icontains=genre)
+	if platform:
+		games = games.filter(platform__icontains=platform)
 	if free_only:
 		games = games.filter(free_to_play=True)
 	if featured_only:
@@ -80,6 +83,7 @@ def game_list(request):
 	local_games = games.filter(local_developer=True)[:6]
 	sponsored_games = games.filter(sponsored=True)[:6]
 	categories = sorted({game.genre.strip() for game in games.exclude(genre="") if game.genre.strip()})
+	platforms = sorted({game.platform.strip() for game in games.exclude(platform="") if game.platform.strip()})
 	return render(
 		request,
 		"games/game_list.html",
@@ -92,8 +96,10 @@ def game_list(request):
 			"local_games": local_games,
 			"sponsored_games": sponsored_games,
 			"categories": categories,
+			"platforms": platforms,
 			"query": q,
 			"selected_genre": genre,
+			"selected_platform": platform,
 			"selected_sort": sort,
 			"free_only": free_only,
 			"featured_only": featured_only,

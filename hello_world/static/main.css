@@ -947,21 +947,39 @@ a:hover { color: #a5b4fc; }
 .challenge-form select,
 .challenge-form input {
     min-height: 3rem;
-    padding: 0.8rem 0.9rem;
+    padding: 0.8rem 2.2rem 0.8rem 0.9rem;
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
-    background: rgba(255, 255, 255, 0.02);
+    background-color: rgba(13, 18, 23, 0.9);
+    background-image: linear-gradient(45deg, transparent 50%, var(--text-secondary) 50%), linear-gradient(135deg, var(--text-secondary) 50%, transparent 50%);
+    background-position: calc(100% - 1.1rem) calc(50% - 2px), calc(100% - 0.9rem) calc(50% - 2px);
+    background-size: 0.35rem 0.35rem, 0.35rem 0.35rem;
+    background-repeat: no-repeat;
     color: var(--text-primary);
     font: inherit;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
 }
 
 .store-search input {
     flex: 1 1 260px;
+    padding-right: 0.9rem;
+    background-image: none;
 }
 
 .store-search select,
 .challenge-form select {
     min-width: 170px;
+}
+
+.store-search select option,
+.challenge-form select option,
+.filter-bar select option,
+.form-card select option,
+.market-filter select option {
+    background: #0a1016;
+    color: var(--text-primary);
 }
 
 .store-section,
@@ -1501,9 +1519,24 @@ a:hover { color: #a5b4fc; }
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     padding: 0.8rem 0.9rem;
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(13, 18, 23, 0.9);
     color: var(--text-primary);
     font: inherit;
+}
+
+.filter-bar input,
+.filter-bar select,
+.form-card select,
+.search-form select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--text-secondary) 50%), linear-gradient(135deg, var(--text-secondary) 50%, transparent 50%);
+    background-position: calc(100% - 1.1rem) calc(50% - 2px), calc(100% - 0.9rem) calc(50% - 2px);
+    background-size: 0.35rem 0.35rem, 0.35rem 0.35rem;
+    background-repeat: no-repeat;
+    background-color: rgba(13, 18, 23, 0.9);
+    padding-right: 2.2rem;
 }
 
 .filter-bar input:focus,

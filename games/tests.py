@@ -357,12 +357,24 @@ class GameHubTests(TestCase):
 		self.assertEqual(game.trailer_embed_url, "https://www.youtube.com/embed/abcd1234xyz9")
 		self.assertEqual(Game(name="Unsafe", trailer_url="https://example.com/video").trailer_embed_url, "")
 
+	def test_game_list_supports_platform_and_featured_filtering(self):
+		Game.objects.create(name="Apex Legends", genre="Battle Royale", platform="PC", popularity=90, featured=True, free_to_play=False)
+		Game.objects.create(name="Fortnite", genre="Battle Royale", platform="PC", popularity=85, featured=False, free_to_play=True)
+		Game.objects.create(name="Tekken 8", genre="Fighting", platform="PlayStation 5", popularity=70, featured=False, free_to_play=False)
+
+		response = self.client.get(reverse("game_list"), {"platform": "PC", "featured": "1"})
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Apex Legends")
+		self.assertNotContains(response, "Fortnite")
+		self.assertNotContains(response, "Tekken 8")
+
 	def test_game_ui_css_keeps_cards_and_back_links_compact(self):
 		css_path = Path(settings.BASE_DIR) / "hello_world" / "static" / "main.css"
 		css = css_path.read_text()
 		self.assertIn(".back-link", css)
 		self.assertIn("width: fit-content", css)
 		self.assertIn("object-fit: cover", css)
+		self.assertIn("background-color: rgba(13, 18, 23, 0.9)", css)
 
 	def test_game_detail_wires_find_players_and_challenge_friend_to_existing_system(self):
 		game = Game.objects.create(name="League of Legends", genre="MOBA")

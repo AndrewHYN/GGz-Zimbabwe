@@ -24,10 +24,25 @@
                 <option value="{{ category }}" {% if selected_genre == category %}selected{% endif %}>{{ category }}</option>
             {% endfor %}
         </select>
+        <select name="platform" aria-label="Filter by platform">
+            <option value="">All platforms</option>
+            {% for platform in platforms %}
+                <option value="{{ platform }}" {% if selected_platform == platform %}selected{% endif %}>{{ platform }}</option>
+            {% endfor %}
+        </select>
+        <select name="free" aria-label="Filter free-to-play games">
+            <option value="">All games</option>
+            <option value="1" {% if free_only %}selected{% endif %}>Free-to-play</option>
+        </select>
+        <select name="featured" aria-label="Filter featured games">
+            <option value="">All picks</option>
+            <option value="1" {% if featured_only %}selected{% endif %}>Featured only</option>
+        </select>
         <select name="sort" aria-label="Sort games">
             <option value="popular" {% if selected_sort == "popular" %}selected{% endif %}>Popular</option>
             <option value="newest" {% if selected_sort == "newest" %}selected{% endif %}>New releases</option>
             <option value="alpha" {% if selected_sort == "alpha" %}selected{% endif %}>A-Z</option>
+            <option value="release" {% if selected_sort == "release" %}selected{% endif %}>Newest release</option>
         </select>
         <button class="button button-primary" type="submit">Search</button>
     </form>
