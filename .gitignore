@@ -8,3 +8,5 @@ staticfiles/
 venv/
 .venv/
 .vscode/
+.vercel
+.env*
