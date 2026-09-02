@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.0/topics/settings/
 
 import os
 from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlsplit
 
 from decouple import config
 
@@ -27,39 +28,30 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
+# Deployed platforms set one of these values. Local development remains usable
+# without an .env file, while deployed hosts and origins must be explicit.
+DEPLOYED = bool(os.environ.get("VERCEL") or os.environ.get("RENDER_EXTERNAL_HOSTNAME") or os.environ.get("DATABASE_URL"))
+
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = config(
-    "SECRET_KEY",
+    "DJANGO_SECRET_KEY",
     default="dev-secret-key-change-me-for-local-ggz-development-2026-!",
 )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config("DEBUG", default=True, cast=bool)
+DEBUG = config("DEBUG", default=not DEPLOYED, cast=bool)
 
 ALLOWED_HOSTS = config(
     "ALLOWED_HOSTS",
-    default="localhost,127.0.0.1,[::1]",
+    default="" if DEPLOYED else "localhost,127.0.0.1,[::1]",
     cast=comma_separated,
 )
 
 CSRF_TRUSTED_ORIGINS = config(
     "CSRF_TRUSTED_ORIGINS",
-    default="http://localhost:8000,http://127.0.0.1:8000,https://localhost:8000,https://127.0.0.1:8000",
+    default="" if DEPLOYED else "http://localhost:8000,http://127.0.0.1:8000,https://localhost:8000,https://127.0.0.1:8000",
     cast=comma_separated,
 )
-
-render_hostname = config("RENDER_EXTERNAL_HOSTNAME", default="")
-if render_hostname:
-    ALLOWED_HOSTS.append(render_hostname)
-    CSRF_TRUSTED_ORIGINS.append(f"https://{render_hostname}")
-
-if "CODESPACE_NAME" in os.environ:
-    codespace_name = config("CODESPACE_NAME")
-    codespace_domain = config("GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN", default="")
-    if codespace_domain:
-        codespace_host = f"{codespace_name}-8000.{codespace_domain}"
-        ALLOWED_HOSTS.append(codespace_host)
-        CSRF_TRUSTED_ORIGINS.append(f"https://{codespace_host}")
 
 ALLOWED_HOSTS = list(dict.fromkeys(ALLOWED_HOSTS))
 CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(CSRF_TRUSTED_ORIGINS))
@@ -95,7 +87,11 @@ MIDDLEWARE = [
 ]
 
 X_FRAME_OPTIONS = config("X_FRAME_OPTIONS", default="DENY")
-SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_PROXY_SSL_HEADER = (
+    ("HTTP_X_FORWARDED_PROTO", "https")
+    if config("USE_X_FORWARDED_PROTO", default=DEPLOYED, cast=bool)
+    else None
+)
 
 ROOT_URLCONF = "hello_world.urls"
 
@@ -111,7 +107,7 @@ SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "same-origin"
-SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=not DEBUG, cast=bool)
+SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=DEPLOYED and not DEBUG, cast=bool)
 SECURE_HSTS_SECONDS = config(
     "SECURE_HSTS_SECONDS",
     default=31536000 if not DEBUG else 0,
@@ -144,22 +140,44 @@ WSGI_APPLICATION = "hello_world.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
-DATABASES = {
-    "default": {
-        "ENGINE": config(
-            "DB_ENGINE",
-            default="django.db.backends.sqlite3",
-        ),
-        "NAME": config(
-            "DB_NAME",
-            default=str(BASE_DIR / "db.sqlite3"),
-        ),
-        "USER": config("DB_USER", default=""),
-        "PASSWORD": config("DB_PASSWORD", default=""),
-        "HOST": config("DB_HOST", default=""),
-        "PORT": config("DB_PORT", default=""),
+database_url = os.environ.get("DATABASE_URL", "").strip()
+if database_url:
+    parsed_database_url = urlsplit(database_url)
+    if parsed_database_url.scheme not in {"postgres", "postgresql", "sqlite"}:
+        raise ValueError("DATABASE_URL must use postgres, postgresql, or sqlite")
+    if parsed_database_url.scheme == "sqlite":
+        database_name = unquote(parsed_database_url.path)
+        if database_name.startswith("/") and not database_name.startswith("//"):
+            database_name = database_name[1:]
+        DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": database_name}}
+    else:
+        database_query = parse_qs(parsed_database_url.query)
+        sslmode = database_query.get("sslmode", [os.environ.get("PGSSLMODE", "require")])[0]
+        DATABASES = {
+            "default": {
+                "ENGINE": "django.db.backends.postgresql",
+                "NAME": unquote(parsed_database_url.path.lstrip("/")),
+                "USER": unquote(parsed_database_url.username or ""),
+                "PASSWORD": unquote(parsed_database_url.password or ""),
+                "HOST": parsed_database_url.hostname or "",
+                "PORT": str(parsed_database_url.port or ""),
+                "OPTIONS": {"sslmode": sslmode},
+                # Serverless workers should not hold connections indefinitely.
+                "CONN_MAX_AGE": config("DB_CONN_MAX_AGE", default=0, cast=int),
+                "CONN_HEALTH_CHECKS": True,
+            }
+        }
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": config("DB_ENGINE", default="django.db.backends.sqlite3"),
+            "NAME": config("DB_NAME", default=str(BASE_DIR / "db.sqlite3")),
+            "USER": config("DB_USER", default=""),
+            "PASSWORD": config("DB_PASSWORD", default=""),
+            "HOST": config("DB_HOST", default=""),
+            "PORT": config("DB_PORT", default=""),
+        }
     }
-}
 
 
 # Password validation

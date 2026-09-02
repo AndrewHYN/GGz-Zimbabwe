@@ -24,7 +24,7 @@ cp .env.example .env
 
 Required environment variables:
 
-- `SECRET_KEY`: a strong secret in production; local dev falls back to a safe placeholder when unset
+- `DJANGO_SECRET_KEY`: a strong secret in production; local dev falls back to a development-only placeholder when unset
 - `DEBUG`: set to `True` for local development and `False` in production
 - `ALLOWED_HOSTS`: comma-separated hostnames for the current environment
 - `CSRF_TRUSTED_ORIGINS`: comma-separated origins for Django CSRF validation
@@ -36,6 +36,8 @@ Required environment variables:
 - `GOOGLE_MAPS_MAP_ID`: optional Google Maps Cloud Map ID for advanced map styling/custom map IDs
 - `GOOGLE_MAPS_DEFAULT_LATITUDE`, `GOOGLE_MAPS_DEFAULT_LONGITUDE`: default center coordinates for the GGz Zimbabwe discovery map
 - Legacy `GGZ_MAP_*` values are still accepted for compatibility, but the canonical project setting is the `GOOGLE_MAPS_*` naming
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for production hardening, Vercel/Render notes, backup verification, the guarded SQLite-to-PostgreSQL import command, media storage requirements, rollback guidance, and explicit verification status.
 
 ## GGz Radar map provider decision
 
@@ -58,6 +60,7 @@ Production-ready guidance:
 - Use PostgreSQL in production by setting `DB_ENGINE` and the PostgreSQL connection values.
 - Run migrations before serving the app in a new environment.
 - Run `python manage.py collectstatic` to generate static files for deployment.
+- Configure an external object-storage provider for production user uploads; Vercel function storage is ephemeral.
 
 ## To run this application:
 
