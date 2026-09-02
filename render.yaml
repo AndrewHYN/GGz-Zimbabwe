@@ -3,6 +3,20 @@ services:
     name: ggz-zimbabwe
     runtime: python
     plan: free
+    disk:
+      name: ggz-data
+      mountPath: /var/lib/render/projectdata
+    envVars:
+      - key: DB_ENGINE
+        value: django.db.backends.sqlite3
+      - key: DB_NAME
+        value: /var/lib/render/projectdata/ggz.sqlite3
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: ggz-zimbabwe.onrender.com
+      - key: CSRF_TRUSTED_ORIGINS
+        value: https://ggz-zimbabwe.onrender.com
     buildCommand: |
       pip install --upgrade pip
       pip install -r requirements.txt
