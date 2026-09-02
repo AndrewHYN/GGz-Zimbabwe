@@ -2,7 +2,7 @@
 {% block title %}{{ title }} | Events{% endblock %}
 {% block content %}
 <main class="page-shell form-page">
-    <a class="back-link" href="{% if organization %}{% url 'organization_portal_dashboard' organization.slug %}{% else %}{% url 'event_list' %}{% endif %}">&larr; Back</a>
+    <a class="back-link" href="{% if organization %}{% url 'organization_portal_dashboard' organization.slug %}{% else %}{% url 'organization_portal' %}{% endif %}">&larr; Back</a>
     <div class="form-card">
         <p class="eyebrow">Organizations</p>
         <h1>{{ title }}</h1>

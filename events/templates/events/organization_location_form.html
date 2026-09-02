@@ -10,13 +10,16 @@
       {% csrf_token %}
       <fieldset class="location-picker" data-map-picker data-map-provider="{{ map_provider }}" data-map-key="{{ map_api_key|default:'' }}" data-map-id="{{ map_id|default:'' }}" data-default-lat="{{ map_default_lat }}" data-default-lng="{{ map_default_lng }}">
         <legend>Choose location on map</legend>
-        <p class="muted">Search an address, select the result, then adjust the marker if needed.</p>
+        <p class="muted">Use map selection, your current location, address search, or enter coordinates manually. The saved latitude and longitude are what powers public Radar visibility.</p>
         <div class="location-search-row">
           <label for="location-address-search">Search address</label>
           <div class="location-search-input"><input id="location-address-search" type="search" placeholder="Search a venue address" autocomplete="street-address"><button class="button alt" type="button" id="location-address-search-button">Find</button></div>
         </div>
+        <div class="location-search-row location-toolbar">
+          <button class="button alt" type="button" id="location-current-location-button">Use My Current Location</button>
+        </div>
         <div id="location-picker-map" class="location-picker-map" aria-label="Location picker map"></div>
-        <p id="location-picker-status" class="location-picker-status" aria-live="polite">Choose an address to place your Radar marker.</p>
+        <p id="location-picker-status" class="location-picker-status" aria-live="polite">Location not selected yet. You can click the map, use current location, or enter coordinates manually.</p>
       </fieldset>
       {{ form.as_p }}
       <button class="button" type="submit">Save location</button>

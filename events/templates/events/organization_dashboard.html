@@ -4,7 +4,8 @@
 <main class="page-shell organization-portal-shell">
   <div class="organization-portal-header">
     <div>
-      <p class="eyebrow">GGz Organization Portal</p>
+      <a class="back-link" href="{% url 'organization_portal' %}">&larr; Back to Organization Management</a>
+      <p class="eyebrow">GGz Organization Portal · Administrator</p>
       <h1>{{ organization.name }}</h1>
       <p class="lede">{{ organization.description|default:"Manage your presence across the GGz gaming ecosystem." }}</p>
     </div>

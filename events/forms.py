@@ -41,14 +41,15 @@ class OrganizationLocationForm(forms.ModelForm):
         widgets = {
             "description": forms.Textarea(attrs={"rows": 4}),
             "opening_hours": forms.TextInput(attrs={"placeholder": "Mon-Sun: 10:00-22:00"}),
-            "latitude": forms.HiddenInput(),
-            "longitude": forms.HiddenInput(),
+            "latitude": forms.NumberInput(attrs={"step": "any", "placeholder": "Latitude", "inputmode": "decimal"}),
+            "longitude": forms.NumberInput(attrs={"step": "any", "placeholder": "Longitude", "inputmode": "decimal"}),
         }
 
     def clean(self):
         cleaned_data = super().clean()
         latitude = cleaned_data.get("latitude")
         longitude = cleaned_data.get("longitude")
+
         if latitude is not None and latitude != "":
             try:
                 latitude_value = float(latitude)
@@ -57,6 +58,7 @@ class OrganizationLocationForm(forms.ModelForm):
                 return cleaned_data
             if not (-90 <= latitude_value <= 90):
                 self.add_error("latitude", "Latitude must be between -90 and 90 degrees.")
+
         if longitude is not None and longitude != "":
             try:
                 longitude_value = float(longitude)
@@ -65,9 +67,16 @@ class OrganizationLocationForm(forms.ModelForm):
                 return cleaned_data
             if not (-180 <= longitude_value <= 180):
                 self.add_error("longitude", "Longitude must be between -180 and 180 degrees.")
+
         if cleaned_data.get("public_visible") and (latitude in (None, "") or longitude in (None, "")):
             self.add_error("latitude", "Add a valid map location before activating this venue.")
             self.add_error("longitude", "Add a valid map location before activating this venue.")
+
+        if latitude is None and longitude is None and self.instance.pk is not None:
+            if self.instance.latitude is not None and self.instance.longitude is not None:
+                cleaned_data["latitude"] = self.instance.latitude
+                cleaned_data["longitude"] = self.instance.longitude
+
         return cleaned_data
 
     def save(self, commit=True, organization=None):

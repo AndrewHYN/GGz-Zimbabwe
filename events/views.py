@@ -113,10 +113,8 @@ def organization_dashboard(request, slug):
 
 @staff_required
 def organization_portal(request):
-	organization = Organization.objects.order_by("name").first()
-	if organization is None:
-		return redirect("organization_create")
-	return redirect("organization_portal_dashboard", slug=organization.slug)
+	organizations = Organization.objects.select_related("owner__user").prefetch_related("locations").order_by("name")
+	return render(request, "events/organization_portal.html", {"organizations": organizations})
 
 
 def organization_public_profile(request, slug):

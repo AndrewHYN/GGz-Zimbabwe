@@ -159,6 +159,16 @@ class EventManagementTests(TestCase):
 		self.assertContains(response, reverse("event_promotion_review", args=(promotion.id, "approve")))
 		self.assertContains(response, reverse("event_promotion_review", args=(promotion.id, "reject")))
 
+	def test_organization_portal_lists_organizations_for_staff(self):
+		self.user.is_staff = True
+		self.user.save(update_fields=("is_staff",))
+		org = Organization.objects.create(owner=self.profile, name="Portal HQ", slug="portal-hq", organization_type="Venue", description="Public facing venue")
+		self.client.login(username="event-owner", password="pass")
+		response = self.client.get(reverse("organization_portal"))
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Organization management")
+		self.assertContains(response, org.name)
+
 	def test_organization_dashboard_allows_creating_a_public_location(self):
 		org = Organization.objects.create(
 			owner=self.profile,

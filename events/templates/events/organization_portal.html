@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Organization management | GGz{% endblock %}
+{% block content %}
+<main class="page-shell organization-portal-shell">
+  <header class="organization-directory-header">
+    <div>
+      <p class="eyebrow">GGz admin</p>
+      <h1>Organization management</h1>
+      <p class="lede">Manage the organizations and public Radar locations published across the platform.</p>
+    </div>
+    <a class="button" href="{% url 'organization_create' %}">Create organization</a>
+  </header>
+
+  {% if organizations %}
+  <section class="organization-directory-grid" aria-label="Organization management list">
+    {% for organization in organizations %}
+    <article class="organization-directory-card">
+      <div class="organization-card-mark">{{ organization.name|slice:":1"|upper }}</div>
+      <div class="organization-card-body">
+        <p class="eyebrow">{{ organization.get_organization_type_display }}</p>
+        <h2>{{ organization.name }}</h2>
+        <p>{{ organization.description|truncatewords:22|default:"Gaming community and local operator." }}</p>
+        <p class="muted">{{ organization.locations.count }} location{{ organization.locations.count|pluralize }} · {{ organization.verification_status }}</p>
+        <div class="row-actions">
+          <a class="button" href="{% url 'organization_portal_dashboard' organization.slug %}">Manage</a>
+          <a class="button alt" href="{% url 'organization_public_profile' organization.slug %}">Public profile</a>
+        </div>
+      </div>
+    </article>
+    {% endfor %}
+  </section>
+  {% else %}
+  <section class="empty-state">
+    <h2>No organizations yet</h2>
+    <p class="muted">Create the first organization profile to start managing GGz Radar listings.</p>
+  </section>
+  {% endif %}
+</main>
+{% endblock %}
