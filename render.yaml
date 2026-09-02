@@ -21,6 +21,8 @@ services:
       pip install --upgrade pip
       pip install -r requirements.txt
       python manage.py collectstatic --noinput
-    startCommand: |
+    preDeployCommand: |
       python manage.py migrate --noinput
+      python manage.py create_admin
+    startCommand: |
       gunicorn hello_world.wsgi:application --bind 0.0.0.0:$PORT
