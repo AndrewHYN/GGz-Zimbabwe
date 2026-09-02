@@ -242,7 +242,8 @@ if USE_S3_MEDIA_STORAGE:
     if not s3_public_domain:
         raise ValueError("AWS_S3_CUSTOM_DOMAIN is required for non-Supabase S3 media storage")
 
-    MEDIA_URL = f"https://{s3_public_domain}/storage/v1/object/public/{s3_bucket}/"
+    s3_public_path = f"storage/v1/object/public/{s3_bucket}"
+    MEDIA_URL = f"https://{s3_public_domain}/{s3_public_path}/"
     STORAGES = {
         "default": {
             "BACKEND": "storages.backends.s3.S3Storage",
@@ -252,6 +253,7 @@ if USE_S3_MEDIA_STORAGE:
                 "bucket_name": s3_bucket,
                 "endpoint_url": os.environ["AWS_S3_ENDPOINT_URL"],
                 "region_name": os.environ["AWS_S3_REGION_NAME"],
+                "custom_domain": f"{s3_public_domain}/{s3_public_path}",
                 "querystring_auth": False,
                 "file_overwrite": False,
             },
