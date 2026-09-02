@@ -1,6 +1,8 @@
 asgiref~=3.8.1
 Django~=5.2.2
 django-browser-reload~=1.13.0
+gunicorn~=23.0.0
 Pillow~=11.2.1
+psycopg[binary]~=3.2.1
 python-decouple~=3.8
 sqlparse~=0.5.1
