@@ -147,6 +147,25 @@
 
   const mapContainer = document.getElementById('ggz-map');
   if (mapContainer) {
+    function getMapAuthFailureMessage() {
+      return 'Google Maps authentication failed. Check that GOOGLE_MAPS_API_KEY is valid, enabled for the correct project, and permitted for this origin.';
+    }
+
+    window.gm_authFailure = function gmAuthFailure() {
+      if (statusNode) {
+        updateStatus(getMapAuthFailureMessage());
+      }
+      if (locationCard) {
+        setLocationCard({
+          name: 'Map authentication failed',
+          location: 'The Google Maps API key is invalid, missing required APIs, or blocked by browser/domain restrictions.',
+          rating_average: null,
+          ggz_score: null,
+          url: '#',
+        });
+      }
+    };
+
     const statusNode = document.getElementById('map-status');
     const insightsNode = document.getElementById('map-insights');
     const locationCard = document.getElementById('radar-location-card');
@@ -347,36 +366,56 @@
       if (window.google && window.google.maps) {
         return Promise.resolve(window.google);
       }
-      if (!mapReadyPromise) {
-        mapReadyPromise = new Promise((resolve, reject) => {
+      if (!window.__ggzGoogleMapsLoader) {
+        window.__ggzGoogleMapsLoader = { promise: null, error: null };
+      }
+      if (!window.__ggzGoogleMapsLoader.promise) {
+        window.__ggzGoogleMapsLoader.promise = new Promise((resolve, reject) => {
           const existing = document.querySelector('script[data-ggz-google-map]');
           if (existing) {
-            existing.addEventListener('load', () => resolve(window.google), { once: true });
+            if (existing.dataset.ggzGoogleMapLoaded === 'true') {
+              resolve(window.google || null);
+              return;
+            }
+            existing.addEventListener('load', () => {
+              existing.dataset.ggzGoogleMapLoaded = 'true';
+              resolve(window.google || null);
+            }, { once: true });
             existing.addEventListener('error', () => reject(new Error('Google Maps failed to load')), { once: true });
             return;
           }
           const script = document.createElement('script');
-          script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly&libraries=marker&loading=async`;
+          script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly&libraries=marker,places&loading=async`;
           script.async = true;
           script.defer = true;
           script.dataset.ggzGoogleMap = 'true';
-          script.addEventListener('load', () => resolve(window.google), { once: true });
-          script.addEventListener('error', () => reject(new Error('Google Maps failed to load')), { once: true });
+          script.dataset.ggzGoogleMapLoaded = 'false';
+          script.addEventListener('load', () => {
+            script.dataset.ggzGoogleMapLoaded = 'true';
+            window.__ggzGoogleMapsLoader.error = null;
+            resolve(window.google || null);
+          }, { once: true });
+          script.addEventListener('error', () => {
+            const message = 'Google Maps failed to load. Check that the key is valid, the Maps JavaScript API is enabled, and the app domain is allowed.';
+            window.__ggzGoogleMapsLoader.error = message;
+            reject(new Error(message));
+          }, { once: true });
           document.head.appendChild(script);
         });
       }
-      return mapReadyPromise;
+      return window.__ggzGoogleMapsLoader.promise;
     }
 
     function ensureClustererLibrary() {
-      if (window.MarkerClusterer || (window.markerClusterer && window.markerClusterer.MarkerClusterer)) {
-        return Promise.resolve();
+      const clustererCtor = window.MarkerClusterer || (window.markerClusterer && window.markerClusterer.MarkerClusterer);
+      if (clustererCtor) {
+        return Promise.resolve(clustererCtor);
       }
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
         const existing = document.querySelector('script[data-ggz-marker-clusterer]');
         if (existing) {
-          existing.addEventListener('load', resolve, { once: true });
-          existing.addEventListener('error', () => reject(new Error('Clusterer failed')), { once: true });
+          existing.addEventListener('load', () => resolve(window.MarkerClusterer || (window.markerClusterer && window.markerClusterer.MarkerClusterer) || null), { once: true });
+          existing.addEventListener('error', () => resolve(null), { once: true });
           return;
         }
         const script = document.createElement('script');
@@ -384,8 +423,8 @@
         script.async = true;
         script.defer = true;
         script.dataset.ggzMarkerClusterer = 'true';
-        script.addEventListener('load', resolve, { once: true });
-        script.addEventListener('error', () => reject(new Error('Clusterer failed')), { once: true });
+        script.addEventListener('load', () => resolve(window.MarkerClusterer || (window.markerClusterer && window.markerClusterer.MarkerClusterer) || null), { once: true });
+        script.addEventListener('error', () => resolve(null), { once: true });
         document.head.appendChild(script);
       });
     }
@@ -678,6 +717,8 @@
     const pickerStatus = document.getElementById('location-picker-status');
     const pickerSearch = document.getElementById('location-address-search');
     const pickerButton = document.getElementById('location-address-search-button');
+    const currentLocationButton = document.getElementById('location-current-location-button');
+    const pickerMapButtons = Array.from(document.querySelectorAll('[data-picker-map-type]'));
     const latitudeInput = document.getElementById('id_latitude');
     const longitudeInput = document.getElementById('id_longitude');
     const pickerProvider = (picker.dataset.mapProvider || 'google').toLowerCase();
@@ -686,44 +727,54 @@
     const pickerCenter = { lat: Number(picker.dataset.defaultLat || '-17.8252'), lng: Number(picker.dataset.defaultLng || '31.0335') };
     let pickerMap = null;
     let pickerMarker = null;
-    let pickerLoader = null;
 
     const setPickerStatus = (message) => {
       if (pickerStatus) pickerStatus.textContent = message;
     };
 
+    const getPickerFailureMessage = () => 'Google Maps is unavailable. Check that GOOGLE_MAPS_API_KEY is valid, the Maps JavaScript API is enabled, and this origin is allowed in the Google Cloud project.';
+
     const loadPickerMaps = () => {
       if (window.google && window.google.maps) return Promise.resolve(window.google);
       if (!pickerKey || pickerProvider !== 'google') return Promise.resolve(null);
-      if (!pickerLoader) {
-        pickerLoader = new Promise((resolve, reject) => {
+      if (!window.__ggzGoogleMapsLoader) {
+        window.__ggzGoogleMapsLoader = { promise: null, error: null };
+      }
+      if (!window.__ggzGoogleMapsLoader.promise) {
+        window.__ggzGoogleMapsLoader.promise = new Promise((resolve, reject) => {
           const existing = document.querySelector('script[data-ggz-google-map]');
           if (existing) {
             existing.addEventListener('load', () => resolve(window.google), { once: true });
-            existing.addEventListener('error', () => reject(new Error('Google Maps failed to load')), { once: true });
+            existing.addEventListener('error', () => reject(new Error(getPickerFailureMessage())), { once: true });
             return;
           }
           const script = document.createElement('script');
-          script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(pickerKey)}&v=weekly&libraries=marker&loading=async`;
+          script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(pickerKey)}&v=weekly&libraries=marker,places&loading=async`;
           script.async = true;
           script.defer = true;
           script.dataset.ggzGoogleMap = 'true';
           script.addEventListener('load', () => resolve(window.google), { once: true });
-          script.addEventListener('error', () => reject(new Error('Google Maps failed to load')), { once: true });
+          script.addEventListener('error', () => reject(new Error(getPickerFailureMessage())), { once: true });
           document.head.appendChild(script);
         });
       }
-      return pickerLoader;
+      return window.__ggzGoogleMapsLoader.promise;
     };
 
     const setPickerCoordinates = (position) => {
-      const lat = Number(position.lat());
-      const lng = Number(position.lng());
-      if (latitudeInput) latitudeInput.value = lat.toFixed(6);
-      if (longitudeInput) longitudeInput.value = lng.toFixed(6);
-      if (pickerMap) pickerMap.panTo({ lat, lng });
+      const latValue = typeof position?.lat === 'function' ? position.lat() : Number(position?.lat);
+      const lngValue = typeof position?.lng === 'function' ? position.lng() : Number(position?.lng);
+      const lat = Number(latValue);
+      const lng = Number(lngValue);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        if (latitudeInput) latitudeInput.value = lat.toFixed(6);
+        if (longitudeInput) longitudeInput.value = lng.toFixed(6);
+      }
+      if (pickerMap && Number.isFinite(lat) && Number.isFinite(lng)) pickerMap.panTo({ lat, lng });
       const addressText = (pickerSearch && pickerSearch.value && pickerSearch.value.trim()) ? pickerSearch.value.trim() : 'map selection';
-      setPickerStatus(`Location selected: ${addressText} — ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        setPickerStatus(`Location selected: ${addressText} — ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+      }
     };
 
     const placePickerMarker = (position) => {
@@ -731,48 +782,157 @@
         setPickerStatus('Advanced Marker support is unavailable for this map configuration.');
         return;
       }
+      const nextPosition = { lat: Number(position.lat), lng: Number(position.lng) };
+      if (!Number.isFinite(nextPosition.lat) || !Number.isFinite(nextPosition.lng)) {
+        return;
+      }
       if (pickerMarker) pickerMarker.map = null;
-      pickerMarker = new google.maps.marker.AdvancedMarkerElement({ map: pickerMap, position, gmpDraggable: true, title: 'Radar location' });
+      pickerMarker = new google.maps.marker.AdvancedMarkerElement({ map: pickerMap, position: nextPosition, gmpDraggable: true, title: 'Radar location' });
       pickerMarker.addListener('dragend', (event) => {
         if (event.latLng) setPickerCoordinates(event.latLng);
       });
-      setPickerCoordinates({ lat: () => position.lat, lng: () => position.lng });
+      setPickerCoordinates(nextPosition);
+    };
+
+    const syncManualCoordinates = () => {
+      const lat = Number(latitudeInput && latitudeInput.value);
+      const lng = Number(longitudeInput && longitudeInput.value);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        setPickerStatus('Latitude and longitude must be valid map coordinates.');
+        return;
+      }
+      if (pickerMap) pickerMap.panTo({ lat, lng });
+      placePickerMarker({ lat, lng });
+    };
+
+    const setPickerMapType = (type) => {
+      if (!pickerMap) return;
+      const nextType = type === 'satellite' ? 'satellite' : 'roadmap';
+      pickerMap.setMapTypeId(nextType);
+      pickerMapButtons.forEach((button) => {
+        const isActive = button.dataset.pickerMapType === type;
+        button.classList.toggle('is-active', isActive);
+      });
     };
 
     const initPicker = async () => {
       try {
         await loadPickerMaps();
         if (!window.google || !window.google.maps) {
-          setPickerStatus('Map configuration is unavailable. GGz needs a valid Google Maps API key before the location picker can search or place a marker.');
+          setPickerStatus('Map configuration is unavailable. Add a valid GOOGLE_MAPS_API_KEY and enable the required Google Maps APIs before using the location picker.');
           return;
         }
-        pickerMap = new google.maps.Map(pickerMapNode, { center: pickerCenter, zoom: 13, mapId: pickerMapId || 'GGZ_RADAR_MAP', mapTypeControl: false, streetViewControl: false, fullscreenControl: false, zoomControl: true });
+        pickerMap = new google.maps.Map(pickerMapNode, {
+          center: pickerCenter,
+          zoom: 13,
+          mapId: pickerMapId || 'GGZ_RADAR_MAP',
+          mapTypeControl: true,
+          mapTypeControlOptions: {
+            mapTypeIds: ['roadmap', 'satellite', 'hybrid', 'terrain'],
+          },
+          streetViewControl: false,
+          fullscreenControl: false,
+          zoomControl: true,
+        });
         const existingLat = Number(latitudeInput && latitudeInput.value);
         const existingLng = Number(longitudeInput && longitudeInput.value);
         if (Number.isFinite(existingLat) && Number.isFinite(existingLng)) placePickerMarker({ lat: existingLat, lng: existingLng });
         pickerMap.addListener('click', (event) => { if (event.latLng) placePickerMarker({ lat: event.latLng.lat(), lng: event.latLng.lng() }); });
-        setPickerStatus('Search an address or click the map to place the marker.');
+        pickerMapButtons.forEach((button) => {
+          button.addEventListener('click', () => setPickerMapType(button.dataset.pickerMapType));
+        });
+        setPickerMapType('roadmap');
+        setPickerStatus('Search an address, click the map, or use current location to place the marker.');
       } catch (error) {
-        setPickerStatus('Map search is unavailable right now. Address and map fields remain available.');
+        setPickerStatus(getPickerFailureMessage());
+      }
+    };
+
+    const geocodeAddress = async (query) => {
+      const useGoogleGeocoder = window.google && window.google.maps && google.maps.Geocoder;
+      if (useGoogleGeocoder) {
+        const geocoder = new google.maps.Geocoder();
+        geocoder.geocode({ address: query }, (results, status) => {
+          if (status === 'OK' && results && results[0]) {
+            const result = results[0];
+            pickerSearch.value = result.formatted_address;
+            pickerMap.setZoom(16);
+            placePickerMarker({ lat: result.geometry.location.lat(), lng: result.geometry.location.lng() });
+            setPickerStatus(`Location selected: ${result.formatted_address} — ${result.geometry.location.lat().toFixed(5)}, ${result.geometry.location.lng().toFixed(5)}`);
+            return;
+          }
+          fallbackToNominatim(query);
+        });
+        return;
+      }
+      fallbackToNominatim(query);
+    };
+
+    const fallbackToNominatim = async (query) => {
+      try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(query)}`, {
+          headers: { 'Accept-Language': 'en' },
+        });
+        if (!response.ok) throw new Error('Address lookup failed');
+        const results = await response.json();
+        if (!results || !results[0]) {
+          setPickerStatus('No address found. Try a nearby landmark or city.');
+          return;
+        }
+        const result = results[0];
+        const lat = Number(result.lat);
+        const lng = Number(result.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+          setPickerStatus('No address found. Try a nearby landmark or city.');
+          return;
+        }
+        pickerSearch.value = result.display_name;
+        if (pickerMap) {
+          pickerMap.setZoom(16);
+          pickerMap.panTo({ lat, lng });
+        }
+        placePickerMarker({ lat, lng });
+        setPickerStatus(`Location selected: ${result.display_name} — ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+      } catch (error) {
+        setPickerStatus('No address found. Try a nearby landmark or city.');
       }
     };
 
     if (pickerButton && pickerSearch) {
-      pickerButton.addEventListener('click', () => {
-        if (!pickerMap || !window.google || !window.google.maps) return setPickerStatus('Map search is unavailable in this configuration.');
+      pickerButton.addEventListener('click', async () => {
+        if (!pickerMap || !window.google || !window.google.maps) return setPickerStatus(getPickerFailureMessage());
         const query = pickerSearch.value.trim();
         if (!query) return setPickerStatus('Enter an address to search.');
-        const geocoder = new google.maps.Geocoder();
-        geocoder.geocode({ address: query }, (results, status) => {
-          if (status !== 'OK' || !results[0]) return setPickerStatus('No address found. Try a nearby landmark or city.');
-          const result = results[0];
-          pickerSearch.value = result.formatted_address;
-          pickerMap.setZoom(16);
-          placePickerMarker({ lat: result.geometry.location.lat(), lng: result.geometry.location.lng() });
-          setPickerStatus(`Location selected: ${result.formatted_address} — ${result.geometry.location.lat().toFixed(5)}, ${result.geometry.location.lng().toFixed(5)}`);
-        });
+        await geocodeAddress(query);
       });
     }
+
+    if (currentLocationButton) {
+      currentLocationButton.addEventListener('click', () => {
+        if (!navigator.geolocation) {
+          setPickerStatus('Browser geolocation is unavailable. You can still click the map or enter coordinates manually.');
+          return;
+        }
+        setPickerStatus('Requesting your current location…');
+        navigator.geolocation.getCurrentPosition((position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          if (pickerMap) {
+            pickerMap.setCenter({ lat, lng });
+            pickerMap.setZoom(15);
+          }
+          placePickerMarker({ lat, lng });
+          setPickerStatus(`Current location selected: ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+        }, () => {
+          setPickerStatus('Current location access was denied. You can still use the map or enter coordinates manually.');
+        }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 });
+      });
+    }
+
+    if (latitudeInput) latitudeInput.addEventListener('change', syncManualCoordinates);
+    if (longitudeInput) longitudeInput.addEventListener('change', syncManualCoordinates);
+
     initPicker();
   }
 })();
