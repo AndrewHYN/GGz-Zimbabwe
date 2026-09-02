@@ -48,6 +48,11 @@ CSRF_TRUSTED_ORIGINS = config(
     cast=comma_separated,
 )
 
+render_hostname = config("RENDER_EXTERNAL_HOSTNAME", default="")
+if render_hostname:
+    ALLOWED_HOSTS.append(render_hostname)
+    CSRF_TRUSTED_ORIGINS.append(f"https://{render_hostname}")
+
 if "CODESPACE_NAME" in os.environ:
     codespace_name = config("CODESPACE_NAME")
     codespace_domain = config("GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN", default="")
