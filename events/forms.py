@@ -45,6 +45,31 @@ class OrganizationLocationForm(forms.ModelForm):
             "longitude": forms.HiddenInput(),
         }
 
+    def clean(self):
+        cleaned_data = super().clean()
+        latitude = cleaned_data.get("latitude")
+        longitude = cleaned_data.get("longitude")
+        if latitude is not None and latitude != "":
+            try:
+                latitude_value = float(latitude)
+            except (TypeError, ValueError):
+                self.add_error("latitude", "Latitude must be a valid number.")
+                return cleaned_data
+            if not (-90 <= latitude_value <= 90):
+                self.add_error("latitude", "Latitude must be between -90 and 90 degrees.")
+        if longitude is not None and longitude != "":
+            try:
+                longitude_value = float(longitude)
+            except (TypeError, ValueError):
+                self.add_error("longitude", "Longitude must be a valid number.")
+                return cleaned_data
+            if not (-180 <= longitude_value <= 180):
+                self.add_error("longitude", "Longitude must be between -180 and 180 degrees.")
+        if cleaned_data.get("public_visible") and (latitude in (None, "") or longitude in (None, "")):
+            self.add_error("latitude", "Add a valid map location before activating this venue.")
+            self.add_error("longitude", "Add a valid map location before activating this venue.")
+        return cleaned_data
+
     def save(self, commit=True, organization=None):
         location = super().save(commit=False)
         if organization is not None:

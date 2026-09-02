@@ -1,3 +1,5 @@
+import math
+
 from django.core.exceptions import ValidationError
 from django.db import models
 
@@ -140,12 +142,32 @@ class OrganizationLocation(models.Model):
 		return round(min(base, 10.0), 1)
 
 	def clean(self):
-		if self.latitude is not None and not (-90 <= self.latitude <= 90):
-			raise ValidationError({"latitude": "Latitude must be between -90 and 90 degrees."})
-		if self.longitude is not None and not (-180 <= self.longitude <= 180):
-			raise ValidationError({"longitude": "Longitude must be between -180 and 180 degrees."})
-		if self.public_visible and not self.name.strip():
-			raise ValidationError({"name": "A public Radar location requires a name."})
+		if self.latitude is not None:
+			try:
+				lat = float(self.latitude)
+			except (TypeError, ValueError):
+				raise ValidationError({"latitude": "Latitude must be a valid number."})
+			if not math.isfinite(lat) or not (-90 <= lat <= 90):
+				raise ValidationError({"latitude": "Latitude must be between -90 and 90 degrees."})
+		if self.longitude is not None:
+			try:
+				lng = float(self.longitude)
+			except (TypeError, ValueError):
+				raise ValidationError({"longitude": "Longitude must be a valid number."})
+			if not math.isfinite(lng) or not (-180 <= lng <= 180):
+				raise ValidationError({"longitude": "Longitude must be between -180 and 180 degrees."})
+		if self.public_visible:
+			if not self.name or not self.name.strip():
+				raise ValidationError({"name": "A public Radar location requires a name."})
+			if self.latitude is None or self.longitude is None:
+				raise ValidationError({"latitude": "Add a valid map location before activating this venue.", "longitude": "Add a valid map location before activating this venue."})
+		if self.public_visible and self.latitude is not None and self.longitude is not None:
+			lat = float(self.latitude)
+			lng = float(self.longitude)
+			if not (-90 <= lat <= 90):
+				raise ValidationError({"latitude": "Latitude must be between -90 and 90 degrees."})
+			if not (-180 <= lng <= 180):
+				raise ValidationError({"longitude": "Longitude must be between -180 and 180 degrees."})
 
 	def save(self, *args, **kwargs):
 		self.full_clean()

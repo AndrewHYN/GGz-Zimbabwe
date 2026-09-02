@@ -30,7 +30,6 @@
                         <a href="{% url 'game_list' %}" class="nav-dropdown-link">All Games</a>
                         <a href="{% url 'gamer_discovery' %}" class="nav-dropdown-link">Find Players</a>
                         <a href="{% url 'geo_discovery' %}" class="nav-dropdown-link">Nearby Gaming</a>
-                        <a href="{% url 'organization_list' %}" class="nav-dropdown-link">Organizations</a>
                         <a href="{% url 'leaderboard' %}" class="nav-dropdown-link">Rankings</a>
                     </div>
                 </div>
@@ -86,7 +85,7 @@
                             </div>
                             {% if user_profile %}
                                 <a href="{% url 'dashboard' %}" class="nav-profile-link">Dashboard</a>
-                                {% if user_profile.owned_organizations.exists %}<a href="{% url 'organization_portal' %}" class="nav-profile-link">Organization Portal</a>{% endif %}
+                                {% if request.user.is_staff %}<a href="{% url 'organization_portal' %}" class="nav-profile-link">Organization Management</a>{% endif %}
                                 <a href="{% url 'profile_detail' user_profile.gamer_tag %}" class="nav-profile-link">My Profile</a>
                                 <a href="{% url 'profile_edit' user_profile.gamer_tag %}" class="nav-profile-link">Settings</a>
                                 <a href="{% url 'conversation_list' %}" class="nav-profile-link">Messages{% if unread_message_count %} <span class="nav-badge">{{ unread_message_count }}</span>{% endif %}</a>

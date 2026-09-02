@@ -722,7 +722,8 @@
       if (latitudeInput) latitudeInput.value = lat.toFixed(6);
       if (longitudeInput) longitudeInput.value = lng.toFixed(6);
       if (pickerMap) pickerMap.panTo({ lat, lng });
-      setPickerStatus(`Location confirmed: ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+      const addressText = (pickerSearch && pickerSearch.value && pickerSearch.value.trim()) ? pickerSearch.value.trim() : 'map selection';
+      setPickerStatus(`Location selected: ${addressText} — ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
     };
 
     const placePickerMarker = (position) => {
@@ -742,7 +743,7 @@
       try {
         await loadPickerMaps();
         if (!window.google || !window.google.maps) {
-          setPickerStatus('Map search is unavailable. Enter an address and add coordinates through a configured Radar map.');
+          setPickerStatus('Map configuration is unavailable. GGz needs a valid Google Maps API key before the location picker can search or place a marker.');
           return;
         }
         pickerMap = new google.maps.Map(pickerMapNode, { center: pickerCenter, zoom: 13, mapId: pickerMapId || 'GGZ_RADAR_MAP', mapTypeControl: false, streetViewControl: false, fullscreenControl: false, zoomControl: true });
@@ -768,7 +769,7 @@
           pickerSearch.value = result.formatted_address;
           pickerMap.setZoom(16);
           placePickerMarker({ lat: result.geometry.location.lat(), lng: result.geometry.location.lng() });
-          setPickerStatus(`Address selected: ${result.formatted_address}`);
+          setPickerStatus(`Location selected: ${result.formatted_address} — ${result.geometry.location.lat().toFixed(5)}, ${result.geometry.location.lng().toFixed(5)}`);
         });
       });
     }

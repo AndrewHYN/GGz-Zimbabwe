@@ -1,8 +1,11 @@
+from functools import wraps
+
 from django.shortcuts import render
 
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect
 from django.core.paginator import Paginator
@@ -12,6 +15,16 @@ from django.utils.text import slugify
 from accounts.models import GamerProfile
 from .forms import EventForm, EventPromotionRequestForm, OrganizationForm, OrganizationLocationForm
 from .models import Event, EventPromotionRequest, EventRsvp, Organization, OrganizationLocation
+
+
+def staff_required(view_func):
+	@wraps(view_func)
+	@login_required
+	def _wrapped(request, *args, **kwargs):
+		if not request.user.is_staff:
+			raise PermissionDenied("Only staff can access this admin area.")
+		return view_func(request, *args, **kwargs)
+	return _wrapped
 
 
 def event_list(request):
@@ -29,7 +42,7 @@ def event_list(request):
 	return render(request, "events/event_list.html", {"page": page, "game_choices": Game.objects.order_by("name"), "event_status_choices": Event.STATUS_CHOICES})
 
 
-@login_required
+@staff_required
 def event_my(request):
 	profile = get_object_or_404(GamerProfile, user=request.user)
 	events = Event.objects.filter(organizer=profile).select_related("game").prefetch_related("rsvps")
@@ -87,12 +100,9 @@ def event_publish(request, event_id):
 	return redirect("event_detail", event_id=event.id)
 
 
-@login_required
+@staff_required
 def organization_dashboard(request, slug):
-	profile = get_object_or_404(GamerProfile, user=request.user)
 	organization = get_object_or_404(Organization.objects.select_related("owner__user").prefetch_related("events", "promotion_requests", "locations"), slug=slug)
-	if organization.owner_id != profile.id:
-		return HttpResponseForbidden("You are not the owner of this organization.")
 	return render(request, "events/organization_dashboard.html", {
 		"organization": organization,
 		"events": organization.events.all(),
@@ -101,10 +111,9 @@ def organization_dashboard(request, slug):
 	})
 
 
-@login_required
+@staff_required
 def organization_portal(request):
-	profile = get_object_or_404(GamerProfile, user=request.user)
-	organization = Organization.objects.filter(owner=profile).order_by("name").first()
+	organization = Organization.objects.order_by("name").first()
 	if organization is None:
 		return redirect("organization_create")
 	return redirect("organization_portal_dashboard", slug=organization.slug)
@@ -141,12 +150,9 @@ def organization_list(request):
 	return render(request, "events/organization_list.html", {"organizations": organizations, "query": query})
 
 
-@login_required
+@staff_required
 def organization_location_create(request, slug):
-	profile = get_object_or_404(GamerProfile, user=request.user)
 	organization = get_object_or_404(Organization.objects.select_related("owner__user"), slug=slug)
-	if organization.owner_id != profile.id:
-		return HttpResponseForbidden("You are not the owner of this organization.")
 	form = OrganizationLocationForm(request.POST or None)
 	if request.method == "POST" and form.is_valid():
 		location = form.save(commit=False, organization=organization)
@@ -165,12 +171,9 @@ def organization_location_create(request, slug):
 	})
 
 
-@login_required
+@staff_required
 def organization_location_edit(request, slug, location_id):
-	profile = get_object_or_404(GamerProfile, user=request.user)
 	organization = get_object_or_404(Organization, slug=slug)
-	if organization.owner_id != profile.id:
-		return HttpResponseForbidden("You are not the owner of this organization.")
 	location = get_object_or_404(OrganizationLocation, pk=location_id, organization=organization)
 	form = OrganizationLocationForm(request.POST or None, instance=location)
 	if request.method == "POST" and form.is_valid():
@@ -185,17 +188,14 @@ def organization_location_edit(request, slug, location_id):
 		"map_provider": getattr(settings, "GGZ_MAP_PROVIDER", "google"),
 		"map_api_key": getattr(settings, "GGZ_MAP_API_KEY", ""),
 		"map_id": getattr(settings, "GGZ_MAP_ID", ""),
-		"map_default_lat": location.latitude or getattr(settings, "GGZ_MAP_DEFAULT_LATITUDE", -17.8252),
-		"map_default_lng": location.longitude or getattr(settings, "GGZ_MAP_DEFAULT_LONGITUDE", 31.0335),
+		"map_default_lat": location.latitude if location.latitude is not None else getattr(settings, "GGZ_MAP_DEFAULT_LATITUDE", -17.8252),
+		"map_default_lng": location.longitude if location.longitude is not None else getattr(settings, "GGZ_MAP_DEFAULT_LONGITUDE", 31.0335),
 	})
 
 
-@login_required
+@staff_required
 def organization_location_visibility(request, slug, location_id, action):
-	profile = get_object_or_404(GamerProfile, user=request.user)
 	organization = get_object_or_404(Organization, slug=slug)
-	if organization.owner_id != profile.id:
-		return HttpResponseForbidden("You are not the owner of this organization.")
 	if request.method != "POST":
 		return HttpResponseForbidden("This action requires POST.")
 	location = get_object_or_404(OrganizationLocation, pk=location_id, organization=organization)
@@ -203,9 +203,18 @@ def organization_location_visibility(request, slug, location_id, action):
 		if location.latitude is None or location.longitude is None:
 			messages.error(request, "Add a valid map location before activating this venue.")
 		else:
-			location.public_visible = True
-			location.save(update_fields=("public_visible", "updated_at"))
-			messages.success(request, "Your location is now discoverable on GGz Radar.")
+			try:
+				latitude = float(location.latitude)
+				longitude = float(location.longitude)
+			except (TypeError, ValueError):
+				messages.error(request, "Add a valid map location before activating this venue.")
+			else:
+				if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
+					messages.error(request, "Add a valid map location before activating this venue.")
+				else:
+					location.public_visible = True
+					location.save(update_fields=("public_visible", "updated_at"))
+					messages.success(request, "Your location is now discoverable on GGz Radar.")
 	elif action == "deactivate":
 		location.public_visible = False
 		location.save(update_fields=("public_visible", "updated_at"))
@@ -215,15 +224,15 @@ def organization_location_visibility(request, slug, location_id, action):
 	return redirect("organization_portal_dashboard", slug=organization.slug)
 
 
-@login_required
+@staff_required
 def organization_create(request):
-	profile = get_object_or_404(GamerProfile, user=request.user)
 	form = OrganizationForm(request.POST or None, request.FILES or None)
 	if request.method == "POST" and form.is_valid():
-		organization = form.save(commit=False, owner=profile)
+		organization = form.save(commit=False)
+		organization.owner = get_object_or_404(GamerProfile, user=request.user)
 		organization.slug = slugify(organization.name) or "organization"
 		if Organization.objects.filter(slug=organization.slug).exists():
-			organization.slug = f"{organization.slug}-{profile.user_id}"
+			organization.slug = f"{organization.slug}-{request.user.id}"
 			if Organization.objects.filter(slug=organization.slug).exists():
 				organization.slug = f"{organization.slug}-{Organization.objects.count() + 1}"
 		organization.save()
@@ -232,12 +241,9 @@ def organization_create(request):
 	return render(request, "events/organization_form.html", {"form": form, "title": "Create organization"})
 
 
-@login_required
+@staff_required
 def organization_edit(request, slug):
-	profile = get_object_or_404(GamerProfile, user=request.user)
 	organization = get_object_or_404(Organization, slug=slug)
-	if organization.owner_id != profile.id:
-		return HttpResponseForbidden("You are not the owner of this organization.")
 	form = OrganizationForm(request.POST or None, request.FILES or None, instance=organization)
 	if request.method == "POST" and form.is_valid():
 		form.save()
@@ -246,10 +252,10 @@ def organization_edit(request, slug):
 	return render(request, "events/organization_form.html", {"form": form, "organization": organization, "title": "Edit organization profile"})
 
 
-@login_required
+@staff_required
 def event_create(request):
 	form = EventForm(request.POST or None, request.FILES or None)
-	if form.is_valid():
+	if request.method == "POST" and form.is_valid():
 		event = form.save(commit=False)
 		event.organizer = get_object_or_404(GamerProfile, user=request.user)
 		event.save()
@@ -258,20 +264,20 @@ def event_create(request):
 	return render(request, "events/event_form.html", {"form": form, "title": "Create event"})
 
 
-@login_required
+@staff_required
 def event_edit(request, event_id):
-	event = get_object_or_404(Event, id=event_id, organizer__user=request.user)
+	event = get_object_or_404(Event, id=event_id)
 	form = EventForm(request.POST or None, request.FILES or None, instance=event)
-	if form.is_valid():
+	if request.method == "POST" and form.is_valid():
 		form.save()
 		messages.success(request, "Your event was updated.")
 		return redirect("event_detail", event_id=event.id)
 	return render(request, "events/event_form.html", {"form": form, "title": "Edit event", "event": event})
 
 
-@login_required
+@staff_required
 def event_cancel(request, event_id):
-	event = get_object_or_404(Event, id=event_id, organizer__user=request.user)
+	event = get_object_or_404(Event, id=event_id)
 	if request.method == "POST":
 		event.status = "Cancelled"
 		event.save(update_fields=("status",))
@@ -279,9 +285,9 @@ def event_cancel(request, event_id):
 	return redirect("event_detail", event_id=event.id)
 
 
-@login_required
+@staff_required
 def event_delete(request, event_id):
-	event = get_object_or_404(Event, id=event_id, organizer__user=request.user)
+	event = get_object_or_404(Event, id=event_id)
 	if request.method != "POST":
 		return HttpResponseForbidden("This action requires POST.")
 	event.delete()
@@ -289,9 +295,9 @@ def event_delete(request, event_id):
 	return redirect("event_list")
 
 
-@login_required
+@staff_required
 def event_promotion_request(request, event_id):
-	event = get_object_or_404(Event, id=event_id, organizer__user=request.user)
+	event = get_object_or_404(Event, id=event_id)
 	profile = get_object_or_404(GamerProfile, user=request.user)
 	allowed_orgs = Organization.objects.filter(owner=profile)
 	if not allowed_orgs.exists():
@@ -309,7 +315,7 @@ def event_promotion_request(request, event_id):
 	return render(request, "events/promotion_request_form.html", {"form": form, "event": event})
 
 
-@login_required
+@staff_required
 def event_promotion_review(request, request_id, action):
 	promotion = get_object_or_404(EventPromotionRequest, id=request_id)
 	profile = get_object_or_404(GamerProfile, user=request.user)
