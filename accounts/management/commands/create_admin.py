@@ -9,9 +9,9 @@ class Command(BaseCommand):
     help = "Create a Django superuser from environment variables if it does not already exist."
 
     def handle(self, *args, **options):
-        username = config("DJANGO_SUPERUSER_USERNAME", default="").strip()
-        email = config("DJANGO_SUPERUSER_EMAIL", default="").strip()
-        password = config("DJANGO_SUPERUSER_PASSWORD", default="")
+        username = (os.environ.get("DJANGO_SUPERUSER_USERNAME") or config("DJANGO_SUPERUSER_USERNAME", default="")).strip()
+        email = (os.environ.get("DJANGO_SUPERUSER_EMAIL") or config("DJANGO_SUPERUSER_EMAIL", default="")).strip()
+        password = os.environ.get("DJANGO_SUPERUSER_PASSWORD") or config("DJANGO_SUPERUSER_PASSWORD", default="")
 
         if not username or not email or not password:
             self.stdout.write(
