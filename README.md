@@ -38,6 +38,7 @@ Required environment variables:
 - Legacy `GGZ_MAP_*` values are still accepted for compatibility, but the canonical project setting is the `GOOGLE_MAPS_*` naming
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for production hardening, Vercel/Render notes, backup verification, the guarded SQLite-to-PostgreSQL import command, media storage requirements, rollback guidance, and explicit verification status.
+Focused runbooks: [DATABASE_MIGRATION.md](DATABASE_MIGRATION.md) and [VERCEL_DEPLOY.md](VERCEL_DEPLOY.md).
 
 ## GGz Radar map provider decision
 
