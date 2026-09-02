@@ -506,7 +506,7 @@ class GGzMapTests(TestCase):
 			self.assertEqual(api_response.status_code, 200)
 			self.assertIn("hotspots", api_response.json())
 
-	def test_map_page_exposes_map_provider_configuration_and_filterable_data(self):
+	def test_map_page_uses_canonical_google_maps_configuration(self):
 		location = OrganizationLocation.objects.create(
 			organization=Organization.objects.create(
 				owner=GamerProfile.objects.create(user=User.objects.create_user(username="orgowner2", password="pass"), gamer_tag="OrgOwner2"),
@@ -527,9 +527,10 @@ class GGzMapTests(TestCase):
 			public_visible=True,
 		)
 		location.games.add(Game.objects.create(name="Tekken 8"))
-		with self.settings(GGZ_MAP_PROVIDER="google", GGZ_MAP_API_KEY="test-key", GGZ_MAP_ID="ggz-radar-default"):
+		with self.settings(GOOGLE_MAPS_API_KEY="canonical-test-key", GOOGLE_MAPS_MAP_ID="ggz-radar-default", GGZ_MAP_API_KEY="", GGZ_MAP_ID=""):
 			response = self.client.get(reverse("map_page"))
 			self.assertEqual(response.status_code, 200)
+			self.assertContains(response, "canonical-test-key")
 			self.assertContains(response, "ggz-radar-default")
 		api_response = self.client.get(reverse("map_data"), {"q": "Tekken", "category": "Gaming Hub", "verified": "1"})
 		self.assertEqual(api_response.status_code, 200)

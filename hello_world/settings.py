@@ -205,11 +205,19 @@ MEDIA_ROOT = Path(config("MEDIA_ROOT", default=str(BASE_DIR / "hello_world" / "m
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
 
-GGZ_MAP_PROVIDER = config("GGZ_MAP_PROVIDER", default="google")
-GGZ_MAP_API_KEY = config("GGZ_MAP_API_KEY", default="")
-GGZ_MAP_ID = config("GGZ_MAP_ID", default="")
-GGZ_MAP_MIN_HOTSPOT_GAMERS = config("GGZ_MAP_MIN_HOTSPOT_GAMERS", default=3, cast=int)
-GGZ_MAP_DEFAULT_LATITUDE = config("GGZ_MAP_DEFAULT_LATITUDE", default=-17.8252, cast=float)
-GGZ_MAP_DEFAULT_LONGITUDE = config("GGZ_MAP_DEFAULT_LONGITUDE", default=31.0335, cast=float)
+GOOGLE_MAPS_PROVIDER = config("GOOGLE_MAPS_PROVIDER", default=config("GGZ_MAP_PROVIDER", default="google"))
+GOOGLE_MAPS_API_KEY = config("GOOGLE_MAPS_API_KEY", default=config("GGZ_MAP_API_KEY", default=""))
+GOOGLE_MAPS_MAP_ID = config("GOOGLE_MAPS_MAP_ID", default=config("GGZ_MAP_ID", default=""))
+GOOGLE_MAPS_MIN_HOTSPOT_GAMERS = config("GOOGLE_MAPS_MIN_HOTSPOT_GAMERS", default=config("GGZ_MAP_MIN_HOTSPOT_GAMERS", default=3, cast=int), cast=int)
+GOOGLE_MAPS_DEFAULT_LATITUDE = config("GOOGLE_MAPS_DEFAULT_LATITUDE", default=config("GGZ_MAP_DEFAULT_LATITUDE", default=-17.8252, cast=float), cast=float)
+GOOGLE_MAPS_DEFAULT_LONGITUDE = config("GOOGLE_MAPS_DEFAULT_LONGITUDE", default=config("GGZ_MAP_DEFAULT_LONGITUDE", default=31.0335, cast=float), cast=float)
+
+# Backward-compatible aliases for older deployments and local environments.
+GGZ_MAP_PROVIDER = GOOGLE_MAPS_PROVIDER
+GGZ_MAP_API_KEY = GOOGLE_MAPS_API_KEY
+GGZ_MAP_ID = GOOGLE_MAPS_MAP_ID
+GGZ_MAP_MIN_HOTSPOT_GAMERS = GOOGLE_MAPS_MIN_HOTSPOT_GAMERS
+GGZ_MAP_DEFAULT_LATITUDE = GOOGLE_MAPS_DEFAULT_LATITUDE
+GGZ_MAP_DEFAULT_LONGITUDE = GOOGLE_MAPS_DEFAULT_LONGITUDE
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

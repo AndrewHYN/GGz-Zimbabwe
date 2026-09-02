@@ -161,11 +161,11 @@ def organization_location_create(request, slug):
 		"form": form,
 		"organization": organization,
 		"title": "Add Radar location",
-		"map_provider": getattr(settings, "GGZ_MAP_PROVIDER", "google"),
-		"map_api_key": getattr(settings, "GGZ_MAP_API_KEY", ""),
-		"map_id": getattr(settings, "GGZ_MAP_ID", ""),
-		"map_default_lat": getattr(settings, "GGZ_MAP_DEFAULT_LATITUDE", -17.8252),
-		"map_default_lng": getattr(settings, "GGZ_MAP_DEFAULT_LONGITUDE", 31.0335),
+		"map_provider": getattr(settings, "GOOGLE_MAPS_PROVIDER", getattr(settings, "GGZ_MAP_PROVIDER", "google")),
+		"map_api_key": getattr(settings, "GOOGLE_MAPS_API_KEY", getattr(settings, "GGZ_MAP_API_KEY", "")),
+		"map_id": getattr(settings, "GOOGLE_MAPS_MAP_ID", getattr(settings, "GGZ_MAP_ID", "")),
+		"map_default_lat": getattr(settings, "GOOGLE_MAPS_DEFAULT_LATITUDE", getattr(settings, "GGZ_MAP_DEFAULT_LATITUDE", -17.8252)),
+		"map_default_lng": getattr(settings, "GOOGLE_MAPS_DEFAULT_LONGITUDE", getattr(settings, "GGZ_MAP_DEFAULT_LONGITUDE", 31.0335)),
 	})
 
 
@@ -183,11 +183,11 @@ def organization_location_edit(request, slug, location_id):
 		"organization": organization,
 		"location": location,
 		"title": "Edit Radar location",
-		"map_provider": getattr(settings, "GGZ_MAP_PROVIDER", "google"),
-		"map_api_key": getattr(settings, "GGZ_MAP_API_KEY", ""),
-		"map_id": getattr(settings, "GGZ_MAP_ID", ""),
-		"map_default_lat": location.latitude if location.latitude is not None else getattr(settings, "GGZ_MAP_DEFAULT_LATITUDE", -17.8252),
-		"map_default_lng": location.longitude if location.longitude is not None else getattr(settings, "GGZ_MAP_DEFAULT_LONGITUDE", 31.0335),
+		"map_provider": getattr(settings, "GOOGLE_MAPS_PROVIDER", getattr(settings, "GGZ_MAP_PROVIDER", "google")),
+		"map_api_key": getattr(settings, "GOOGLE_MAPS_API_KEY", getattr(settings, "GGZ_MAP_API_KEY", "")),
+		"map_id": getattr(settings, "GOOGLE_MAPS_MAP_ID", getattr(settings, "GGZ_MAP_ID", "")),
+		"map_default_lat": location.latitude if location.latitude is not None else getattr(settings, "GOOGLE_MAPS_DEFAULT_LATITUDE", getattr(settings, "GGZ_MAP_DEFAULT_LATITUDE", -17.8252)),
+		"map_default_lng": location.longitude if location.longitude is not None else getattr(settings, "GOOGLE_MAPS_DEFAULT_LONGITUDE", getattr(settings, "GGZ_MAP_DEFAULT_LONGITUDE", 31.0335)),
 	})
 
 

@@ -319,11 +319,11 @@ def map_data(request):
 
 
 def map_page(request):
-	provider = getattr(settings, "GGZ_MAP_PROVIDER", "google")
-	api_key = getattr(settings, "GGZ_MAP_API_KEY", "")
-	default_lat = getattr(settings, "GGZ_MAP_DEFAULT_LATITUDE", -17.8252)
-	default_lng = getattr(settings, "GGZ_MAP_DEFAULT_LONGITUDE", 31.0335)
-	map_id = getattr(settings, "GGZ_MAP_ID", "")
+	provider = getattr(settings, "GOOGLE_MAPS_PROVIDER", getattr(settings, "GGZ_MAP_PROVIDER", "google"))
+	api_key = getattr(settings, "GOOGLE_MAPS_API_KEY", getattr(settings, "GGZ_MAP_API_KEY", ""))
+	default_lat = getattr(settings, "GOOGLE_MAPS_DEFAULT_LATITUDE", getattr(settings, "GGZ_MAP_DEFAULT_LATITUDE", -17.8252))
+	default_lng = getattr(settings, "GOOGLE_MAPS_DEFAULT_LONGITUDE", getattr(settings, "GGZ_MAP_DEFAULT_LONGITUDE", 31.0335))
+	map_id = getattr(settings, "GOOGLE_MAPS_MAP_ID", getattr(settings, "GGZ_MAP_ID", ""))
 	return render(
 		request,
 		"accounts/map_page.html",
@@ -600,13 +600,13 @@ def geo_discovery(request):
 		"selected_game": game_id,
 		"selected_category": category,
 		"selected_tournament_mode": tournament_mode,
-		"map_provider": getattr(settings, "GGZ_MAP_PROVIDER", "google"),
-		"map_api_key": getattr(settings, "GGZ_MAP_API_KEY", ""),
-		"map_id": getattr(settings, "GGZ_MAP_ID", ""),
-		"map_default_lat": getattr(settings, "GGZ_MAP_DEFAULT_LATITUDE", -17.8252),
-		"map_default_lng": getattr(settings, "GGZ_MAP_DEFAULT_LONGITUDE", 31.0335),
+		"map_provider": getattr(settings, "GOOGLE_MAPS_PROVIDER", getattr(settings, "GGZ_MAP_PROVIDER", "google")),
+		"map_api_key": getattr(settings, "GOOGLE_MAPS_API_KEY", getattr(settings, "GGZ_MAP_API_KEY", "")),
+		"map_id": getattr(settings, "GOOGLE_MAPS_MAP_ID", getattr(settings, "GGZ_MAP_ID", "")),
+		"map_default_lat": getattr(settings, "GOOGLE_MAPS_DEFAULT_LATITUDE", getattr(settings, "GGZ_MAP_DEFAULT_LATITUDE", -17.8252)),
+		"map_default_lng": getattr(settings, "GOOGLE_MAPS_DEFAULT_LONGITUDE", getattr(settings, "GGZ_MAP_DEFAULT_LONGITUDE", 31.0335)),
 		"map_data_url": reverse("map_data"),
-		"min_hotspot_gamers": getattr(settings, "GGZ_MAP_MIN_HOTSPOT_GAMERS", 3),
+		"min_hotspot_gamers": getattr(settings, "GOOGLE_MAPS_MIN_HOTSPOT_GAMERS", getattr(settings, "GGZ_MAP_MIN_HOTSPOT_GAMERS", 3)),
 	}
 	return render(request, "accounts/map_page.html", context)
 

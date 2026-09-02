@@ -31,9 +31,11 @@ Required environment variables:
 - `DB_ENGINE`: defaults to SQLite for local development; set to `django.db.backends.postgresql` for production PostgreSQL
 - `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`: database settings for non-SQLite environments
 - `STATIC_URL`, `STATIC_ROOT`, `MEDIA_URL`, `MEDIA_ROOT`: static/media configuration
-- `GGZ_MAP_PROVIDER`: set to `google` for the production intent of Radar; `osm` remains the safe fallback when no provider key is configured
-- `GGZ_MAP_API_KEY`: Google Maps JavaScript API key for full provider-backed map features and optional Street View/3D behavior
-- `GGZ_MAP_DEFAULT_LATITUDE`, `GGZ_MAP_DEFAULT_LONGITUDE`: default center coordinates for the GGz Zimbabwe discovery map
+- `GOOGLE_MAPS_PROVIDER`: set to `google` for the production intent of Radar; `osm` remains the safe fallback when no provider key is configured
+- `GOOGLE_MAPS_API_KEY`: Google Maps JavaScript API key for full provider-backed map features and optional Street View/3D behavior
+- `GOOGLE_MAPS_MAP_ID`: optional Google Maps Cloud Map ID for advanced map styling/custom map IDs
+- `GOOGLE_MAPS_DEFAULT_LATITUDE`, `GOOGLE_MAPS_DEFAULT_LONGITUDE`: default center coordinates for the GGz Zimbabwe discovery map
+- Legacy `GGZ_MAP_*` values are still accepted for compatibility, but the canonical project setting is the `GOOGLE_MAPS_*` naming
 
 ## GGz Radar map provider decision
 
