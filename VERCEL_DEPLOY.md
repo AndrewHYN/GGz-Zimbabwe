@@ -33,7 +33,7 @@ Use the exact Vercel production domain and custom domain in `ALLOWED_HOSTS`, and
 5. Run `python manage.py migrate_sqlite_to_postgres` once against the fresh database.
 6. Run the idempotent `python manage.py create_admin` with the admin values in environment variables.
 7. Configure Google Maps API restrictions for the deployed domain.
-8. Configure external object storage for media; Vercel function storage is ephemeral.
+8. Configure persistent Supabase S3-compatible object storage for media; Vercel function storage is ephemeral.
 9. Run non-destructive smoke tests.
 
 Do not automatically import data on every deployment. Do not use Vercel build steps for database data migration.
@@ -43,5 +43,8 @@ Do not automatically import data on every deployment. Do not use Vercel build st
 Vercel deployment and live smoke tests are **NOT VERIFIED** from this Codespace. The
 SQLite-to-Neon PostgreSQL migration is **COMPLETED** and verified with matching model
 counts, relationship checks, and repaired sequences. Media persistence requires external
-storage configuration. Google Maps requires a browser key restricted to the production
-referrers and the enabled Maps APIs.
+storage configuration. When all `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
+`AWS_STORAGE_BUCKET_NAME`, `AWS_S3_ENDPOINT_URL`, and `AWS_S3_REGION_NAME` variables
+are present, Django uses `django-storages` for media and otherwise keeps local filesystem
+storage. Google Maps requires a browser key restricted to the production referrers and
+the enabled Maps APIs.

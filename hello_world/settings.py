@@ -224,6 +224,41 @@ STATIC_ROOT = Path(config("STATIC_ROOT", default=str(BASE_DIR / "staticfiles")))
 MEDIA_URL = config("MEDIA_URL", default="media/")
 MEDIA_ROOT = Path(config("MEDIA_ROOT", default=str(BASE_DIR / "hello_world" / "media")))
 
+S3_STORAGE_VARIABLES = (
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "AWS_STORAGE_BUCKET_NAME",
+    "AWS_S3_ENDPOINT_URL",
+    "AWS_S3_REGION_NAME",
+)
+USE_S3_MEDIA_STORAGE = all(os.environ.get(name) for name in S3_STORAGE_VARIABLES)
+
+if USE_S3_MEDIA_STORAGE:
+    s3_endpoint = urlsplit(os.environ["AWS_S3_ENDPOINT_URL"])
+    s3_bucket = os.environ["AWS_STORAGE_BUCKET_NAME"]
+    s3_public_domain = os.environ.get("AWS_S3_CUSTOM_DOMAIN", "")
+    if not s3_public_domain and s3_endpoint.hostname and s3_endpoint.hostname.endswith(".supabase.co"):
+        s3_public_domain = s3_endpoint.hostname
+    if not s3_public_domain:
+        raise ValueError("AWS_S3_CUSTOM_DOMAIN is required for non-Supabase S3 media storage")
+
+    MEDIA_URL = f"https://{s3_public_domain}/storage/v1/object/public/{s3_bucket}/"
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3.S3Storage",
+            "OPTIONS": {
+                "access_key": os.environ["AWS_ACCESS_KEY_ID"],
+                "secret_key": os.environ["AWS_SECRET_ACCESS_KEY"],
+                "bucket_name": s3_bucket,
+                "endpoint_url": os.environ["AWS_S3_ENDPOINT_URL"],
+                "region_name": os.environ["AWS_S3_REGION_NAME"],
+                "querystring_auth": False,
+                "file_overwrite": False,
+            },
+        },
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    }
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
