@@ -42,10 +42,11 @@ class Command(BaseCommand):
             raise CommandError(f"SQLite source does not exist: {source_path}")
         source_checksum = self._sha256(source_path)
         source_alias = "sqlite_source"
-        connections.databases[source_alias] = {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": str(source_path),
-        }
+        source_database = connections.databases["default"].copy()
+        source_database.update(
+            {"ENGINE": "django.db.backends.sqlite3", "NAME": str(source_path), "OPTIONS": {}}
+        )
+        connections.databases[source_alias] = source_database
 
         self.stdout.write(f"Source: SQLite {source_path}")
         self.stdout.write("Destination: PostgreSQL from DATABASE_URL (credentials hidden)")

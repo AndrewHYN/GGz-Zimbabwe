@@ -35,4 +35,6 @@ The `--allow-populated-destination` flag is an explicit operator acknowledgement
 
 The command prints `SQLite=<count> PostgreSQL=<count>` for each application model. Every count must match. Verify foreign keys, many-to-many tables, authentication records, organization/team/tournament relationships, conversations/messages, marketplace ownership, social graph, and sequence-backed new-record creation before switching production traffic.
 
-Migration status in this Codespace: **NOT PERFORMED**. `DATABASE_URL` is not available.
+Migration status in this Codespace: **COMPLETED**. The verified-empty Neon PostgreSQL
+database contains the imported SQLite data, with matching per-model counts and repaired
+sequences. The original `db.sqlite3` checksum remains unchanged.

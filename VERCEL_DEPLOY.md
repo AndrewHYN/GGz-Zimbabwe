@@ -40,4 +40,8 @@ Do not automatically import data on every deployment. Do not use Vercel build st
 
 ## Current status
 
-Vercel deployment and live smoke tests are **NOT VERIFIED** from this Codespace. PostgreSQL migration is **NOT PERFORMED** because `DATABASE_URL` is unavailable. Media persistence requires external storage configuration. Google Maps requires a browser key restricted to the production referrers and the enabled Maps APIs.
+Vercel deployment and live smoke tests are **NOT VERIFIED** from this Codespace. The
+SQLite-to-Neon PostgreSQL migration is **COMPLETED** and verified with matching model
+counts, relationship checks, and repaired sequences. Media persistence requires external
+storage configuration. Google Maps requires a browser key restricted to the production
+referrers and the enabled Maps APIs.
