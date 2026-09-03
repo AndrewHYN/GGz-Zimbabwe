@@ -14,12 +14,12 @@ Route reachability is not treated as proof that an authenticated workflow works.
 | Authentication and sessions | Yes | Public login page only | PARTIALLY WORKING | Yes | No | No | Local blank `DJANGO_SECRET_KEY` no longer prevents sessions/tests. Authenticated live flow remains unverified. |
 | Registration and password management | Yes | No | PARTIALLY WORKING | No | No | No | Registration exists; password reset/change requires authenticated flow testing. |
 | Profiles and profile editing | Yes | No | PARTIALLY WORKING | No | No | No | `GamerProfile` and edit views/templates exist. |
-| Profile avatars | Yes | No | BROKEN — BLOCKED | Validation fixed | No | No | `ImageField` exists and uses shared storage configuration; the shared 4 MiB ceiling rejects oversized uploads server-side; a new live upload was not performed. |
+| Profile avatars | Yes | Public existing object | BROKEN — BLOCKED | Validation fixed | No | No | Existing Supabase avatar URL returned 200; the shared 4 MiB ceiling rejects oversized uploads server-side; a new live upload was not performed. |
 | Gamer discovery and maps | Yes | Public route only | PARTIALLY WORKING | No | Partial | Yes | Discovery, geo routes, map data JSON, and map controls exist. |
 | Games and game detail | Yes | No | PARTIALLY WORKING | No | No | No | Listing, detail, leaderboard, reviews, and wishlist foundations exist. |
 | Follow/unfollow and social graph | Yes | No | PARTIALLY WORKING | No | No | Yes | Follow action returns JSON for XMLHttpRequest; live state/count/notification flow unverified. |
 | Community feed | Yes | `/feed/` returned 200 | PARTIALLY WORKING | No | No | Partial | Posts, detail, edit, delete, likes, saves, comments, and feed tabs exist. |
-| Feed media posts | Yes | No | BROKEN — BLOCKED | Existing validation | No | Partial | Post `ImageField` and multipart view path exist; live Supabase upload/render persistence is unverified. |
+| Feed media posts | Yes | Public existing object | BROKEN — BLOCKED | Existing validation | No | Partial | Existing Supabase post image URL returned 200; a new live upload and persistence remain unverified. |
 | Reviews | Yes | No | PARTIALLY WORKING | No | No | No | Game reviews and feed content foundations exist; styling and end-to-end creation need live verification. |
 | Organizations | Yes | `/organizations/` returned 200 | PARTIALLY WORKING | No | No | No | Public, create/edit, dashboards, members, locations, and logo field exist. |
 | Organization permissions | Yes | No | PARTIALLY WORKING | No | No | No | Permission checks exist in views; authenticated negative-path tests should be expanded. |
@@ -29,7 +29,7 @@ Route reachability is not treated as proof that an authenticated workflow works.
 | Tournament brackets and advancement | Yes | No | DEMO/MVP | No | No | No | Bracket generation, byes, matches, and advancement are covered by local tests. |
 | Events | Yes | No | PARTIALLY WORKING | Validation fixed | No | No | Event CRUD and banner upload foundations exist; the shared 4 MiB ceiling rejects oversized banners server-side. |
 | Marketplace | Yes | `/marketplace/` returned 200 | PARTIALLY WORKING | No | No | Partial | Listing ownership, detail, forms, and multiple-image request handling exist. |
-| Marketplace media | Yes | No | BROKEN — BLOCKED | Existing validation | No | No | Listing image field exists; live upload and persistence require production credentials. |
+| Marketplace media | Yes | Public existing object | BROKEN — BLOCKED | Existing validation | No | No | Existing Supabase listing image URL returned 200; new upload and persistence require production credentials. |
 | Contact seller | Yes | No | DEMO/MVP | No | No | No | Messaging models exist; live seller-contact workflow needs verification. |
 | Messaging | Yes | `/messages/` returned 200 | PARTIALLY WORKING | No | No | No | Conversations, requests, participants, and messages exist; no fetch send path found. |
 | Notifications | Yes | No | PARTIALLY WORKING | No | No | Partial | Notification list and event creation foundations exist; read/unread live flow unverified. |
@@ -38,7 +38,7 @@ Route reachability is not treated as proof that an authenticated workflow works.
 | Google Maps/location | Yes | No | PARTIALLY WORKING | No | Partial | Yes | Environment-based map configuration and map-data endpoint exist. |
 | Navigation and public routes | Yes | All smoke routes | WORKING | No | No | No | `/`, login, feed, organizations, tournaments, marketplace, messages, admin, and health returned 200. |
 | Admin | Yes | `/admin/` returned 200 | PARTIALLY WORKING | No | No | No | HTTP reachability only; admin authentication and model operations unverified. |
-| Persistent media storage | Yes | No | BROKEN — BLOCKED | URL generation fixed | No | No | S3-compatible Supabase branch is centralized in settings and generated public URLs were repaired; required production variables are absent locally. The 4 MiB application limit is below Vercel's request ceiling. |
+| Persistent media storage | Yes | Public existing objects | BROKEN — BLOCKED | URL generation fixed | No | No | Representative existing avatar, post, and listing objects returned 200 from Supabase; required production variables are absent locally and new authenticated uploads remain unverified. The 4 MiB application limit is below Vercel's request ceiling. |
 | Responsive/accessibility/UI modernization | Yes | No | PLANNED | No | No | No | Existing Bootstrap/custom CSS and templates need browser-level audit before targeted redesign. |
 
 ## Media inventory
@@ -81,6 +81,7 @@ development intentionally remains on filesystem storage when those variables are
 | `python manage.py test` | PASS, 134 tests |
 | `git diff --check` | PASS |
 | Canonical public route smoke test | PASS, all listed routes returned HTTP 200 |
+| Representative public Supabase media URLs | PASS, avatar JPEG, post PNG, and listing object returned HTTP 200 |
 
 ## Blockers and next actions
 
