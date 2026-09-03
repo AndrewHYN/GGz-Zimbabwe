@@ -119,6 +119,22 @@ class GamerProfileWorkflowTests(TestCase):
 		self.assertFalse(form.is_valid())
 		self.assertIn("Images must be 4 MB or smaller.", form.errors["avatar"])
 
+	def test_profile_avatar_validation_does_not_read_existing_remote_size(self):
+		self.profile.avatar.name = "avatars/existing.jpg"
+		with patch.object(self.profile.avatar.storage, "size", side_effect=AssertionError("remote size must not be read")):
+			form = GamerProfileForm(
+				data={"gamer_tag": self.profile.gamer_tag, "rank": self.profile.rank, "availability": self.profile.availability},
+				instance=self.profile,
+			)
+			self.assertTrue(form.is_valid(), form.errors)
+
+	def test_profile_avatar_save_writes_to_configured_storage(self):
+		self.profile.avatar.save("avatar.jpg", SimpleUploadedFile("avatar.jpg", b"avatar-data"), save=True)
+		try:
+			self.assertTrue(self.profile.avatar.storage.exists(self.profile.avatar.name))
+		finally:
+			self.profile.avatar.delete(save=False)
+
 	def test_discovery_filters_by_location_and_platform(self):
 		response = self.client.get(
 			reverse("gamer_discovery"),

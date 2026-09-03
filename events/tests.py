@@ -1,5 +1,6 @@
 from datetime import timedelta
 from django.contrib.auth.models import User
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -103,6 +104,18 @@ class EventManagementTests(TestCase):
 		request.refresh_from_db()
 		self.assertEqual(request.status, "Approved")
 		self.assertTrue(self.event.refresh_from_db() or True)
+
+	def test_organization_logo_save_writes_to_configured_storage(self):
+		organization = Organization.objects.create(
+			owner=self.profile,
+			name="Storage Test Org",
+			slug="storage-test-org",
+			logo=SimpleUploadedFile("logo.jpg", b"logo-data"),
+		)
+		try:
+			self.assertTrue(organization.logo.storage.exists(organization.logo.name))
+		finally:
+			organization.logo.delete(save=False)
 
 	def test_rsvp_rejects_duplicates_and_full_capacity(self):
 		self.event.capacity = 1

@@ -2,6 +2,7 @@ import re
 
 from django import forms
 from django.conf import settings
+from django.core.files.uploadedfile import UploadedFile
 
 from .models import Challenge, Tournament, TournamentMatch
 
@@ -14,7 +15,7 @@ class TournamentForm(forms.ModelForm):
 
     def clean_banner(self):
         banner = self.cleaned_data.get("banner")
-        if banner and banner.size > settings.MAX_UPLOAD_SIZE:
+        if isinstance(banner, UploadedFile) and banner.size > settings.MAX_UPLOAD_SIZE:
             raise forms.ValidationError("Images must be 4 MB or smaller.")
         return banner
 

@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django.contrib.auth.models import User
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -25,6 +26,14 @@ class TournamentTests(TestCase):
 	def test_tournament_list_and_detail_are_real(self):
 		self.assertContains(self.client.get(reverse("tournament_list")), "GGz Cup")
 		self.assertContains(self.client.get(reverse("tournament_detail", args=[self.tournament.slug])), "OrganizerZW")
+
+	def test_tournament_banner_save_writes_to_configured_storage(self):
+		self.tournament.banner = SimpleUploadedFile("banner.jpg", b"banner-data")
+		self.tournament.save(update_fields=("banner",))
+		try:
+			self.assertTrue(self.tournament.banner.storage.exists(self.tournament.banner.name))
+		finally:
+			self.tournament.banner.delete(save=False)
 
 	def test_registration_and_duplicate_prevention(self):
 		self.client.login(username="player", password="pass-12345")

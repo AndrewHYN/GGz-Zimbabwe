@@ -1,4 +1,5 @@
 from django.contrib.auth.models import User
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 
@@ -45,3 +46,15 @@ class MarketplaceTests(TestCase):
 		self.client.login(username="buyer", password="pass-12345")
 		response = self.client.post(reverse("contact_seller", args=(self.listing.id,)))
 		self.assertEqual(response.status_code, 403)
+
+	def test_listing_image_save_writes_to_configured_storage(self):
+		from .models import ListingImage
+
+		listing_image = ListingImage.objects.create(
+			listing=self.listing,
+			image=SimpleUploadedFile("listing.jpg", b"listing-data"),
+		)
+		try:
+			self.assertTrue(listing_image.image.storage.exists(listing_image.image.name))
+		finally:
+			listing_image.image.delete(save=False)

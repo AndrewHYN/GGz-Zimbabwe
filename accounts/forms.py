@@ -2,6 +2,7 @@ from django import forms
 from django.conf import settings
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
+from django.core.files.uploadedfile import UploadedFile
 
 from .models import Comment, GamerProfile, Post
 
@@ -38,7 +39,7 @@ class GamerProfileForm(forms.ModelForm):
 
     def clean_avatar(self):
         avatar = self.cleaned_data.get("avatar")
-        if avatar and avatar.size > settings.MAX_UPLOAD_SIZE:
+        if isinstance(avatar, UploadedFile) and avatar.size > settings.MAX_UPLOAD_SIZE:
             raise forms.ValidationError("Images must be 4 MB or smaller.")
         return avatar
 
@@ -82,7 +83,7 @@ class PostForm(forms.ModelForm):
 
     def clean_image(self):
         image = self.cleaned_data.get("image")
-        if image and image.size > settings.MAX_UPLOAD_SIZE:
+        if isinstance(image, UploadedFile) and image.size > settings.MAX_UPLOAD_SIZE:
             raise forms.ValidationError("Images must be 4 MB or smaller.")
         return image
 
