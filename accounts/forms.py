@@ -35,6 +35,12 @@ class GamerProfileForm(forms.ModelForm):
             "bio": forms.Textarea(attrs={"rows": 5}),
         }
 
+    def clean_avatar(self):
+        avatar = self.cleaned_data.get("avatar")
+        if avatar and avatar.size > 5 * 1024 * 1024:
+            raise forms.ValidationError("Images must be 5 MB or smaller.")
+        return avatar
+
     def save(self, commit=True):
         old_avatar_name = self.instance.avatar.name if self.instance.avatar else None
         profile = super().save(commit=commit)

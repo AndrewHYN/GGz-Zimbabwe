@@ -11,6 +11,12 @@ class TournamentForm(forms.ModelForm):
         fields = ("game", "name", "description", "banner", "format", "max_participants", "start_date", "registration_deadline", "location", "mode", "entry_type", "prize_description", "rules", "status")
         widgets = {"start_date": forms.DateTimeInput(attrs={"type": "datetime-local"}), "registration_deadline": forms.DateTimeInput(attrs={"type": "datetime-local"}), "description": forms.Textarea(attrs={"rows": 5}), "rules": forms.Textarea(attrs={"rows": 5})}
 
+    def clean_banner(self):
+        banner = self.cleaned_data.get("banner")
+        if banner and banner.size > 5 * 1024 * 1024:
+            raise forms.ValidationError("Images must be 5 MB or smaller.")
+        return banner
+
 
 class ChallengeForm(forms.ModelForm):
     class Meta:

@@ -9,6 +9,12 @@ class OrganizationForm(forms.ModelForm):
         model = Organization
         fields = ("name", "organization_type", "description", "website", "social_link", "logo", "contact_email")
 
+    def clean_logo(self):
+        logo = self.cleaned_data.get("logo")
+        if logo and logo.size > 5 * 1024 * 1024:
+            raise forms.ValidationError("Images must be 5 MB or smaller.")
+        return logo
+
     def save(self, commit=True, owner=None):
         organization = super().save(commit=False)
         if not organization.slug:
@@ -109,3 +115,9 @@ class EventForm(forms.ModelForm):
         model = Event
         fields = ("game", "organization", "name", "description", "banner", "start_date", "location", "venue", "mode", "capacity", "status")
         widgets = {"start_date": forms.DateTimeInput(attrs={"type": "datetime-local"}), "description": forms.Textarea(attrs={"rows": 5})}
+
+    def clean_banner(self):
+        banner = self.cleaned_data.get("banner")
+        if banner and banner.size > 5 * 1024 * 1024:
+            raise forms.ValidationError("Images must be 5 MB or smaller.")
+        return banner

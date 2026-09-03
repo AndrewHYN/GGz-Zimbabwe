@@ -1,14 +1,18 @@
+from io import BytesIO
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
+from PIL import Image
 
 from games.models import Game
 
 from .models import Block, Conversation, ConversationParticipant, ExternalFeedItem, Follow, FriendRequest, Friendship, GamerProfile, Message, MessageRequest, Notification, Post, PostLike, RespectTransaction, Venue
+from .forms import GamerProfileForm
 from .services import _parse_rss_feed, refresh_public_gaming_feed
 from events.models import Event, Organization, OrganizationLocation
 from teams.models import Team, TeamInvitation
@@ -72,6 +76,18 @@ class GamerProfileWorkflowTests(TestCase):
 		self.assertContains(response, "My events")
 		self.assertContains(response, "Create event")
 		self.assertContains(response, "Team invitations")
+
+	def test_profile_avatar_rejects_oversized_image(self):
+		image_data = BytesIO()
+		Image.effect_noise((2500, 2500), 100).convert("RGB").save(image_data, format="PNG")
+		form = GamerProfileForm(
+			data={"gamer_tag": self.profile.gamer_tag},
+			files={"avatar": SimpleUploadedFile("avatar.png", image_data.getvalue(), content_type="image/png")},
+			instance=self.profile,
+		)
+
+		self.assertFalse(form.is_valid())
+		self.assertIn("Images must be 5 MB or smaller.", form.errors["avatar"])
 
 	def test_discovery_filters_by_location_and_platform(self):
 		response = self.client.get(
