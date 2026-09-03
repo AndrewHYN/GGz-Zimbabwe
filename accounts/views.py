@@ -1177,11 +1177,34 @@ def post_report(request, post_id):
 	return redirect("post_detail", post_id=post.id)
 
 
+def _unread_message_count(profile):
+	return Message.objects.filter(
+		conversation__participant_links__profile=profile,
+	).exclude(sender=profile).filter(
+		Q(conversation__participant_links__cleared_at__isnull=True)
+		| Q(conversation__participant_links__cleared_at__lt=F("created_at"))
+	).filter(
+		Q(conversation__participant_links__last_read_at__isnull=True)
+		| Q(conversation__participant_links__last_read_at__lt=F("created_at"))
+	).distinct().count()
+
+
 @login_required
 def notification_list(request):
 	profile = get_object_or_404(GamerProfile, user=request.user)
 	notifications = profile.notifications.all()
-	return render(request, "accounts/notification_list.html", {"notifications": notifications, "unread_count": notifications.filter(is_read=False).count()})
+	pending_message_request_count = MessageRequest.objects.filter(recipient=profile, status="Pending").count()
+	return render(
+		request,
+		"accounts/notification_list.html",
+		{
+			"notifications": notifications,
+			"unread_count": notifications.filter(is_read=False).count(),
+			"pending_message_request_count": pending_message_request_count,
+			"unread_notification_count": notifications.filter(is_read=False).count(),
+			"unread_message_count": _unread_message_count(profile),
+		},
+	)
 
 
 @login_required
@@ -1230,7 +1253,19 @@ def message_requests(request):
 	profile = get_object_or_404(GamerProfile, user=request.user)
 	incoming = MessageRequest.objects.filter(recipient=profile).select_related("sender__user", "recipient__user").order_by("-created_at")
 	outgoing = MessageRequest.objects.filter(sender=profile).select_related("recipient__user").order_by("-created_at")
-	return render(request, "accounts/message_requests.html", {"profile": profile, "incoming": incoming, "outgoing": outgoing})
+	pending_message_request_count = incoming.filter(status="Pending").count()
+	return render(
+		request,
+		"accounts/message_requests.html",
+		{
+			"profile": profile,
+			"incoming": incoming,
+			"outgoing": outgoing,
+			"pending_message_request_count": pending_message_request_count,
+			"unread_message_count": _unread_message_count(profile),
+			"unread_notification_count": profile.notifications.filter(is_read=False).count(),
+		},
+	)
 
 
 @login_required
@@ -1311,6 +1346,36 @@ def message_request_action(request, gamer_tag, action):
 			return redirect("profile_detail", gamer_tag=other.gamer_tag)
 		request_row.save(update_fields=("status",))
 	return redirect("profile_detail", gamer_tag=other.gamer_tag)
+
+
+@login_required
+def profile_game_add(request, gamer_tag):
+	profile = get_object_or_404(GamerProfile.objects.select_related("user"), gamer_tag=gamer_tag)
+	if request.user != profile.user:
+		return HttpResponseForbidden("You can only manage your own game list.")
+	if request.method != "POST":
+		return HttpResponseForbidden("This action requires POST.")
+	game_id = request.POST.get("game_id")
+	if not game_id:
+		messages.error(request, "Choose a game to add.")
+		return redirect("profile_detail", gamer_tag=profile.gamer_tag)
+	game = get_object_or_404(Game, id=game_id)
+	profile.games.add(game)
+	messages.success(request, f"Added {game.name} to your profile.")
+	return redirect("profile_detail", gamer_tag=profile.gamer_tag)
+
+
+@login_required
+def profile_game_remove(request, gamer_tag, game_id):
+	profile = get_object_or_404(GamerProfile.objects.select_related("user"), gamer_tag=gamer_tag)
+	if request.user != profile.user:
+		return HttpResponseForbidden("You can only manage your own game list.")
+	if request.method != "POST":
+		return HttpResponseForbidden("This action requires POST.")
+	game = get_object_or_404(Game, id=game_id)
+	profile.games.remove(game)
+	messages.success(request, f"Removed {game.name} from your profile.")
+	return redirect("profile_detail", gamer_tag=profile.gamer_tag)
 
 
 @login_required

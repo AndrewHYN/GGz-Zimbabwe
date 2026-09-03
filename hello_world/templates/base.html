@@ -87,9 +87,9 @@
                                 <a href="{% url 'dashboard' %}" class="nav-profile-link">Dashboard</a>
                                 {% if request.user.is_staff %}<a href="{% url 'organization_portal' %}" class="nav-profile-link">Organization Management</a>{% endif %}
                                 <a href="{% url 'profile_detail' user_profile.gamer_tag %}" class="nav-profile-link">My Profile</a>
-                                <a href="{% url 'profile_edit' user_profile.gamer_tag %}" class="nav-profile-link">Settings</a>
+                                <a href="{% url 'profile_edit' user_profile.gamer_tag %}" class="nav-profile-link">Edit profile</a>
                                 <a href="{% url 'conversation_list' %}" class="nav-profile-link messages-nav-link">Messages{% if unread_message_count %}<span class="nav-badge">{{ unread_message_count }}</span>{% endif %}</a>
-                                <a href="{% url 'message_requests' %}" class="nav-profile-link">Message requests</a>
+                                <a href="{% url 'message_requests' %}" class="nav-profile-link">Message requests{% if pending_message_request_count %}<span class="nav-badge nav-badge-warning">{{ pending_message_request_count }}</span>{% endif %}</a>
                             {% endif %}
                             <form method="post" action="{% url 'logout' %}" class="nav-logout-form">
                                 {% csrf_token %}

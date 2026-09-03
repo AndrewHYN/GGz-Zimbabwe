@@ -709,6 +709,32 @@ class GamerProfileGameTests(TestCase):
 		response = self.client.get(reverse("game_detail", args=[game.id]))
 		self.assertContains(response, "SimbaZW")
 
+	def test_user_can_add_and_remove_games_from_their_profile(self):
+		user = User.objects.create_user(username="owner", password="pass-12345")
+		profile = GamerProfile.objects.create(user=user, gamer_tag="OwnerZW")
+		game = Game.objects.create(name="League of Legends")
+
+		self.client.login(username="owner", password="pass-12345")
+		response = self.client.post(reverse("profile_game_add", args=[profile.gamer_tag]), {"game_id": game.id})
+		self.assertEqual(response.status_code, 302)
+		self.assertTrue(profile.games.filter(id=game.id).exists())
+
+		remove_response = self.client.post(reverse("profile_game_remove", args=[profile.gamer_tag, game.id]))
+		self.assertEqual(remove_response.status_code, 302)
+		self.assertFalse(profile.games.filter(id=game.id).exists())
+
+	def test_users_cannot_modify_someone_elses_game_collection(self):
+		owner_user = User.objects.create_user(username="owner2", password="pass-12345")
+		owner_profile = GamerProfile.objects.create(user=owner_user, gamer_tag="Owner2ZW")
+		other_user = User.objects.create_user(username="otherguy", password="pass-12345")
+		other_profile = GamerProfile.objects.create(user=other_user, gamer_tag="OtherGuyZW")
+		game = Game.objects.create(name="Valorant")
+
+		self.client.login(username="otherguy", password="pass-12345")
+		response = self.client.post(reverse("profile_game_add", args=[owner_profile.gamer_tag]), {"game_id": game.id})
+		self.assertEqual(response.status_code, 403)
+		self.assertFalse(owner_profile.games.filter(id=game.id).exists())
+
 	def test_profile_detail_shows_competitive_stats_per_game(self):
 		from tournaments.models import Tournament, TournamentMatch
 
@@ -928,6 +954,23 @@ class NotificationAndMessagingTests(TestCase):
 		self.assertEqual(response.status_code, 200)
 		self.assertEqual(response.json()["message"]["body"], "Hello asynchronously")
 		self.assertTrue(Message.objects.filter(body="Hello asynchronously").exists())
+
+	def test_notification_and_message_request_badges_are_accurate(self):
+		Notification.objects.create(recipient=self.recipient, actor=self.sender, notification_type="follow", message="Followed you", target_url="/profiles/Recipient/")
+		conversation = Conversation.objects.create()
+		ConversationParticipant.objects.bulk_create([
+			ConversationParticipant(conversation=conversation, profile=self.sender),
+			ConversationParticipant(conversation=conversation, profile=self.recipient),
+		])
+		Message.objects.create(conversation=conversation, sender=self.sender, body="Unread hello")
+		MessageRequest.objects.create(sender=self.sender, recipient=self.recipient, status="Pending")
+
+		self.client.login(username="recipient", password="pass")
+		response = self.client.get(reverse("notification_list"))
+		self.assertEqual(response.context["unread_count"], 1)
+		self.assertEqual(response.context["pending_message_request_count"], 1)
+		self.assertEqual(response.context["unread_notification_count"], 1)
+		self.assertEqual(response.context["unread_message_count"], 1)
 
 	def test_message_requests_and_privacy_rules(self):
 		self.client.login(username="sender", password="pass")
