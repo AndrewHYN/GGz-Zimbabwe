@@ -1125,7 +1125,7 @@ def post_like(request, post_id):
 		elif post.author != profile:
 			_notify(post.author, profile, "like", f"{profile.gamer_tag} liked your post", f"/feed/posts/{post.id}/")
 	if request.headers.get("x-requested-with") == "XMLHttpRequest":
-		return JsonResponse({"ok": True, "liked": created, "count": post.likes.count()})
+		return JsonResponse({"ok": True, "liked": created, "count": PostLike.objects.filter(post=post).count()})
 	return redirect(request.POST.get("next") or "feed")
 
 

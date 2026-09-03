@@ -17,8 +17,8 @@ Route reachability is not treated as proof that an authenticated workflow works.
 | Profile avatars | Yes | Public existing object | BROKEN — BLOCKED | Validation fixed | No | No | Existing Supabase avatar URL returned 200; the shared 4 MiB ceiling rejects oversized uploads server-side; a new live upload was not performed. |
 | Gamer discovery and maps | Yes | Public route only | PARTIALLY WORKING | No | Partial | Yes | Discovery, geo routes, map data JSON, and map controls exist. |
 | Games and game detail | Yes | No | PARTIALLY WORKING | No | No | No | Listing, detail, leaderboard, reviews, and wishlist foundations exist. |
-| Follow/unfollow and social graph | Yes | No | PARTIALLY WORKING | No | No | Yes | Follow action returns JSON for XMLHttpRequest; live state/count/notification flow unverified. |
-| Community feed | Yes | `/feed/` returned 200 | PARTIALLY WORKING | No | No | Partial | Posts, detail, edit, delete, likes, saves, comments, and feed tabs exist. |
+| Follow/unfollow and social graph | Yes | No | PARTIALLY WORKING | AJAX guard fixed | Yes | Yes | Follow action returns JSON for XMLHttpRequest; AJAX now rejects login redirects/HTML errors visibly; live state/count/notification flow unverified. |
+| Community feed | Yes | `/feed/` returned 200 | PARTIALLY WORKING | Like response fixed | Partial | Partial | Posts, detail, edit, delete, likes, saves, comments, and feed tabs exist; like counts now come from persisted `PostLike` rows. |
 | Feed media posts | Yes | Public existing object | BROKEN — BLOCKED | Existing validation | No | Partial | Existing Supabase post image URL returned 200; a new live upload and persistence remain unverified. |
 | Reviews | Yes | No | PARTIALLY WORKING | No | No | No | Game reviews and feed content foundations exist; styling and end-to-end creation need live verification. |
 | Organizations | Yes | `/organizations/` returned 200 | PARTIALLY WORKING | No | No | No | Public, create/edit, dashboards, members, locations, and logo field exist. |
@@ -31,7 +31,7 @@ Route reachability is not treated as proof that an authenticated workflow works.
 | Marketplace | Yes | `/marketplace/` returned 200 | PARTIALLY WORKING | No | No | Partial | Listing ownership, detail, forms, and multiple-image request handling exist. |
 | Marketplace media | Yes | Public existing object | BROKEN — BLOCKED | Existing validation | No | No | Existing Supabase listing image URL returned 200; new upload and persistence require production credentials. |
 | Contact seller | Yes | No | DEMO/MVP | No | No | No | Messaging models exist; live seller-contact workflow needs verification. |
-| Messaging | Yes | `/messages/` returned 200 | PARTIALLY WORKING | AJAX send added | Yes | Yes | Authorized message sends now return JSON and update the conversation without a reload, with loading/success/error states; authenticated live send/receive remains unverified. |
+| Messaging | Yes | `/messages/` returned 200 | PARTIALLY WORKING | AJAX send and response guard fixed | Yes | Yes | Authorized message sends now return JSON and update the conversation without a reload; login redirects and HTML errors become visible status messages; authenticated live send/receive remains unverified. |
 | Notifications | Yes | No | PARTIALLY WORKING | No | No | Partial | Notification list and event creation foundations exist; read/unread live flow unverified. |
 | Leaderboards, reputation, ranks | Yes | No | DEMO/MVP | No | Partial | No | Leaderboard and profile rank/reputation foundations exist. |
 | Search | Yes | No | PARTIALLY WORKING | No | No | No | Global search template/route exists; entity coverage and pagination need verification. |
@@ -92,7 +92,7 @@ post-fix flow remain pending manual verification with Vercel logs and a real acc
 | `python manage.py check` | PASS |
 | `python manage.py check --deploy` | PASS with `security.W004`, `security.W008`, `security.W009` warnings |
 | `python manage.py makemigrations --check --dry-run` | PASS, no changes |
-| `python manage.py test` | PASS, 136 tests |
+| `python manage.py test` | PASS, 137 tests |
 | `git diff --check` | PASS |
 | Canonical public route smoke test | PASS, all listed routes returned HTTP 200 |
 | Representative public Supabase media URLs | PASS, avatar JPEG, post PNG, and listing object returned HTTP 200 |

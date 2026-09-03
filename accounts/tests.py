@@ -774,6 +774,16 @@ class SocialPostTests(TestCase):
 		self.client.post(url)
 		self.assertFalse(PostLike.objects.exists())
 
+	def test_ajax_like_returns_json_for_authenticated_action(self):
+		post = Post.objects.create(author=self.other_profile, body="Like this")
+		self.client.login(username="andrew", password="strong-password-123")
+		response = self.client.post(
+			reverse("post_like", args=[post.id]),
+			HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+		)
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.json(), {"ok": True, "liked": True, "count": 1})
+
 	def test_authenticated_user_can_comment(self):
 		post = Post.objects.create(author=self.other_profile, body="Hello GGz")
 		self.client.login(username="andrew", password="strong-password-123")

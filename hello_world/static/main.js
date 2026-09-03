@@ -119,6 +119,21 @@
     }
   });
 
+  async function readJsonResponse(response) {
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      if (response.redirected && new URL(response.url).pathname.includes('/accounts/login/')) {
+        throw new Error('Your session has expired. Please log in again.');
+      }
+      throw new Error(`Unexpected server response (${response.status}).`);
+    }
+    const result = await response.json();
+    if (!response.ok || result.ok === false) {
+      throw new Error(result.error || `Request failed (${response.status}).`);
+    }
+    return result;
+  }
+
   document.querySelectorAll('form[action*="/like/"]').forEach((form) => {
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -126,9 +141,8 @@
       const original = button.innerHTML;
       button.disabled = true;
       try {
-        const response = await fetch(form.action, { method: 'POST', body: new FormData(form), headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-        if (!response.ok) throw new Error('Request failed');
-        const result = await response.json();
+        const response = await fetch(form.action, { method: 'POST', body: new FormData(form), credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        const result = await readJsonResponse(response);
         button.classList.toggle('is-liked', result.liked);
         button.setAttribute('aria-pressed', String(result.liked));
         button.innerHTML = `<span aria-hidden="true">${result.liked ? '&#9829;' : '&#9825;'}</span> ${result.count} ${result.count === 1 ? 'Like' : 'Likes'}`;
@@ -136,7 +150,7 @@
         button.innerHTML = original;
         const notice = document.createElement('small');
         notice.className = 'async-error';
-        notice.textContent = 'Could not update that action.';
+        notice.textContent = error.message || 'Could not update that action.';
         form.append(notice);
         window.setTimeout(() => notice.remove(), 2500);
       } finally {
@@ -160,10 +174,10 @@
         const response = await fetch(window.location.href, {
           method: 'POST',
           body: new FormData(form),
+          credentials: 'same-origin',
           headers: { 'X-Requested-With': 'XMLHttpRequest' },
         });
-        const result = await response.json();
-        if (!response.ok || !result.ok) throw new Error('Request failed');
+        const result = await readJsonResponse(response);
         const emptyState = messageList.querySelector('.empty-state');
         if (emptyState) emptyState.remove();
         const message = document.createElement('article');
@@ -178,7 +192,7 @@
         textarea.value = '';
         status.textContent = 'Sent';
       } catch (error) {
-        status.textContent = 'Could not send the message. Try again.';
+        status.textContent = error.message || 'Could not send the message. Try again.';
       } finally {
         button.disabled = false;
         button.textContent = originalLabel;
