@@ -1,4 +1,5 @@
 import math
+import logging
 
 import json
 from collections import Counter
@@ -13,6 +14,7 @@ from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from botocore.exceptions import BotoCoreError, ClientError
 
 from events.models import Event, Organization, OrganizationLocation, OrganizationLocationRating, OrganizationLocationReview
 from games.models import Game
@@ -41,6 +43,13 @@ from .models import (
 	notify,
 )
 from .services import refresh_public_gaming_feed
+
+logger = logging.getLogger(__name__)
+
+
+def _media_storage_error(form, field_name="image"):
+	logger.exception("Media storage failed while saving %s", field_name)
+	form.add_error(field_name, "The image could not be uploaded. Please try again.")
 
 
 def _notify(recipient, actor, notification_type, message, target_url=""):
@@ -1068,7 +1077,11 @@ def post_create(request):
 	if form.is_valid():
 		post = form.save(commit=False)
 		post.author = get_object_or_404(GamerProfile, user=request.user)
-		post.save()
+		try:
+			post.save()
+		except (BotoCoreError, ClientError, OSError):
+			_media_storage_error(form)
+			return render(request, "accounts/feed.html", {"post_form": form})
 		_notify(post.author, get_object_or_404(GamerProfile, user=request.user), "post", f"{post.author.gamer_tag} published a post", f"/feed/posts/{post.id}/")
 		messages.success(request, "Your post is live in the community feed.")
 	return redirect("feed")
@@ -1079,7 +1092,11 @@ def post_edit(request, post_id):
 	post = get_object_or_404(Post, id=post_id, author__user=request.user)
 	form = PostForm(request.POST or None, request.FILES or None, instance=post)
 	if form.is_valid():
-		form.save()
+		try:
+			form.save()
+		except (BotoCoreError, ClientError, OSError):
+			_media_storage_error(form)
+			return render(request, "accounts/post_edit.html", {"form": form, "post": post})
 		messages.success(request, "Your post was updated.")
 		return redirect("post_detail", post_id=post.id)
 	return render(request, "accounts/post_edit.html", {"form": form, "post": post})
@@ -1303,7 +1320,11 @@ def profile_edit(request, gamer_tag):
 		instance=profile,
 	)
 	if form.is_valid():
-		updated_profile = form.save()
+		try:
+			updated_profile = form.save()
+		except (BotoCoreError, ClientError, OSError):
+			_media_storage_error(form, "avatar")
+			return render(request, "accounts/profile_edit.html", {"form": form, "profile": profile})
 		return redirect("profile_detail", gamer_tag=updated_profile.gamer_tag)
 
 	return render(

@@ -50,6 +50,12 @@ are present, Django uses `django-storages` for media and otherwise keeps local f
 storage. Google Maps requires a browser key restricted to the production referrers and
 the enabled Maps APIs.
 
+Supabase's S3-compatible credentials may allow public object reads while denying
+`HeadObject`. The configured `hello_world.storage.SupabaseMediaStorage` avoids
+that permission-sensitive duplicate-name probe by generating a UUID-backed key
+for every upload. It preserves duplicate-name safety without making the bucket
+public to work around credentials.
+
 `MAX_UPLOAD_SIZE` defaults to `4194304` bytes (4 MiB). This is deliberately below
 Vercel's approximately 4.5 MB serverless request-body limit so multipart overhead
 does not reject an image before Django can return a validation error. Keep the

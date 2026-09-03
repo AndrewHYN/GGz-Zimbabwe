@@ -85,6 +85,19 @@ source failures remain non-fatal and return cached/empty results. Session cookie
 authentication settings were not weakened. The exact live trigger and authenticated
 post-fix flow remain pending manual verification with Vercel logs and a real account.
 
+## Supabase upload incident
+
+Production identified `botocore.exceptions.ClientError: 403 Forbidden` from
+`S3Storage.exists()` during `HeadObject` while saving `/profiles/Hyndrrx/edit/`.
+Public GET access to existing objects does not imply that the configured Supabase
+S3 key is allowed to issue `HeadObject`; django-storages re-raises that 403 before
+it can upload. `SupabaseMediaStorage` now generates a UUID-backed object key for
+each upload, avoiding the permission-sensitive existence probe while preserving
+duplicate-name safety. Account upload saves convert storage exceptions into safe
+form errors and log the exception server-side. The exact regression is covered by
+storage tests. A real new authenticated production upload remains pending manual
+verification.
+
 ## Verification
 
 | Check | Result |

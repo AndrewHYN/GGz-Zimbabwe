@@ -256,7 +256,7 @@ if USE_S3_MEDIA_STORAGE:
     MEDIA_URL = f"https://{s3_public_domain}/{s3_public_path}/"
     STORAGES = {
         "default": {
-            "BACKEND": "storages.backends.s3.S3Storage",
+            "BACKEND": "hello_world.storage.SupabaseMediaStorage",
             "OPTIONS": {
                 "access_key": os.environ["AWS_ACCESS_KEY_ID"],
                 "secret_key": os.environ["AWS_SECRET_ACCESS_KEY"],

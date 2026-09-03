@@ -112,6 +112,21 @@ class GamerProfileWorkflowTests(TestCase):
 		)
 		self.assertEqual(response.status_code, 403)
 
+	def test_profile_edit_without_image_preserves_authenticated_update(self):
+		self.client.login(username="tendai", password="strong-password-123")
+		response = self.client.post(
+			reverse("profile_edit", args=[self.profile.gamer_tag]),
+			{
+				"gamer_tag": "TendaiZW",
+				"bio": "Updated without an image.",
+				"rank": self.profile.rank,
+				"availability": self.profile.availability,
+			},
+		)
+		self.assertRedirects(response, reverse("profile_detail", args=["TendaiZW"]))
+		self.profile.refresh_from_db()
+		self.assertEqual(self.profile.bio, "Updated without an image.")
+
 	def test_friend_request_can_be_accepted_and_removed(self):
 		self.client.login(username="tendai", password="strong-password-123")
 		self.client.post(
