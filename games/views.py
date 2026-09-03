@@ -216,6 +216,9 @@ def game_challenge_create(request, game_id):
 	if not created:
 		messages.info(request, "You already have a pending challenge for this player.")
 		return redirect("game_detail", game_id=game.id)
+	if opponent != profile:
+		from accounts.models import notify
+		notify(opponent, profile, "challenge", f"{profile.gamer_tag} challenged you", f"/games/{game.id}/")
 	messages.success(request, "Challenge sent.")
 	return redirect("game_detail", game_id=game.id)
 

@@ -6,7 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from accounts.models import GamerProfile, Post
+from accounts.models import GamerProfile, Notification, Post
 from django.contrib.auth.models import User
 from tournaments.models import Challenge, Tournament, TournamentMatch
 from events.models import Event
@@ -440,6 +440,7 @@ class GameHubTests(TestCase):
 		)
 		self.assertEqual(post_response.status_code, 302)
 		self.assertTrue(Challenge.objects.filter(challenger=player, opponent=opponent, game=game).exists())
+		self.assertTrue(Notification.objects.filter(recipient=opponent, notification_type="challenge").exists())
 		self.assertTrue(self.client.session.get("_auth_user_id"))
 
 		duplicate_response = self.client.post(
