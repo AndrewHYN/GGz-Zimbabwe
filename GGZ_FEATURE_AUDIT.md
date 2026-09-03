@@ -31,14 +31,16 @@ Route reachability is not treated as proof that an authenticated workflow works.
 
 ## Demo data
 
-`python manage.py seed_demo` now provides an idempotent, transactional demo dataset
-covering users/profiles, games and game relationships, follows/friendship, posts,
-comments/likes, challenges, tournaments/registrations/bracket matches, events,
-organizations/locations, teams/memberships, marketplace listings/images,
-conversations/messages, notifications, rankings/reputation fields, map coordinates,
-and YouTube trailer URLs. Demo passwords are supplied through `GGZ_DEMO_PASSWORD`
-or use the documented demo-only fallback; this command must be run only against an
-intentionally selected database.
+`python manage.py seed_demo` provides an idempotent, transactional relational MVP
+dataset covering users/profiles, games and game relationships, follows/friendship,
+posts, comments/likes, challenges, a tournament/registrations/bracket matches,
+an event, an organization/location, a team/memberships, a marketplace listing/image,
+a conversation/message, notifications, rankings/reputation fields, map coordinates,
+and YouTube trailer URLs. It is a strong baseline, not yet the requested multi-record
+demo with upcoming/active/completed tournament variants and multiple organizations or
+events. Demo passwords are supplied through `GGZ_DEMO_PASSWORD` or use the documented
+demo-only fallback; this command must be run only against an intentionally selected
+database.
 
 | Feature | Exists | Live Tested | Status | Fixed | Modernized | AJAX | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
