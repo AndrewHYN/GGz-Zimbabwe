@@ -440,6 +440,27 @@ class GameHubTests(TestCase):
 		)
 		self.assertEqual(post_response.status_code, 302)
 		self.assertTrue(Challenge.objects.filter(challenger=player, opponent=opponent, game=game).exists())
+		self.assertTrue(self.client.session.get("_auth_user_id"))
+
+		duplicate_response = self.client.post(
+			reverse("game_challenge_create", args=[game.id]),
+			{"opponent": opponent.id},
+		)
+		self.assertEqual(duplicate_response.status_code, 302)
+		self.assertEqual(Challenge.objects.filter(challenger=player, opponent=opponent, game=game, status="Pending").count(), 1)
+
+	def test_game_challenge_rejects_a_player_outside_the_game(self):
+		game = Game.objects.create(name="Valorant", genre="Shooter")
+		player_user = User.objects.create_user(username="challenger", password="pass")
+		player = GamerProfile.objects.create(user=player_user, gamer_tag="ChallengerZW")
+		opponent = GamerProfile.objects.create(user=User.objects.create_user(username="outsider"), gamer_tag="OutsiderZW")
+		self.client.force_login(player_user)
+
+		response = self.client.post(reverse("game_challenge_create", args=[game.id]), {"opponent": opponent.id})
+
+		self.assertEqual(response.status_code, 404)
+		self.assertFalse(Challenge.objects.exists())
+		self.assertEqual(self.client.session.get("_auth_user_id"), str(player_user.id))
 
 	def test_game_detail_surfaces_related_tournaments_and_events(self):
 		organizer_user = User.objects.create_user(username="organizer3", password="pass")

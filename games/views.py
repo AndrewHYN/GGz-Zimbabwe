@@ -188,13 +188,15 @@ def game_leaderboard(request, game_id):
 
 @login_required
 def game_challenge_create(request, game_id):
+	if request.method != "POST":
+		return HttpResponseForbidden("This action requires POST.")
 	game = get_object_or_404(Game, id=game_id)
 	profile = get_object_or_404(GamerProfile, user=request.user)
 	opponent_id = request.POST.get("opponent")
 	if not opponent_id:
 		messages.error(request, "Choose a friend to challenge.")
 		return redirect("game_detail", game_id=game.id)
-	opponent = get_object_or_404(GamerProfile, id=opponent_id)
+	opponent = get_object_or_404(GamerProfile, id=opponent_id, games=game)
 	if opponent == profile:
 		messages.error(request, "You cannot challenge yourself.")
 		return redirect("game_detail", game_id=game.id)
@@ -204,13 +206,16 @@ def game_challenge_create(request, game_id):
 		if scheduled_dt and timezone.is_naive(scheduled_dt):
 			scheduled_dt = timezone.make_aware(scheduled_dt, timezone.get_current_timezone())
 		scheduled_at = scheduled_dt
-	challenge = Challenge.objects.create(
+	challenge, created = Challenge.objects.get_or_create(
 		challenger=profile,
 		opponent=opponent,
 		game=game,
 		status="Pending",
-		scheduled_at=scheduled_at,
+		defaults={"scheduled_at": scheduled_at},
 	)
+	if not created:
+		messages.info(request, "You already have a pending challenge for this player.")
+		return redirect("game_detail", game_id=game.id)
 	messages.success(request, "Challenge sent.")
 	return redirect("game_detail", game_id=game.id)
 

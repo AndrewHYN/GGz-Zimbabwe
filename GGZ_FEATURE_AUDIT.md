@@ -9,6 +9,25 @@ Codespace has no `DATABASE_URL` or production credentials, so local checks use t
 preserved SQLite database and no live user, upload, or production record was changed.
 Route reachability is not treated as proof that an authenticated workflow works.
 
+## Authenticated action matrix
+
+| Feature | URL | Method | Auth | CSRF | DB mutation | Media | Response | Existing test | Production risk |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Challenge friend | `/games/<id>/challenge/` | POST | Yes | Django middleware | Challenge, notification | No | Redirect to game | Yes | Target validation and duplicate pending prevention fixed; live POST unverified |
+| Challenge action | `/tournaments/challenges/<id>/<action>/` | POST | Yes | Django middleware | Challenge status, notification | No | Redirect | Yes | Live POST unverified |
+| Create tournament | `/tournaments/create/` | POST | Yes | Django middleware | Tournament | Optional banner | Redirect | Yes | Live POST/media unverified |
+| Edit tournament | `/tournaments/<slug>/edit/` | POST | Organizer | Django middleware | Tournament | Optional banner | Redirect | Partial | Live POST/media unverified |
+| Create event | `/events/create/` | POST | Staff | Django middleware | Event | Optional banner | Redirect | Yes | Live POST/media unverified |
+| Create marketplace listing | `/marketplace/create/` | POST | Yes | Django middleware | Listing/images | Images | Redirect | Partial | Live POST/media unverified |
+| Create/edit organisation | `/organizations/create/`, `/organizations/<slug>/edit/` | POST | Staff | Django middleware | Organisation | Optional logo | Redirect | Yes | Live POST/media unverified |
+| Edit profile/avatar | `/profiles/<gamer_tag>/edit/` | POST | Owner | Django middleware | Profile | Optional avatar | Redirect/form error | Yes | Exact live upload pending |
+| Create/edit post | `/feed/posts/create/`, `/feed/posts/<id>/edit/` | POST | Yes/author | Django middleware | Post | Optional image | Redirect/form error | Yes | Live POST/media unverified |
+| Send message | `/messages/<id>/` | POST | Participant | Django middleware | Message/notification | No | Redirect or JSON | Yes | Live POST unverified |
+| Like/save post | `/feed/posts/<id>/like/`, `/save/` | POST | Yes | Django middleware | Like/save | No | Redirect or JSON | Yes | Live AJAX unverified |
+| Follow/social action | `/profiles/<gamer_tag>/<action>/` | POST | Yes | Django middleware | Follow/request/block | No | Redirect or JSON | Yes | Live AJAX unverified |
+| Notifications read/unread | `/notifications/<id>/read/`, `/unread/` | POST | Yes | Django middleware | Notification state | No | Redirect | Yes | Live POST unverified |
+| Team actions | `/teams/<id>/...` | POST | Yes/role | Django middleware | Membership/team | No active upload form | Redirect | Yes | Live POST unverified |
+
 | Feature | Exists | Live Tested | Status | Fixed | Modernized | AJAX | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Authentication and sessions | Yes | Public login page only | PARTIALLY WORKING | Yes | No | No | Local blank `DJANGO_SECRET_KEY` no longer prevents sessions/tests. Authenticated live flow remains unverified. |
@@ -105,7 +124,7 @@ verification.
 | `python manage.py check` | PASS |
 | `python manage.py check --deploy` | PASS with `security.W004`, `security.W008`, `security.W009` warnings |
 | `python manage.py makemigrations --check --dry-run` | PASS, no changes |
-| `python manage.py test` | PASS, 137 tests |
+| `python manage.py test` | PASS, 141 tests |
 | `git diff --check` | PASS |
 | Canonical public route smoke test | PASS, all listed routes returned HTTP 200 |
 | Representative public Supabase media URLs | PASS, avatar JPEG, post PNG, and listing object returned HTTP 200 |
