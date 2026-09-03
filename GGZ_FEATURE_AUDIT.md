@@ -14,7 +14,7 @@ Route reachability is not treated as proof that an authenticated workflow works.
 
 | Feature | URL | Method | Auth | CSRF | DB mutation | Media | Response | Existing test | Production risk |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Challenge friend | `/games/<id>/challenge/` | POST | Yes | Django middleware | Challenge, notification | No | Redirect to game | Yes | Target validation and duplicate pending prevention fixed; live POST unverified |
+| Challenge friend | `/games/<id>/challenge/` | POST | Yes | Django middleware | Challenge, notification | No | Redirect to game | Yes | Target validation, duplicate pending prevention, recipient notification, and teammate eligibility fixed; live POST unverified |
 | Challenge action | `/tournaments/challenges/<id>/<action>/` | POST | Yes | Django middleware | Challenge status, notification | No | Redirect | Yes | Live POST unverified |
 | Create tournament | `/tournaments/create/` | POST | Yes | Django middleware | Tournament | Optional banner | Redirect | Yes | Live POST/media unverified |
 | Edit tournament | `/tournaments/<slug>/edit/` | POST | Organizer | Django middleware | Tournament | Optional banner | Redirect | Partial | Live POST/media unverified |
@@ -38,9 +38,9 @@ an event, an organization/location, a team/memberships, a marketplace listing/im
 a conversation/message, notifications, rankings/reputation fields, map coordinates,
 and YouTube trailer URLs. It is a strong baseline, not yet the requested multi-record
 demo with upcoming/active/completed tournament variants and multiple organizations or
-events. Demo passwords are supplied through `GGZ_DEMO_PASSWORD` or use the documented
-demo-only fallback; this command must be run only against an intentionally selected
-database.
+events. Demo passwords must be supplied through `GGZ_DEMO_PASSWORD`; there is no
+committed password fallback. This command must be run only against an intentionally
+selected database.
 
 | Feature | Exists | Live Tested | Status | Fixed | Modernized | AJAX | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |

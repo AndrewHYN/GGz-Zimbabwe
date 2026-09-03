@@ -4,7 +4,7 @@ from datetime import timedelta
 
 from django.contrib.auth.models import User
 from django.core.files.base import ContentFile
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 from django.utils.text import slugify
@@ -30,7 +30,6 @@ from teams.models import Team, TeamInvitation, TeamMembership
 from tournaments.models import Challenge, Tournament, TournamentMatch, TournamentRegistration
 
 
-DEMO_PASSWORD = os.environ.get("GGZ_DEMO_PASSWORD", "ggz-demo-password-change-me")
 PNG_BYTES = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk"
     "+A8AAQUBAScY42YAAAAASUVORK5CYII="
@@ -42,6 +41,9 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def handle(self, *args, **options):
+        self.demo_password = os.environ.get("GGZ_DEMO_PASSWORD", "").strip()
+        if not self.demo_password:
+            raise CommandError("Set GGZ_DEMO_PASSWORD before seeding demo users.")
         users = self._users()
         profiles = self._profiles(users)
         games = self._games()
@@ -119,7 +121,7 @@ class Command(BaseCommand):
         for key, (username, email, staff) in specs.items():
             user, created = User.objects.get_or_create(username=username, defaults={"email": email, "is_staff": staff})
             if created:
-                user.set_password(DEMO_PASSWORD)
+                user.set_password(self.demo_password)
                 user.save(update_fields=("password",))
             elif staff and not user.is_staff:
                 user.is_staff = True
