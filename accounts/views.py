@@ -43,25 +43,15 @@ from .models import (
 	notify,
 )
 from .services import refresh_public_gaming_feed
+from hello_world.storage import log_s3_client_error
 
 logger = logging.getLogger(__name__)
 
 
 def _media_storage_error(form, exception, field_name="image"):
 	if isinstance(exception, ClientError):
-		error = exception.response.get("Error", {})
-		metadata = exception.response.get("ResponseMetadata", {})
-		logger.exception(
-			"Media storage failed while saving %s: operation=%s error_code=%s error_message=%s "
-			"http_status=%s request_id=%s host_id=%s",
-			field_name,
-			getattr(exception, "operation_name", ""),
-			error.get("Code", ""),
-			error.get("Message", ""),
-			metadata.get("HTTPStatusCode", ""),
-			metadata.get("RequestId", ""),
-			metadata.get("HostId", ""),
-		)
+		log_s3_client_error(exception)
+		logger.error("Media storage failed while saving %s", field_name)
 	else:
 		logger.exception("Media storage failed while saving %s", field_name)
 	form.add_error(field_name, "The image could not be uploaded. Please try again.")
