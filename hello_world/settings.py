@@ -33,10 +33,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DEPLOYED = bool(os.environ.get("VERCEL") or os.environ.get("RENDER_EXTERNAL_HOSTNAME") or os.environ.get("DATABASE_URL"))
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = config(
-    "DJANGO_SECRET_KEY",
-    default="dev-secret-key-change-me-for-local-ggz-development-2026-!",
-)
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "").strip()
+if not SECRET_KEY:
+    SECRET_KEY = "dev-secret-key-change-me-for-local-ggz-development-2026-!"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config("DEBUG", default=not DEPLOYED, cast=bool)
