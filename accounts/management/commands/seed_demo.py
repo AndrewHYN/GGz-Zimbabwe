@@ -14,6 +14,7 @@ from accounts.models import (
     Conversation,
     ConversationParticipant,
     Follow,
+    FriendRequest,
     Friendship,
     GamerProfile,
     Message,
@@ -22,10 +23,10 @@ from accounts.models import (
     PostLike,
     Venue,
 )
-from events.models import Event, Organization, OrganizationLocation
+from events.models import Event, EventRsvp, Organization, OrganizationLocation
 from games.models import Game, GameReview, GameWishlist
-from marketplace.models import Listing, ListingImage
-from teams.models import Team, TeamMembership
+from marketplace.models import Listing, ListingImage, SavedListing
+from teams.models import Team, TeamInvitation, TeamMembership
 from tournaments.models import Challenge, Tournament, TournamentMatch, TournamentRegistration
 
 
@@ -59,12 +60,14 @@ class Command(BaseCommand):
         posts = self._posts(profiles, games)
         self._social_content(profiles, posts)
         organization = self._organization(profiles["organizer"], venue)
+        second_organization = self._second_organization(profiles["seller"])
         team = Team.objects.get_or_create(
             slug="ggz-demo-squad",
             defaults={"owner": profiles["organizer"], "game": games["Valorant"], "name": "GGz Demo Squad", "tag": "GGZ", "description": "A seeded competitive demo team.", "location": "Harare"},
         )[0]
         TeamMembership.objects.get_or_create(team=team, player=profiles["organizer"], defaults={"role": "Captain"})
         TeamMembership.objects.get_or_create(team=team, player=profiles["player"], defaults={"role": "Member"})
+        TeamInvitation.objects.get_or_create(team=team, inviter=profiles["organizer"], invitee=profiles["casual"], defaults={"status": "Pending"})
 
         tournament = self._tournament(profiles["organizer"], games["Valorant"], venue)
         for profile in profiles.values():
@@ -72,11 +75,18 @@ class Command(BaseCommand):
                 TournamentRegistration.objects.get_or_create(tournament=tournament, player=profile, defaults={"status": "Registered"})
         self._bracket(tournament, games["Valorant"], profiles)
         Challenge.objects.get_or_create(challenger=profiles["player"], opponent=profiles["organizer"], game=games["Valorant"], defaults={"tournament": tournament, "status": "Pending", "scheduled_at": timezone.now() + timedelta(days=2)})
+        self._additional_tournaments(profiles, games, venue)
 
-        Event.objects.get_or_create(
+        event, _ = Event.objects.get_or_create(
             name="GGz Harare Community Night",
             defaults={"organizer": profiles["organizer"], "organization": organization, "game": games["EA FC 25"], "description": "A seeded community gaming night.", "start_date": timezone.now() + timedelta(days=14), "location": "GGz Demo Arena", "city": "Harare", "country": "Zimbabwe", "venue": venue, "latitude": venue.latitude, "longitude": venue.longitude, "mode": "offline", "status": "Upcoming", "capacity": 64},
         )
+        EventRsvp.objects.get_or_create(event=event, attendee=profiles["player"])
+        second_event, _ = Event.objects.get_or_create(
+            name="GGz Bulawayo LAN Weekend",
+            defaults={"organizer": profiles["seller"], "organization": second_organization, "game": games["Tekken 8"], "description": "A second seeded community event.", "start_date": timezone.now() + timedelta(days=21), "location": "Bulawayo Gaming Hub", "city": "Bulawayo", "country": "Zimbabwe", "mode": "offline", "status": "Published", "capacity": 40},
+        )
+        EventRsvp.objects.get_or_create(event=second_event, attendee=profiles["casual"])
         listing = Listing.objects.get_or_create(
             title="Demo Tekken 8 Fight Stick",
             defaults={"seller": profiles["seller"], "description": "A seeded marketplace listing for the demo environment.", "category": "Gaming Accessories", "price": "120.00", "condition": "Good", "location": "Harare", "game": games["Tekken 8"], "platform": "PC", "status": "Available"},
@@ -85,6 +95,16 @@ class Command(BaseCommand):
         if listing_image is None:
             listing_image = ListingImage(listing=listing)
             self._image(ListingImage, listing_image, "image", "demo-listing.png", "listings")
+        second_listing, _ = Listing.objects.get_or_create(
+            title="Demo Xbox Controller",
+            defaults={"seller": profiles["seller"], "description": "A second seeded marketplace listing.", "category": "Accessories", "price": "45.00", "condition": "Like New", "location": "Bulawayo", "game": games["EA FC 25"], "platform": "Xbox", "status": "Available"},
+        )
+        second_listing_image = ListingImage.objects.filter(listing=second_listing).first()
+        if second_listing_image is None:
+            second_listing_image = ListingImage(listing=second_listing)
+            self._image(ListingImage, second_listing_image, "image", "demo-controller.png", "listings")
+        SavedListing.objects.get_or_create(user=profiles["player"], listing=listing)
+        FriendRequest.objects.get_or_create(sender=profiles["casual"], receiver=profiles["seller"], defaults={"status": "pending"})
         self._messages_and_notifications(profiles)
         self.stdout.write(self.style.SUCCESS("GGz demo data seeded idempotently."))
 
@@ -158,21 +178,41 @@ class Command(BaseCommand):
         review.review = "A great demo review."
         review.save(update_fields=("rating", "review"))
         GameWishlist.objects.get_or_create(game=games["Tekken 8"], profile=profiles["player"])
-        return [post]
+        second_post, _ = Post.objects.get_or_create(author=profiles["casual"], body="Harare players, who is joining the next bracket?", defaults={"game": games["EA FC 25"]})
+        second_post.game = games["EA FC 25"]
+        second_post.save(update_fields=("game",))
+        return [post, second_post]
 
     def _social_content(self, profiles, posts):
         PostLike.objects.get_or_create(post=posts[0], user=profiles["casual"])
         Comment.objects.get_or_create(post=posts[0], author=profiles["casual"], defaults={"body": "Count me in!"})
+        PostLike.objects.get_or_create(post=posts[1], user=profiles["player"])
+        Comment.objects.get_or_create(post=posts[1], author=profiles["seller"], defaults={"body": "Let us make it happen."})
 
     def _organization(self, owner, venue):
         organization, _ = Organization.objects.get_or_create(slug="ggz-demo-community", defaults={"owner": owner, "name": "GGz Demo Community", "organization_type": "Community", "description": "A seeded GGz organization.", "city": "Harare", "country": "Zimbabwe", "address": venue.address, "latitude": venue.latitude, "longitude": venue.longitude, "location_public": True, "verification_status": "Verified"})
         OrganizationLocation.objects.get_or_create(organization=organization, name="GGz Demo Arena", defaults={"location_type": "Gaming Hub", "address": venue.address, "city": "Harare", "country": "Zimbabwe", "latitude": venue.latitude, "longitude": venue.longitude, "public_visible": True, "verification_status": "VERIFIED"})
         return organization
 
+    def _second_organization(self, owner):
+        organization, _ = Organization.objects.get_or_create(slug="ggz-bulawayo-esports", defaults={"owner": owner, "name": "GGz Bulawayo Esports", "organization_type": "Organization", "description": "A second seeded esports organization.", "city": "Bulawayo", "country": "Zimbabwe", "verification_status": "Pending"})
+        OrganizationLocation.objects.get_or_create(organization=organization, name="Bulawayo Gaming Hub", defaults={"location_type": "Esports Arena", "city": "Bulawayo", "country": "Zimbabwe", "latitude": -20.15, "longitude": 28.58, "public_visible": True, "verification_status": "UNVERIFIED"})
+        return organization
+
     def _tournament(self, organizer, game, venue):
         tournament, _ = Tournament.objects.get_or_create(slug="ggz-demo-valorant-cup", defaults={"organizer": organizer, "game": game, "name": "GGz Demo Valorant Cup", "description": "A seeded tournament.", "format": "1v1", "max_participants": 8, "start_date": timezone.now() + timedelta(days=7), "registration_deadline": timezone.now() + timedelta(days=5), "location": venue.name, "city": "Harare", "country": "Zimbabwe", "venue": venue, "mode": "offline", "status": "Registration Open", "prize_description": "GGz demo trophy"})
         self._image(Tournament, tournament, "banner", "demo-tournament.png", "tournaments")
         return tournament
+
+    def _additional_tournaments(self, profiles, games, venue):
+        specs = (
+            ("ggz-demo-tekken-showdown", "GGz Demo Tekken Showdown", games["Tekken 8"], "Live"),
+            ("ggz-demo-fc-finals", "GGz Demo FC Finals", games["EA FC 25"], "Completed"),
+        )
+        for slug, name, game, status in specs:
+            tournament, _ = Tournament.objects.get_or_create(slug=slug, defaults={"organizer": profiles["organizer"], "game": game, "name": name, "description": "A populated GGz demo tournament.", "format": "1v1", "max_participants": 8, "start_date": timezone.now() + timedelta(days=3), "registration_deadline": timezone.now() + timedelta(days=1), "location": venue.name, "city": "Harare", "country": "Zimbabwe", "venue": venue, "mode": "offline", "status": status})
+            for profile in (profiles["organizer"], profiles["player"]):
+                TournamentRegistration.objects.get_or_create(tournament=tournament, player=profile, defaults={"status": "Registered"})
 
     def _bracket(self, tournament, game, profiles):
         if TournamentMatch.objects.filter(tournament=tournament).exists():
