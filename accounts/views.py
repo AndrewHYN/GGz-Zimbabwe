@@ -1229,9 +1229,11 @@ def conversation_detail(request, conversation_id):
 		body = request.POST.get("body", "").strip()
 		other = conversation.participants.exclude(id=profile.id).first()
 		if body and other and _can_message(profile, other):
-			Message.objects.create(conversation=conversation, sender=profile, body=body)
+			message = Message.objects.create(conversation=conversation, sender=profile, body=body)
 			conversation.save(update_fields=("updated_at",))
 			_notify(other, profile, "message", f"{profile.gamer_tag} sent you a message", f"/messages/{conversation.id}/")
+			if request.headers.get("x-requested-with") == "XMLHttpRequest":
+				return JsonResponse({"ok": True, "message": {"body": message.body, "time": timezone.localtime(message.created_at).strftime("%H:%M")}})
 		return redirect("conversation_detail", conversation_id=conversation.id)
 	ConversationParticipant.objects.filter(conversation=conversation, profile=profile).update(last_read_at=timezone.now())
 	messages_qs = conversation.messages.filter(created_at__gt=participant.cleared_at) if participant.cleared_at else conversation.messages.all()

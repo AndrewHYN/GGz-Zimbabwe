@@ -31,7 +31,7 @@ Route reachability is not treated as proof that an authenticated workflow works.
 | Marketplace | Yes | `/marketplace/` returned 200 | PARTIALLY WORKING | No | No | Partial | Listing ownership, detail, forms, and multiple-image request handling exist. |
 | Marketplace media | Yes | Public existing object | BROKEN — BLOCKED | Existing validation | No | No | Existing Supabase listing image URL returned 200; new upload and persistence require production credentials. |
 | Contact seller | Yes | No | DEMO/MVP | No | No | No | Messaging models exist; live seller-contact workflow needs verification. |
-| Messaging | Yes | `/messages/` returned 200 | PARTIALLY WORKING | No | No | No | Conversations, requests, participants, and messages exist; no fetch send path found. |
+| Messaging | Yes | `/messages/` returned 200 | PARTIALLY WORKING | AJAX send added | Yes | Yes | Authorized message sends now return JSON and update the conversation without a reload, with loading/success/error states; authenticated live send/receive remains unverified. |
 | Notifications | Yes | No | PARTIALLY WORKING | No | No | Partial | Notification list and event creation foundations exist; read/unread live flow unverified. |
 | Leaderboards, reputation, ranks | Yes | No | DEMO/MVP | No | Partial | No | Leaderboard and profile rank/reputation foundations exist. |
 | Search | Yes | No | PARTIALLY WORKING | No | No | No | Global search template/route exists; entity coverage and pagination need verification. |
@@ -78,7 +78,7 @@ development intentionally remains on filesystem storage when those variables are
 | `python manage.py check` | PASS |
 | `python manage.py check --deploy` | PASS with `security.W004`, `security.W008`, `security.W009` warnings |
 | `python manage.py makemigrations --check --dry-run` | PASS, no changes |
-| `python manage.py test` | PASS, 134 tests |
+| `python manage.py test` | PASS, 135 tests |
 | `git diff --check` | PASS |
 | Canonical public route smoke test | PASS, all listed routes returned HTTP 200 |
 | Representative public Supabase media URLs | PASS, avatar JPEG, post PNG, and listing object returned HTTP 200 |

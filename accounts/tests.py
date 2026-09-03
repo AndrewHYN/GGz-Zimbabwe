@@ -838,6 +838,26 @@ class NotificationAndMessagingTests(TestCase):
 		self.assertContains(self.client.get(reverse("conversation_detail", args=(conversation.id,))), "No messages yet")
 		self.assertTrue(Message.objects.exists())
 
+	def test_ajax_message_returns_message_payload(self):
+		conversation = Conversation.objects.create()
+		ConversationParticipant.objects.bulk_create([
+			ConversationParticipant(conversation=conversation, profile=self.sender),
+			ConversationParticipant(conversation=conversation, profile=self.recipient),
+		])
+		first, second = sorted((self.sender.id, self.recipient.id))
+		Friendship.objects.create(profile_one_id=first, profile_two_id=second)
+		self.client.login(username="sender", password="pass")
+
+		response = self.client.post(
+			reverse("conversation_detail", args=(conversation.id,)),
+			{"body": "Hello asynchronously"},
+			HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+		)
+
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.json()["message"]["body"], "Hello asynchronously")
+		self.assertTrue(Message.objects.filter(body="Hello asynchronously").exists())
+
 	def test_message_requests_and_privacy_rules(self):
 		self.client.login(username="sender", password="pass")
 		start_url = reverse("conversation_start", args=(self.recipient.gamer_tag,))

@@ -145,6 +145,47 @@
     });
   });
 
+  document.querySelectorAll('[data-message-form]').forEach((form) => {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const button = form.querySelector('button[type="submit"]');
+      const textarea = form.querySelector('textarea[name="body"]');
+      const status = form.querySelector('[data-message-status]');
+      const messageList = document.getElementById('message-list');
+      const originalLabel = button.textContent;
+      button.disabled = true;
+      button.textContent = 'Sending...';
+      status.textContent = '';
+      try {
+        const response = await fetch(window.location.href, {
+          method: 'POST',
+          body: new FormData(form),
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error('Request failed');
+        const emptyState = messageList.querySelector('.empty-state');
+        if (emptyState) emptyState.remove();
+        const message = document.createElement('article');
+        message.className = 'message message-own';
+        const body = document.createElement('p');
+        body.textContent = result.message.body;
+        const time = document.createElement('small');
+        time.textContent = result.message.time;
+        message.append(body, time);
+        messageList.append(message);
+        messageList.scrollTop = messageList.scrollHeight;
+        textarea.value = '';
+        status.textContent = 'Sent';
+      } catch (error) {
+        status.textContent = 'Could not send the message. Try again.';
+      } finally {
+        button.disabled = false;
+        button.textContent = originalLabel;
+      }
+    });
+  });
+
   const mapContainer = document.getElementById('ggz-map');
   if (mapContainer) {
     function getMapAuthFailureMessage() {
