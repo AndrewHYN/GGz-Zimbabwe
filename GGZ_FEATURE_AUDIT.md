@@ -5,8 +5,9 @@ Audit date: 2026-09-03
 ## Scope and evidence
 
 The canonical production host was smoke-tested with non-mutating `GET` requests. The
-Codespace has no `DATABASE_URL` or production credentials, so local checks use the
-preserved SQLite database and no live user, upload, or production record was changed.
+Codespace has no `DATABASE_URL` or production credentials. No live user, upload, or
+production record was changed. The local ignored SQLite workshop file was written by
+manual `seed_demo` validation; production database safety is unaffected.
 Route reachability is not treated as proof that an authenticated workflow works.
 
 ## Authenticated action matrix
@@ -135,7 +136,7 @@ verification.
 | `python manage.py check` | PASS |
 | `python manage.py check --deploy` | PASS with `security.W004`, `security.W008`, `security.W009` warnings |
 | `python manage.py makemigrations --check --dry-run` | PASS, no changes |
-| `python manage.py test` | PASS, 141 tests |
+| `python manage.py test` | PASS, 142 tests |
 | `git diff --check` | PASS |
 | Canonical public route smoke test | PASS, all listed routes returned HTTP 200 |
 | Representative public Supabase media URLs | PASS, avatar JPEG, post PNG, and listing object returned HTTP 200 |
@@ -154,7 +155,7 @@ verification.
 ## Data safety
 
 Neon reset: NO  
-SQLite modified: NO  
+SQLite modified: YES, local workshop file only during seed validation
 SQLite migration rerun: NO  
 Production data intentionally deleted: NO
 
