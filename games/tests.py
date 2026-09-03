@@ -7,6 +7,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import GamerProfile, Notification, Post
+from accounts.forms import GamerProfileForm
 from django.contrib.auth.models import User
 from tournaments.models import Challenge, Tournament, TournamentMatch
 from events.models import Event
@@ -28,6 +29,43 @@ class GameHubTests(TestCase):
 			response.content.index(b"Apex Legends"),
 			response.content.index(b"Valorant"),
 		)
+
+	def test_game_list_adds_multiple_games_to_authenticated_profile(self):
+		user = User.objects.create_user(username="collector", password="pass-12345")
+		profile = GamerProfile.objects.create(user=user, gamer_tag="CollectorZW")
+		first = Game.objects.create(name="Valorant")
+		second = Game.objects.create(name="Tekken 8")
+
+		self.client.login(username="collector", password="pass-12345")
+		for game in (first, second, first):
+			response = self.client.post(
+				reverse("profile_game_add", args=[profile.gamer_tag]),
+				{"game_id": game.id, "next": "/games/"},
+			)
+			self.assertRedirects(response, "/games/")
+
+		self.assertQuerySetEqual(
+			profile.games.order_by("name"),
+			["Tekken 8", "Valorant"],
+			transform=str,
+		)
+
+	def test_profile_edit_form_does_not_manage_games(self):
+		self.assertNotIn("games", GamerProfileForm().fields)
+
+	def test_game_list_add_action_requires_profile_owner(self):
+		owner = GamerProfile.objects.create(
+			user=User.objects.create_user(username="gameowner", password="pass-12345"),
+			gamer_tag="GameOwnerZW",
+		)
+		User.objects.create_user(username="collector-other", password="pass-12345")
+		game = Game.objects.create(name="Street Fighter 6")
+		self.client.login(username="collector-other", password="pass-12345")
+		response = self.client.post(
+			reverse("profile_game_add", args=[owner.gamer_tag]),
+			{"game_id": game.id, "next": "/games/"},
+		)
+		self.assertEqual(response.status_code, 403)
 
 	def test_game_detail_displays_metadata(self):
 		game = Game.objects.create(

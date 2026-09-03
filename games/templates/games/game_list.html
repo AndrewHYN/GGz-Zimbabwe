@@ -48,33 +48,12 @@
     </form>
 
     {% if featured_games %}
-        {% with featured_game=featured_games.0 %}
-        <section class="store-feature" aria-label="Featured game">
-            <div class="feature-visual">
-                {% if featured_game.cover_art_url %}
-                    <img src="{{ featured_game.cover_art_url }}" alt="{{ featured_game.name }} cover art">
-                {% else %}
-                    <div class="feature-fallback">GGz</div>
-                {% endif %}
-            </div>
-            <div class="feature-copy">
-                <p class="eyebrow">Featured</p>
-                <h2>{{ featured_game.name }}</h2>
-                <p class="feature-summary">{{ featured_game.description|default:"A strong community favorite on GGz."|truncatewords:28 }}</p>
-                <div class="meta-row">
-                    {% if featured_game.genre %}<span>{{ featured_game.genre }}</span>{% endif %}
-                    {% if featured_game.developer %}<span>{{ featured_game.developer }}</span>{% endif %}
-                    {% if featured_game.release_year %}<span>{{ featured_game.release_year }}</span>{% endif %}
-                    {% if featured_game.free_to_play %}<span>Free to play</span>{% else %}<span>Paid</span>{% endif %}
-                </div>
-                <div class="actions">
-                    <a class="button button-primary" href="{% url 'game_detail' featured_game.id %}">{% if featured_game.free_to_play %}Play Free{% else %}Get Game{% endif %}</a>
-                    <a class="button button-secondary" href="{% url 'gamer_discovery' %}?game={{ featured_game.id }}">Find players for {{ featured_game.name }}</a>
-                    {% if featured_game.store_url %}<a class="button button-ghost" href="{{ featured_game.store_url }}" target="_blank" rel="noopener noreferrer">Store</a>{% endif %}
-                </div>
-            </div>
-        </section>
-        {% endwith %}
+    <section class="store-section" aria-label="Featured games">
+        <div class="section-header"><div><p class="eyebrow">Featured</p><h2>GGz picks</h2></div></div>
+        <div class="game-card-grid">
+            {% for game in featured_games %}{% include "games/_game_card.html" with game=game viewer_profile=viewer_profile %}{% endfor %}
+        </div>
+    </section>
     {% endif %}
 
     <section class="store-section">
@@ -87,29 +66,7 @@
         </div>
         <div class="game-card-grid">
             {% for game in popular_games %}
-                <article class="store-game-card">
-                    <a href="{% url 'game_detail' game.id %}" class="cover-link">
-                        {% if game.cover_art_url %}<img src="{{ game.cover_art_url }}" alt="{{ game.name }} cover art">{% else %}<div class="cover-fallback">GGz</div>{% endif %}
-                    </a>
-                    <div class="store-card-body">
-                        <div class="card-topline">
-                            <span class="tag">{{ game.genre|default:"Game" }}</span>
-                            <span class="pill">{% if game.free_to_play %}Free{% else %}{{ game.display_price }}{% endif %}</span>
-                        </div>
-                        <h3><a href="{% url 'game_detail' game.id %}">{{ game.name }}</a></h3>
-                        <p class="muted game-card-meta">
-                            {% if game.developer %}<span>{{ game.developer }}</span>{% endif %}
-                            {% if game.developer and game.release_year %}<span class="meta-separator">·</span>{% endif %}
-                            {% if game.release_year %}<span>{{ game.release_year }}</span>{% endif %}
-                            {% if game.release_year or game.developer %}<span class="meta-separator">·</span>{% endif %}
-                            <span>{% if game.free_to_play %}Free{% else %}Paid{% endif %}</span>
-                        </p>
-                        <div class="card-actions">
-                            <a class="button button-secondary" href="{% url 'game_detail' game.id %}">{% if game.free_to_play %}Play Free{% else %}Get Game{% endif %}</a>
-                            <a class="button button-ghost" href="{% url 'gamer_discovery' %}?game={{ game.id }}">Players</a>
-                        </div>
-                    </div>
-                </article>
+                {% include "games/_game_card.html" with game=game viewer_profile=viewer_profile %}
             {% empty %}
                 <div class="empty-card">No popular games yet.</div>
             {% endfor %}
@@ -126,20 +83,7 @@
         </div>
         <div class="game-card-grid compact-grid">
             {% for game in free_games %}
-                <article class="store-game-card">
-                    <a href="{% url 'game_detail' game.id %}" class="cover-link">
-                        {% if game.cover_art_url %}<img src="{{ game.cover_art_url }}" alt="{{ game.name }} cover art">{% else %}<div class="cover-fallback">GGz</div>{% endif %}
-                    </a>
-                    <div class="store-card-body">
-                        <div class="card-topline">
-                            <span class="tag">{{ game.genre|default:"Free" }}</span>
-                            <span class="pill pill-free">FREE</span>
-                        </div>
-                        <h3><a href="{% url 'game_detail' game.id %}">{{ game.name }}</a></h3>
-                        <p class="muted">{{ game.developer|default:"GGz community" }}</p>
-                        <a class="button button-primary" href="{% url 'game_detail' game.id %}">Play Free</a>
-                    </div>
-                </article>
+                {% include "games/_game_card.html" with game=game viewer_profile=viewer_profile %}
             {% empty %}
                 <div class="empty-card">No free-to-play games yet.</div>
             {% endfor %}
@@ -171,18 +115,7 @@
             </div>
         </div>
         <div class="game-card-grid compact-grid">
-            {% for game in new_games %}
-                <article class="store-game-card">
-                    <a href="{% url 'game_detail' game.id %}" class="cover-link">
-                        {% if game.cover_art_url %}<img src="{{ game.cover_art_url }}" alt="{{ game.name }} cover art">{% else %}<div class="cover-fallback">GGz</div>{% endif %}
-                    </a>
-                    <div class="store-card-body">
-                        <div class="card-topline"><span class="tag">{{ game.genre|default:"New" }}</span><span class="pill">{{ game.release_year|default:"New" }}</span></div>
-                        <h3><a href="{% url 'game_detail' game.id %}">{{ game.name }}</a></h3>
-                        <p class="muted">{{ game.developer|default:"GGz community" }}</p>
-                    </div>
-                </article>
-            {% endfor %}
+            {% for game in new_games %}{% include "games/_game_card.html" with game=game viewer_profile=viewer_profile %}{% endfor %}
         </div>
     </section>
     {% endif %}
@@ -196,18 +129,7 @@
             </div>
         </div>
         <div class="game-card-grid compact-grid">
-            {% for game in local_games %}
-                <article class="store-game-card">
-                    <a href="{% url 'game_detail' game.id %}" class="cover-link">
-                        {% if game.cover_art_url %}<img src="{{ game.cover_art_url }}" alt="{{ game.name }} cover art">{% else %}<div class="cover-fallback">GGz</div>{% endif %}
-                    </a>
-                    <div class="store-card-body">
-                        <div class="card-topline"><span class="tag">Local</span><span class="pill">Community</span></div>
-                        <h3><a href="{% url 'game_detail' game.id %}">{{ game.name }}</a></h3>
-                        <p class="muted">{{ game.developer|default:"Independent" }}</p>
-                    </div>
-                </article>
-            {% endfor %}
+            {% for game in local_games %}{% include "games/_game_card.html" with game=game viewer_profile=viewer_profile %}{% endfor %}
         </div>
     </section>
     {% endif %}
@@ -221,18 +143,7 @@
             </div>
         </div>
         <div class="game-card-grid compact-grid">
-            {% for game in sponsored_games %}
-                <article class="store-game-card">
-                    <a href="{% url 'game_detail' game.id %}" class="cover-link">
-                        {% if game.cover_art_url %}<img src="{{ game.cover_art_url }}" alt="{{ game.name }} cover art">{% else %}<div class="cover-fallback">GGz</div>{% endif %}
-                    </a>
-                    <div class="store-card-body">
-                        <div class="card-topline"><span class="tag">Sponsored</span><span class="pill">Featured</span></div>
-                        <h3><a href="{% url 'game_detail' game.id %}">{{ game.name }}</a></h3>
-                        <p class="muted">{{ game.developer|default:"Creator community" }}</p>
-                    </div>
-                </article>
-            {% endfor %}
+            {% for game in sponsored_games %}{% include "games/_game_card.html" with game=game viewer_profile=viewer_profile %}{% endfor %}
         </div>
     </section>
     {% endif %}
@@ -246,19 +157,7 @@
         </div>
         <div class="game-card-grid">
             {% for game in games|slice:":12" %}
-                <article class="store-game-card">
-                    <a href="{% url 'game_detail' game.id %}" class="cover-link">
-                        {% if game.cover_art_url %}<img src="{{ game.cover_art_url }}" alt="{{ game.name }} cover art">{% else %}<div class="cover-fallback">GGz</div>{% endif %}
-                    </a>
-                    <div class="store-card-body">
-                        <div class="card-topline">
-                            <span class="tag">{{ game.genre|default:"Game" }}</span>
-                            <span class="pill">{% if game.free_to_play %}Free{% else %}{{ game.display_price }}{% endif %}</span>
-                        </div>
-                        <h3><a href="{% url 'game_detail' game.id %}">{{ game.name }}</a></h3>
-                        <p class="muted">{{ game.developer|default:"GGz community" }}</p>
-                    </div>
-                </article>
+                {% include "games/_game_card.html" with game=game viewer_profile=viewer_profile %}
             {% empty %}
                 <div class="empty-card">No games match that search yet.</div>
             {% endfor %}

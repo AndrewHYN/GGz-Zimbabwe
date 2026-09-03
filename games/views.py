@@ -51,6 +51,7 @@ def _game_queryset():
 
 
 def game_list(request):
+	viewer = getattr(request.user, "gamer_profile", None)
 	q = request.GET.get("q", "").strip()
 	genre = request.GET.get("genre", "").strip()
 	platform = request.GET.get("platform", "").strip()
@@ -103,6 +104,7 @@ def game_list(request):
 			"selected_sort": sort,
 			"free_only": free_only,
 			"featured_only": featured_only,
+			"viewer_profile": viewer,
 		},
 	)
 

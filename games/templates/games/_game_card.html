@@ -1,0 +1,30 @@
+<article class="store-game-card">
+    <a href="{% url 'game_detail' game.id %}" class="cover-link">
+        {% if game.cover_art_url %}<img src="{{ game.cover_art_url }}" alt="{{ game.name }} cover art">{% else %}<div class="cover-fallback">GGz</div>{% endif %}
+    </a>
+    <div class="store-card-body">
+        <div class="card-topline">
+            <span class="tag">{{ game.genre|default:"Game" }}</span>
+            {% if game.free_to_play %}<span class="pill pill-free">Free</span>{% elif game.release_year %}<span class="pill">{{ game.release_year }}</span>{% endif %}
+        </div>
+        <h3><a href="{% url 'game_detail' game.id %}">{{ game.name }}</a></h3>
+        <p class="game-summary">{{ game.description|default:"A community-ready title to explore on GGz."|truncatewords:14 }}</p>
+        <p class="muted game-card-meta">
+            {% if game.developer %}<span>{{ game.developer }}</span>{% endif %}
+            {% if game.platform %}<span>{{ game.platform }}</span>{% endif %}
+            {% if not game.developer and not game.platform %}<span>GGz community pick</span>{% endif %}
+        </p>
+        <div class="card-actions">
+            <a class="button button-secondary compact-button" href="{% url 'game_detail' game.id %}">View game</a>
+            {% if game.store_url %}<a class="button button-ghost compact-button" href="{{ game.store_url }}" target="_blank" rel="noopener noreferrer">Store</a>{% endif %}
+            {% if viewer_profile %}
+                <form method="post" action="{% url 'profile_game_add' viewer_profile.gamer_tag %}" class="inline-action">
+                    {% csrf_token %}
+                    <input type="hidden" name="game_id" value="{{ game.id }}">
+                    <input type="hidden" name="next" value="/games/">
+                    <button class="button button-ghost compact-button" type="submit">Add game</button>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+</article>

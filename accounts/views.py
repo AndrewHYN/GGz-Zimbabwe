@@ -1399,6 +1399,9 @@ def profile_game_add(request, gamer_tag):
 	game = get_object_or_404(Game, id=game_id)
 	profile.games.add(game)
 	messages.success(request, f"Added {game.name} to your profile.")
+	next_url = request.POST.get("next")
+	if next_url and next_url.startswith("/games/"):
+		return redirect(next_url)
 	return redirect("profile_detail", gamer_tag=profile.gamer_tag)
 
 

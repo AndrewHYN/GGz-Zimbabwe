@@ -24,7 +24,6 @@ class GamerProfileForm(forms.ModelForm):
             "platform",
             "rank",
             "availability",
-            "games",
             "youtube",
             "social_link",
             "discord_username",
