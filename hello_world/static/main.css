@@ -1335,6 +1335,45 @@ a:hover { color: #a5b4fc; }
     font-weight: 800;
 }
 
+.stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin: 1.25rem 0;
+}
+
+.stats .stat {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: rgba(17, 22, 28, 0.72);
+}
+
+.respect-stat {
+    align-items: flex-start;
+    gap: 0.35rem;
+}
+
+.respect-value {
+    font-size: 1.8rem;
+    line-height: 1;
+}
+
+.respect-badge {
+    align-self: flex-start;
+    margin-top: 0.15rem;
+}
+
+@media (max-width: 560px) {
+    .stats {
+        grid-template-columns: 1fr;
+    }
+}
+
 .nav-profile {
     position: relative;
 }
@@ -1428,6 +1467,18 @@ a:hover { color: #a5b4fc; }
     cursor: pointer;
     text-decoration: none;
     transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.messages-nav-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.messages-nav-link .nav-badge {
+    position: static;
+    flex: 0 0 auto;
 }
 
 .nav-profile-link:hover,

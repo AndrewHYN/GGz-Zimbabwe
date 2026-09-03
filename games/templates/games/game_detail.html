@@ -260,7 +260,7 @@
                             <span>Opponent</span>
                             <select name="opponent">
                                 <option value="">Choose a player</option>
-                                {% for player in game.players.all %}
+                                {% for player in eligible_challenge_players %}
                                     {% if player != viewer %}
                                         <option value="{{ player.id }}">{{ player.gamer_tag }}</option>
                                     {% endif %}

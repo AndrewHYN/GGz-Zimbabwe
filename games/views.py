@@ -122,6 +122,9 @@ def game_detail(request, game_id):
 	blocked_ids = {value for pair in Block.objects.filter(Q(blocker=viewer) | Q(blocked=viewer)).values_list("blocker_id", "blocked_id") for value in pair} if viewer else set()
 	leaderboard = _compute_game_stats(game)[:10]
 	available_players = game.players.select_related("user").order_by("gamer_tag")[:8]
+	eligible_challenge_players = GamerProfile.objects.filter(
+		Q(games=game) | Q(team_memberships__team__game=game)
+	).exclude(id=viewer.id if viewer else None).select_related("user").distinct().order_by("gamer_tag") if viewer else []
 	community_posts = game.posts.exclude(author_id__in=blocked_ids)[:5]
 	game_news = ExternalFeedItem.objects.filter(game=game, is_active=True).order_by("-published_at")[:4]
 	upcoming_tournaments = Tournament.objects.filter(game=game, status__in=("Registration Open", "Registration Closed", "Live")).select_related("organizer")[:4]
@@ -149,6 +152,7 @@ def game_detail(request, game_id):
 			"leaderboard": leaderboard,
 			"viewer": viewer,
 			"challenge_form": challenge_form,
+			"eligible_challenge_players": eligible_challenge_players,
 			"store_label": game.store_label,
 			"trailer_embed_url": game.trailer_embed_url,
 			"store_links": game.acquisition_links,
@@ -196,7 +200,10 @@ def game_challenge_create(request, game_id):
 	if not opponent_id:
 		messages.error(request, "Choose a friend to challenge.")
 		return redirect("game_detail", game_id=game.id)
-	opponent = get_object_or_404(GamerProfile, id=opponent_id, games=game)
+	opponent = get_object_or_404(
+		GamerProfile.objects.filter(Q(games=game) | Q(team_memberships__team__game=game)).distinct(),
+		id=opponent_id,
+	)
 	if opponent == profile:
 		messages.error(request, "You cannot challenge yourself.")
 		return redirect("game_detail", game_id=game.id)

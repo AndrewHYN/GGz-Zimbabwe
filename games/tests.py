@@ -10,6 +10,7 @@ from accounts.models import GamerProfile, Notification, Post
 from django.contrib.auth.models import User
 from tournaments.models import Challenge, Tournament, TournamentMatch
 from events.models import Event
+from teams.models import Team, TeamMembership
 
 from .models import Game, GameReview, GameWishlist
 
@@ -462,6 +463,21 @@ class GameHubTests(TestCase):
 		self.assertEqual(response.status_code, 404)
 		self.assertFalse(Challenge.objects.exists())
 		self.assertEqual(self.client.session.get("_auth_user_id"), str(player_user.id))
+
+	def test_game_challenge_supports_a_teammate_for_the_game(self):
+		game = Game.objects.create(name="Apex Legends", genre="Shooter")
+		player_user = User.objects.create_user(username="captain", password="pass")
+		player = GamerProfile.objects.create(user=player_user, gamer_tag="CaptainZW")
+		opponent = GamerProfile.objects.create(user=User.objects.create_user(username="teammate"), gamer_tag="TeammateZW")
+		team = Team.objects.create(owner=player, game=game, name="Apex Squad", tag="APX", slug="apex-squad")
+		TeamMembership.objects.create(team=team, player=player, role="Captain")
+		TeamMembership.objects.create(team=team, player=opponent, role="Member")
+		self.client.force_login(player_user)
+
+		response = self.client.post(reverse("game_challenge_create", args=[game.id]), {"opponent": opponent.id})
+
+		self.assertEqual(response.status_code, 302)
+		self.assertTrue(Challenge.objects.filter(challenger=player, opponent=opponent, game=game).exists())
 
 	def test_game_detail_surfaces_related_tournaments_and_events(self):
 		organizer_user = User.objects.create_user(username="organizer3", password="pass")
