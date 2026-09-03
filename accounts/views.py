@@ -12,6 +12,7 @@ from django.core.paginator import Paginator
 from django.db.models import F, Q
 from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from botocore.exceptions import BotoCoreError, ClientError
@@ -1086,10 +1087,22 @@ def post_create(request):
 			post.save()
 		except (BotoCoreError, ClientError, OSError) as exception:
 			_media_storage_error(form, exception)
+			if request.headers.get("x-requested-with") == "XMLHttpRequest":
+				return JsonResponse({"ok": False, "error": "The image could not be uploaded. Please try again."})
 			return render(request, "accounts/feed.html", {"post_form": form})
 		_notify(post.author, get_object_or_404(GamerProfile, user=request.user), "post", f"{post.author.gamer_tag} published a post", f"/feed/posts/{post.id}/")
 		messages.success(request, "Your post is live in the community feed.")
-	return redirect("feed")
+		if request.headers.get("x-requested-with") == "XMLHttpRequest":
+			post_html = render_to_string(
+				"accounts/post_card.html",
+				{"post": post, "request": request, "liked_post_ids": set(), "saved_post_ids": set()},
+				request=request,
+			)
+			return JsonResponse({"ok": True, "message": "Your post is live in the community feed.", "post_html": post_html})
+		return redirect("feed")
+	if request.headers.get("x-requested-with") == "XMLHttpRequest":
+		return JsonResponse({"ok": False, "error": form.errors.as_json()})
+	return render(request, "accounts/feed.html", {"post_form": form})
 
 
 @login_required
@@ -1125,11 +1138,18 @@ def post_detail(request, post_id):
 			comment.post = post
 			comment.author = get_object_or_404(GamerProfile, user=request.user)
 			if Block.objects.filter(Q(blocker=comment.author, blocked=post.author) | Q(blocker=post.author, blocked=comment.author)).exists():
+				if request.headers.get("x-requested-with") == "XMLHttpRequest":
+					return JsonResponse({"ok": False, "error": "You cannot comment on this post right now."})
 				return redirect("post_detail", post_id=post.id)
 			comment.save()
 			if comment.post.author != comment.author:
 				_notify(comment.post.author, comment.author, "comment", f"{comment.author.gamer_tag} commented on your post", f"/feed/posts/{comment.post.id}/")
+			if request.headers.get("x-requested-with") == "XMLHttpRequest":
+				comment_html = render_to_string("accounts/comment_item.html", {"comment": comment, "request": request}, request=request)
+				return JsonResponse({"ok": True, "comment_html": comment_html, "comment_count": post.comments.count()})
 			return redirect("post_detail", post_id=post.id)
+		if request.headers.get("x-requested-with") == "XMLHttpRequest":
+			return JsonResponse({"ok": False, "error": form.errors.as_json()})
 	viewer = getattr(request.user, "gamer_profile", None)
 	liked_post_ids = {post.id} if viewer and PostLike.objects.filter(post=post, user=viewer).exists() else set()
 	saved_post_ids = {post.id} if viewer and PostSave.objects.filter(post=post, user=viewer).exists() else set()

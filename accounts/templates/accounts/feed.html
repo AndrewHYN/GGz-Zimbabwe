@@ -41,9 +41,11 @@
                         <p class="eyebrow">For You</p>
                         <h2>Fresh public gaming updates</h2>
                     </div>
-                    <form method="post" action="{% url 'feed_refresh' %}">
+                    <form method="post" action="{% url 'feed_refresh' %}" class="feed-refresh-form">
                         {% csrf_token %}
-                        <button class="button button-secondary" type="submit">Refresh</button>
+                        <button class="feed-refresh-button" type="submit" aria-label="Refresh For You feed" title="Refresh For You feed">
+                            <span aria-hidden="true">↻</span>
+                        </button>
                     </form>
                 </div>
                 {% if discovery_items %}
@@ -71,14 +73,20 @@
                 <div class="composer-header">
                     <span class="eyebrow">Share your next play</span>
                 </div>
-                <form method="post" action="{% url 'post_create' %}" enctype="multipart/form-data" class="composer-form">
+                <form method="post" action="{% url 'post_create' %}" enctype="multipart/form-data" class="composer-form" data-composer-form>
                     {% csrf_token %}
                     <input type="hidden" name="next" value="/feed/">
                     <label class="sr-only" for="id_body">What\'s happening in gaming?</label>
                     {{ post_form.body }}
                     <div class="composer-meta">
                         {{ post_form.game }}
-                        {{ post_form.image }}
+                        <div class="media-upload-control">
+                            {{ post_form.image }}
+                            <label for="id_image" class="media-upload-button" aria-label="Add media to your post">
+                                <span aria-hidden="true">＋</span>
+                                <span>Add media</span>
+                            </label>
+                        </div>
                         <button class="button button-primary" type="submit">Post</button>
                     </div>
                 </form>

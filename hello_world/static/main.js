@@ -134,7 +134,7 @@
     return result;
   }
 
-  document.querySelectorAll('form[action*="/like/"]').forEach((form) => {
+  document.querySelectorAll('[data-post-like-form]').forEach((form) => {
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       const button = form.querySelector('button');
@@ -145,7 +145,7 @@
         const result = await readJsonResponse(response);
         button.classList.toggle('is-liked', result.liked);
         button.setAttribute('aria-pressed', String(result.liked));
-        button.innerHTML = `<span aria-hidden="true">${result.liked ? '&#9829;' : '&#9825;'}</span> ${result.count} ${result.count === 1 ? 'Like' : 'Likes'}`;
+        button.innerHTML = `<span aria-hidden="true">${result.liked ? '♥' : '♡'}</span><span class="action-label">${result.count} ${result.count === 1 ? 'Like' : 'Likes'}</span>`;
       } catch (error) {
         button.innerHTML = original;
         const notice = document.createElement('small');
@@ -155,6 +155,155 @@
         window.setTimeout(() => notice.remove(), 2500);
       } finally {
         button.disabled = false;
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-post-save-form]').forEach((form) => {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const button = form.querySelector('button');
+      const original = button.innerHTML;
+      button.disabled = true;
+      try {
+        const response = await fetch(form.action, { method: 'POST', body: new FormData(form), credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        const result = await readJsonResponse(response);
+        const saved = Boolean(result.saved);
+        button.classList.toggle('is-saved', saved);
+        button.setAttribute('aria-pressed', String(saved));
+        button.innerHTML = `<span aria-hidden="true">${saved ? '🔖' : '📑'}</span><span class="action-label">${saved ? 'Saved' : 'Save'}</span>`;
+      } catch (error) {
+        button.innerHTML = original;
+        const notice = document.createElement('small');
+        notice.className = 'async-error';
+        notice.textContent = error.message || 'Could not update that action.';
+        form.append(notice);
+        window.setTimeout(() => notice.remove(), 2500);
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-composer-form]').forEach((form) => {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const submitButton = form.querySelector('button[type="submit"]');
+      const originalLabel = submitButton.textContent;
+      submitButton.disabled = true;
+      submitButton.textContent = 'Posting...';
+      try {
+        const response = await fetch(form.action, { method: 'POST', body: new FormData(form), credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        const result = await readJsonResponse(response);
+        if (result.ok && result.post_html) {
+          const list = document.querySelector('.post-list');
+          if (list) {
+            const firstEmpty = list.querySelector('.empty-state');
+            if (firstEmpty) firstEmpty.remove();
+            list.insertAdjacentHTML('afterend', result.post_html);
+          }
+          form.reset();
+          const hiddenFile = form.querySelector('input[type="file"]');
+          if (hiddenFile) hiddenFile.value = '';
+          const label = form.querySelector('.media-upload-button span:last-child');
+          if (label) label.textContent = 'Add media';
+        }
+      } catch (error) {
+        const notice = document.createElement('small');
+        notice.className = 'async-error';
+        notice.textContent = error.message || 'Could not create the post.';
+        form.append(notice);
+        window.setTimeout(() => notice.remove(), 2500);
+      } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = originalLabel;
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-comment-form]').forEach((form) => {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const input = form.querySelector('textarea, input[name="body"]');
+      const button = form.querySelector('button[type="submit"]');
+      const status = form.querySelector('[data-comment-status]');
+      const list = document.querySelector('[data-comment-list]');
+      if (!input || !list) return;
+      const value = input.value.trim();
+      if (!value) {
+        status.textContent = 'Write a comment first.';
+        return;
+      }
+      button.disabled = true;
+      button.textContent = 'Posting...';
+      status.textContent = 'Posting...';
+      try {
+        const response = await fetch(form.action || window.location.href, { method: 'POST', body: new FormData(form), credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        const result = await readJsonResponse(response);
+        if (result.ok && result.comment_html) {
+          const emptyState = list.querySelector('.empty-comment-state');
+          if (emptyState) emptyState.remove();
+          list.insertAdjacentHTML('beforeend', result.comment_html);
+          input.value = '';
+          status.textContent = 'Comment posted';
+        }
+      } catch (error) {
+        status.textContent = error.message || 'Could not post the comment.';
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Comment';
+      }
+    });
+  });
+
+  document.querySelectorAll('.post-menu-button').forEach((button) => {
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const panel = button.nextElementSibling;
+      if (!panel) return;
+      const isOpen = button.getAttribute('aria-expanded') === 'true';
+      document.querySelectorAll('.post-menu-button').forEach((item) => {
+        item.setAttribute('aria-expanded', 'false');
+        const sibling = item.nextElementSibling;
+        if (sibling) sibling.classList.remove('is-open');
+      });
+      button.setAttribute('aria-expanded', String(!isOpen));
+      panel.classList.toggle('is-open', !isOpen);
+    });
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('.post-menu-button') && !event.target.closest('.post-menu-panel')) {
+      document.querySelectorAll('.post-menu-button').forEach((button) => {
+        button.setAttribute('aria-expanded', 'false');
+        const panel = button.nextElementSibling;
+        if (panel) panel.classList.remove('is-open');
+      });
+    }
+  });
+
+  document.querySelectorAll('.copy-link-button').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const url = button.dataset.copyUrl;
+      try {
+        if (navigator.clipboard && url) {
+          await navigator.clipboard.writeText(url);
+          button.textContent = 'Link copied';
+          setTimeout(() => { button.textContent = 'Share link'; }, 1200);
+        } else {
+          window.open(url, '_blank', 'noopener,noreferrer');
+        }
+      } catch (error) {
+        window.open(url || window.location.href, '_blank', 'noopener,noreferrer');
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-composer-form] input[type="file"]').forEach((input) => {
+    input.addEventListener('change', () => {
+      const label = input.closest('.media-upload-control')?.querySelector('.media-upload-button span:last-child');
+      if (label) {
+        label.textContent = input.files && input.files.length ? input.files[0].name : 'Add media';
       }
     });
   });

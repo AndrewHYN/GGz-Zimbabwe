@@ -1,0 +1,7 @@
+<article class="comment-item">
+    <a class="comment-author" href="{% url 'profile_detail' comment.author.gamer_tag %}">
+        <strong>{{ comment.author.gamer_tag }}</strong>
+    </a>
+    <span class="muted">{{ comment.created_at|timesince }} ago</span>
+    <p>{{ comment.body|linebreaksbr }}</p>
+</article>
