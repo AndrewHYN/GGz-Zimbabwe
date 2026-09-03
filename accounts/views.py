@@ -47,8 +47,23 @@ from .services import refresh_public_gaming_feed
 logger = logging.getLogger(__name__)
 
 
-def _media_storage_error(form, field_name="image"):
-	logger.exception("Media storage failed while saving %s", field_name)
+def _media_storage_error(form, exception, field_name="image"):
+	if isinstance(exception, ClientError):
+		error = exception.response.get("Error", {})
+		metadata = exception.response.get("ResponseMetadata", {})
+		logger.exception(
+			"Media storage failed while saving %s: operation=%s error_code=%s error_message=%s "
+			"http_status=%s request_id=%s host_id=%s",
+			field_name,
+			getattr(exception, "operation_name", ""),
+			error.get("Code", ""),
+			error.get("Message", ""),
+			metadata.get("HTTPStatusCode", ""),
+			metadata.get("RequestId", ""),
+			metadata.get("HostId", ""),
+		)
+	else:
+		logger.exception("Media storage failed while saving %s", field_name)
 	form.add_error(field_name, "The image could not be uploaded. Please try again.")
 
 
@@ -1079,8 +1094,8 @@ def post_create(request):
 		post.author = get_object_or_404(GamerProfile, user=request.user)
 		try:
 			post.save()
-		except (BotoCoreError, ClientError, OSError):
-			_media_storage_error(form)
+		except (BotoCoreError, ClientError, OSError) as exception:
+			_media_storage_error(form, exception)
 			return render(request, "accounts/feed.html", {"post_form": form})
 		_notify(post.author, get_object_or_404(GamerProfile, user=request.user), "post", f"{post.author.gamer_tag} published a post", f"/feed/posts/{post.id}/")
 		messages.success(request, "Your post is live in the community feed.")
@@ -1094,8 +1109,8 @@ def post_edit(request, post_id):
 	if form.is_valid():
 		try:
 			form.save()
-		except (BotoCoreError, ClientError, OSError):
-			_media_storage_error(form)
+		except (BotoCoreError, ClientError, OSError) as exception:
+			_media_storage_error(form, exception)
 			return render(request, "accounts/post_edit.html", {"form": form, "post": post})
 		messages.success(request, "Your post was updated.")
 		return redirect("post_detail", post_id=post.id)
@@ -1322,8 +1337,8 @@ def profile_edit(request, gamer_tag):
 	if form.is_valid():
 		try:
 			updated_profile = form.save()
-		except (BotoCoreError, ClientError, OSError):
-			_media_storage_error(form, "avatar")
+		except (BotoCoreError, ClientError, OSError) as exception:
+			_media_storage_error(form, exception, "avatar")
 			return render(request, "accounts/profile_edit.html", {"form": form, "profile": profile})
 		return redirect("profile_detail", gamer_tag=updated_profile.gamer_tag)
 
