@@ -120,9 +120,6 @@
                         <h2>No posts here yet.</h2>
                         <p class="muted">Be the first player to share something with the community.</p>
                         {% endif %}
-                        {% if request.user.is_authenticated %}
-                        <a class="button button-primary" href="{% url 'discover' %}">Explore Discover</a>
-                        {% endif %}
                     </div>
                 {% endfor %}
             </section>

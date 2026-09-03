@@ -626,10 +626,6 @@ def geo_discovery(request):
 	return render(request, "accounts/map_page.html", context)
 
 
-def discover(request):
-	return render(request, "accounts/discover.html")
-
-
 def gamer_discovery(request):
 	profiles = GamerProfile.objects.select_related("user").prefetch_related("games")
 	query = request.GET.get("q", "").strip()
