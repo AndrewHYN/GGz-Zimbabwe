@@ -186,7 +186,11 @@ class Command(BaseCommand):
         second.save(update_fields=("next_match",))
 
     def _messages_and_notifications(self, profiles):
-        conversation, _ = Conversation.objects.get_or_create()
+        conversation = Conversation.objects.filter(
+            participants=profiles["organizer"],
+        ).filter(participants=profiles["player"]).first()
+        if conversation is None:
+            conversation = Conversation.objects.create()
         ConversationParticipant.objects.get_or_create(conversation=conversation, profile=profiles["organizer"])
         ConversationParticipant.objects.get_or_create(conversation=conversation, profile=profiles["player"])
         if not Message.objects.filter(conversation=conversation).exists():

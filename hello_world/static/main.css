@@ -4172,6 +4172,14 @@ a:hover { color: #a5b4fc; }
     gap: 1rem;
 }
 
+.home-rail .card-rail {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.home-rail .feature-card {
+    min-width: 0;
+}
+
 .feature-card,
 .game-card,
 .info-card,
@@ -4201,6 +4209,7 @@ a:hover { color: #a5b4fc; }
 .game-cover-fallback {
     display: block;
     width: 100%;
+    height: 160px;
     aspect-ratio: 16 / 10;
     object-fit: cover;
     background: linear-gradient(135deg, rgba(99, 102, 241, 0.8), rgba(139, 92, 246, 0.7));
@@ -4532,6 +4541,10 @@ a:hover { color: #a5b4fc; }
         align-items: flex-start;
         flex-direction: column;
     }
+
+    .home-rail .card-rail {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
 @media (max-width: 480px) {
@@ -4549,6 +4562,10 @@ a:hover { color: #a5b4fc; }
     .actions,
     .dashboard-header-actions {
         flex-direction: column;
+    }
+
+    .home-rail .card-rail {
+        grid-template-columns: 1fr;
     }
 }
 

@@ -45,6 +45,7 @@ class HealthAndConfigTests(TestCase):
 			"users": User.objects.filter(username__startswith="demo_").count(),
 			"games": Game.objects.filter(name__in=("Valorant", "Tekken 8", "EA FC 25", "Stardew Valley")).count(),
 			"posts": Post.objects.filter(body="Ready for the GGz demo tournament!").count(),
+			"conversations": Conversation.objects.count(),
 		}
 
 		call_command("seed_demo", verbosity=0)
@@ -53,6 +54,7 @@ class HealthAndConfigTests(TestCase):
 			"users": User.objects.filter(username__startswith="demo_").count(),
 			"games": Game.objects.filter(name__in=("Valorant", "Tekken 8", "EA FC 25", "Stardew Valley")).count(),
 			"posts": Post.objects.filter(body="Ready for the GGz demo tournament!").count(),
+			"conversations": Conversation.objects.count(),
 		})
 
 
