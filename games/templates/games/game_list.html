@@ -107,15 +107,21 @@
     {% endif %}
 
     {% if new_games %}
-    <section class="store-section">
+    <section class="store-section release-showcase" aria-labelledby="new-releases-title" data-release-carousel>
         <div class="section-header">
             <div>
                 <p class="eyebrow">New Releases</p>
-                <h2>Fresh drops</h2>
+                <h2 id="new-releases-title">Fresh drops</h2>
+            </div>
+            <div class="release-controls">
+                <button class="release-control" type="button" data-release-direction="prev" aria-label="Previous releases" title="Previous releases">←</button>
+                <button class="release-control" type="button" data-release-direction="next" aria-label="Next releases" title="Next releases">→</button>
             </div>
         </div>
-        <div class="game-card-grid compact-grid">
-            {% for game in new_games %}{% include "games/_game_card.html" with game=game viewer_profile=viewer_profile %}{% endfor %}
+        <div class="release-viewport">
+            <div class="release-track">
+                {% for game in new_games %}{% include "games/_release_card.html" with game=game %}{% endfor %}
+            </div>
         </div>
     </section>
     {% endif %}
@@ -155,9 +161,9 @@
                 <h2>All games</h2>
             </div>
         </div>
-        <div class="game-card-grid">
+        <div class="library-grid" data-library-grid>
             {% for game in games|slice:":12" %}
-                {% include "games/_game_card.html" with game=game viewer_profile=viewer_profile %}
+                {% include "games/_library_game_card.html" with game=game %}
             {% empty %}
                 <div class="empty-card">No games match that search yet.</div>
             {% endfor %}

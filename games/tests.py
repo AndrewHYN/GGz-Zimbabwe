@@ -30,6 +30,17 @@ class GameHubTests(TestCase):
 			response.content.index(b"Valorant"),
 		)
 
+	def test_game_list_renders_release_rail_and_dense_library(self):
+		for index in range(4):
+			Game.objects.create(name=f"Release {index}", release_year=2026 - index, description="A concise game description.")
+
+		response = self.client.get(reverse("game_list"))
+
+		self.assertContains(response, 'data-release-carousel')
+		self.assertEqual(response.content.count(b'class="release-card"'), 4)
+		self.assertContains(response, 'class="library-grid"')
+		self.assertContains(response, 'data-library-item')
+
 	def test_game_list_adds_multiple_games_to_authenticated_profile(self):
 		user = User.objects.create_user(username="collector", password="pass-12345")
 		profile = GamerProfile.objects.create(user=user, gamer_tag="CollectorZW")
