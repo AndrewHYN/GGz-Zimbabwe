@@ -872,6 +872,23 @@ class SocialPostTests(TestCase):
 		self.assertEqual(response.status_code, 200)
 		self.assertEqual(response.json(), {"ok": True, "liked": True, "count": 1})
 
+	def test_discover_hub_has_three_pillars_without_all_games_link(self):
+		response = self.client.get(reverse("discover"))
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "PLAY" )
+		self.assertContains(response, "COMPETE")
+		self.assertContains(response, "CONNECT")
+		self.assertContains(response, "Find Players")
+		self.assertContains(response, "Nearby Gaming")
+		self.assertContains(response, "Rankings")
+		self.assertNotContains(response, "All Games")
+
+	def test_download_without_media_redirects_to_post(self):
+		post = Post.objects.create(author=self.other_profile, body="No media here")
+		self.client.login(username="andrew", password="strong-password-123")
+		response = self.client.get(reverse("post_download", args=[post.id]))
+		self.assertRedirects(response, reverse("post_detail", args=[post.id]))
+
 	def test_authenticated_user_can_comment(self):
 		post = Post.objects.create(author=self.other_profile, body="Hello GGz")
 		self.client.login(username="andrew", password="strong-password-123")
@@ -1062,7 +1079,8 @@ class SearchAndRankTests(TestCase):
 		self.assertContains(response, 'aria-haspopup="true"')
 		self.assertContains(response, 'aria-expanded="false"')
 		self.assertContains(response, "Community feed")
-		self.assertContains(response, "Rankings")
+		self.assertContains(response, 'href="/discover/"')
+		self.assertNotContains(response, 'id="discover-panel"')
 
 	def test_search_categories_paginate_independently_and_preserve_query(self):
 		for index in range(11):

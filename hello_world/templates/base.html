@@ -24,15 +24,7 @@
             </button>
 
             <div class="nav-menu" id="nav-menu" aria-label="Primary navigation menu">
-                <div class="nav-dropdown">
-                    <button type="button" aria-expanded="false" aria-haspopup="true" aria-controls="discover-panel" class="nav-more">Discover</button>
-                    <div id="discover-panel" class="nav-dropdown-panel">
-                        <a href="{% url 'game_list' %}" class="nav-dropdown-link">All Games</a>
-                        <a href="{% url 'gamer_discovery' %}" class="nav-dropdown-link">Find Players</a>
-                        <a href="{% url 'geo_discovery' %}" class="nav-dropdown-link">Nearby Gaming</a>
-                        <a href="{% url 'leaderboard' %}" class="nav-dropdown-link">Rankings</a>
-                    </div>
-                </div>
+                <a href="{% url 'discover' %}" class="nav-link nav-discover-link">Discover</a>
 
                 <a href="{% url 'game_list' %}" class="nav-link">Games</a>
                 <a href="{% url 'organization_list' %}" class="nav-link">Organizations</a>
@@ -42,7 +34,6 @@
                     <button type="button" aria-expanded="false" aria-haspopup="true" aria-controls="community-panel" class="nav-more">Community</button>
                     <div id="community-panel" class="nav-dropdown-panel">
                         <a href="{% url 'feed' %}" class="nav-dropdown-link">Community feed</a>
-                        <a href="{% url 'gamer_discovery' %}" class="nav-dropdown-link">Players</a>
                         <a href="{% url 'team_list' %}" class="nav-dropdown-link">Teams</a>
                     </div>
                 </div>
@@ -128,7 +119,6 @@
                 <div>
                     <h3>Community</h3>
                     <a href="{% url 'feed' %}">Feed</a>
-                    <a href="{% url 'gamer_discovery' %}">Players</a>
                     <a href="{% url 'team_list' %}">Teams</a>
                 </div>
                 <div>

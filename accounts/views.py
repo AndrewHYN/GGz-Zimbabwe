@@ -10,7 +10,7 @@ from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import F, Q
-from django.http import HttpResponseForbidden, JsonResponse
+from django.http import FileResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
@@ -626,6 +626,10 @@ def geo_discovery(request):
 	return render(request, "accounts/map_page.html", context)
 
 
+def discover(request):
+	return render(request, "accounts/discover.html")
+
+
 def gamer_discovery(request):
 	profiles = GamerProfile.objects.select_related("user").prefetch_related("games")
 	query = request.GET.get("q", "").strip()
@@ -1187,6 +1191,21 @@ def post_save_toggle(request, post_id):
 	if request.headers.get("x-requested-with") == "XMLHttpRequest":
 		return JsonResponse({"ok": True, "saved": liked, "count": post.saved_by.count()})
 	return redirect(request.POST.get("next") or "feed")
+
+
+@login_required
+def post_download(request, post_id):
+	post = get_object_or_404(_visible_posts(getattr(request.user, "gamer_profile", None)), id=post_id)
+	if not post.image:
+		if request.headers.get("x-requested-with") == "XMLHttpRequest":
+			return JsonResponse({"ok": False, "error": "This post has no downloadable media."}, status=404)
+		return redirect("post_detail", post_id=post.id)
+	try:
+		return FileResponse(post.image.open("rb"), as_attachment=True, filename=post.image.name.rsplit("/", 1)[-1])
+	except (FileNotFoundError, OSError):
+		if request.headers.get("x-requested-with") == "XMLHttpRequest":
+			return JsonResponse({"ok": False, "error": "That media is temporarily unavailable."}, status=404)
+		return redirect("post_detail", post_id=post.id)
 
 
 @login_required

@@ -324,6 +324,41 @@
     });
   });
 
+  document.querySelectorAll('.feed-refresh-form').forEach((form) => {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const button = form.querySelector('button');
+      if (!button) return;
+      button.disabled = true;
+      button.classList.add('is-loading');
+      try {
+        const response = await fetch(form.action, {
+          method: 'POST',
+          body: new FormData(form),
+          credentials: 'same-origin',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        });
+        if (!response.ok) throw new Error('Could not refresh the feed.');
+        const refreshed = await fetch(window.location.href, { credentials: 'same-origin' });
+        if (!refreshed.ok) throw new Error('Could not load the refreshed feed.');
+        const html = await refreshed.text();
+        const nextDocument = new DOMParser().parseFromString(html, 'text/html');
+        const currentList = document.querySelector('.discovery-list');
+        const nextList = nextDocument.querySelector('.discovery-list');
+        if (currentList && nextList) currentList.replaceWith(nextList);
+      } catch (error) {
+        const notice = document.createElement('small');
+        notice.className = 'async-error';
+        notice.textContent = error.message || 'Could not refresh the feed.';
+        form.append(notice);
+        window.setTimeout(() => notice.remove(), 2500);
+      } finally {
+        button.disabled = false;
+        button.classList.remove('is-loading');
+      }
+    });
+  });
+
   document.querySelectorAll('[data-message-form]').forEach((form) => {
     form.addEventListener('submit', async (event) => {
       event.preventDefault();

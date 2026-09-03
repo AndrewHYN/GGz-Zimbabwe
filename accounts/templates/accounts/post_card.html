@@ -5,8 +5,8 @@
             <span><strong>{{ post.author.gamer_tag }}</strong><small>{{ post.created_at|timesince }} ago{% if post.game %} · {{ post.game.name }}{% endif %}</small></span>
         </a>
         <div class="post-menu-wrap">
-            <button class="post-menu-button" type="button" aria-label="More actions for this post" aria-expanded="false">
-                <span aria-hidden="true">⋯</span>
+            <button class="post-menu-button" type="button" aria-label="More actions for this post" title="More actions" aria-expanded="false">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
             </button>
             <div class="post-menu-panel" role="menu" aria-label="Post actions">
                 <a class="post-menu-item" href="{% url 'post_detail' post.id %}" role="menuitem">View post</a>
@@ -31,8 +31,8 @@
     <p class="post-body">{{ post.body|linebreaksbr }}</p>
     {% if post.image %}<div class="post-media-frame"><img class="post-image" src="{{ post.image.url }}" alt="Image shared by {{ post.author.gamer_tag }}"></div>{% endif %}
     <footer class="post-footer">
-        <form class="inline-action" method="post" action="{% url 'post_like' post.id %}" data-post-like-form>{% csrf_token %}<input type="hidden" name="next" value="/feed/"><button class="action-button like-button{% if post.id in liked_post_ids %} is-liked{% endif %}" type="submit" aria-pressed="{% if post.id in liked_post_ids %}true{% else %}false{% endif %}"><span aria-hidden="true">{% if post.id in liked_post_ids %}♥{% else %}♡{% endif %}</span><span class="action-label">{{ post.likes.count }} Like{% if post.likes.count != 1 %}s{% endif %}</span></button></form>
-        <a class="action-button action-button-link" href="{% url 'post_detail' post.id %}"><span aria-hidden="true">💬</span><span class="action-label">{{ post.comments.count }} Comment{% if post.comments.count != 1 %}s{% endif %}</span></a>
-        <form class="inline-action" method="post" action="{% url 'post_save_toggle' post.id %}" data-post-save-form>{% csrf_token %}<input type="hidden" name="next" value="/feed/"><button class="action-button save-button{% if post.id in saved_post_ids %} is-saved{% endif %}" type="submit" aria-pressed="{% if post.id in saved_post_ids %}true{% else %}false{% endif %}"><span aria-hidden="true">{% if post.id in saved_post_ids %}🔖{% else %}📑{% endif %}</span><span class="action-label">{% if post.id in saved_post_ids %}Saved{% else %}Save{% endif %}</span></button></form>
+        <form class="inline-action" method="post" action="{% url 'post_like' post.id %}" data-post-like-form>{% csrf_token %}<input type="hidden" name="next" value="/feed/"><button class="action-button like-button{% if post.id in liked_post_ids %} is-liked{% endif %}" type="submit" aria-label="Like post" title="Like" aria-pressed="{% if post.id in liked_post_ids %}true{% else %}false{% endif %}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 8.7c0 5.1-8.8 10.6-8.8 10.6S3.2 13.8 3.2 8.7A4.7 4.7 0 0 1 12 6.3a4.7 4.7 0 0 1 8.8 2.4Z"/></svg><span class="action-count">{{ post.likes.count }}</span></button></form>
+        <a class="action-button action-button-link" href="{% url 'post_detail' post.id %}" aria-label="Comment on post" title="Comment"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5a7.5 7.5 0 0 1-8 7.5 8.6 8.6 0 0 1-3.4-.7L4 20l1.7-3.6A7.4 7.4 0 0 1 4 11.5 7.5 7.5 0 0 1 12 4a7.5 7.5 0 0 1 8 7.5Z"/></svg><span class="action-count">{{ post.comments.count }}</span></a>
+        {% if post.image %}<a class="action-button download-button" href="{% url 'post_download' post.id %}" aria-label="Download post media" title="Download"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14"/></svg></a>{% else %}<span class="action-button download-button is-disabled" aria-label="No downloadable media" title="No downloadable media"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14"/></svg></span>{% endif %}
     </footer>
 </article>

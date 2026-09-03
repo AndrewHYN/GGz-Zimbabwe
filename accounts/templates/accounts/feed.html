@@ -14,7 +14,6 @@
                     <a href="{% url 'feed' %}" class="feed-nav-item active">Home</a>
                     <a href="{% url 'feed' %}?tab=following" class="feed-nav-item">Following</a>
                     <a href="{% url 'team_list' %}" class="feed-nav-item">Groups</a>
-                    <a href="{% url 'gamer_discovery' %}" class="feed-nav-item">Discover</a>
                 </nav>
             </div>
         </aside>
@@ -25,7 +24,6 @@
                     <p class="eyebrow">The community</p>
                     <h1>Community</h1>
                 </div>
-                <a class="button button-secondary" href="{% url 'gamer_discovery' %}">Find players</a>
             </header>
 
             <nav class="feed-tabs" aria-label="Feed views">
@@ -123,7 +121,7 @@
                         <p class="muted">Be the first player to share something with the community.</p>
                         {% endif %}
                         {% if request.user.is_authenticated %}
-                        <a class="button button-primary" href="{% url 'gamer_discovery' %}">Discover gamers</a>
+                        <a class="button button-primary" href="{% url 'discover' %}">Explore Discover</a>
                         {% endif %}
                     </div>
                 {% endfor %}
