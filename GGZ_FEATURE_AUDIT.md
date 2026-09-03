@@ -28,6 +28,17 @@ Route reachability is not treated as proof that an authenticated workflow works.
 | Notifications read/unread | `/notifications/<id>/read/`, `/unread/` | POST | Yes | Django middleware | Notification state | No | Redirect | Yes | Live POST unverified |
 | Team actions | `/teams/<id>/...` | POST | Yes/role | Django middleware | Membership/team | No active upload form | Redirect | Yes | Live POST unverified |
 
+## Demo data
+
+`python manage.py seed_demo` now provides an idempotent, transactional demo dataset
+covering users/profiles, games and game relationships, follows/friendship, posts,
+comments/likes, challenges, tournaments/registrations/bracket matches, events,
+organizations/locations, teams/memberships, marketplace listings/images,
+conversations/messages, notifications, rankings/reputation fields, map coordinates,
+and YouTube trailer URLs. Demo passwords are supplied through `GGZ_DEMO_PASSWORD`
+or use the documented demo-only fallback; this command must be run only against an
+intentionally selected database.
+
 | Feature | Exists | Live Tested | Status | Fixed | Modernized | AJAX | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Authentication and sessions | Yes | Public login page only | PARTIALLY WORKING | Yes | No | No | Local blank `DJANGO_SECRET_KEY` no longer prevents sessions/tests. Authenticated live flow remains unverified. |

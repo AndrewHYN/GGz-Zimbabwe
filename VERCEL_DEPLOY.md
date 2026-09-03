@@ -60,3 +60,7 @@ public to work around credentials.
 Vercel's approximately 4.5 MB serverless request-body limit so multipart overhead
 does not reject an image before Django can return a validation error. Keep the
 same value in Vercel unless the deployment runtime's request limit is verified.
+
+For an intentionally selected development/demo database, use
+`python manage.py seed_demo`. The command is transactional and idempotent, but it
+is not part of the Vercel build and must never be run automatically against Neon.

@@ -4,6 +4,7 @@ from unittest.mock import patch
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -37,6 +38,22 @@ class HealthAndConfigTests(TestCase):
 		mocked_urlopen.side_effect = TimeoutError
 		self.assertEqual(fetch_public_feed({"name": "Test", "url": "https://example.com/feed"}), [])
 		self.assertEqual(mocked_urlopen.call_args.kwargs["timeout"], 3)
+
+	def test_seed_demo_is_idempotent_on_an_isolated_database(self):
+		call_command("seed_demo", verbosity=0)
+		first_counts = {
+			"users": User.objects.filter(username__startswith="demo_").count(),
+			"games": Game.objects.filter(name__in=("Valorant", "Tekken 8", "EA FC 25", "Stardew Valley")).count(),
+			"posts": Post.objects.filter(body="Ready for the GGz demo tournament!").count(),
+		}
+
+		call_command("seed_demo", verbosity=0)
+
+		self.assertEqual(first_counts, {
+			"users": User.objects.filter(username__startswith="demo_").count(),
+			"games": Game.objects.filter(name__in=("Valorant", "Tekken 8", "EA FC 25", "Stardew Valley")).count(),
+			"posts": Post.objects.filter(body="Ready for the GGz demo tournament!").count(),
+		})
 
 
 class GamerProfileWorkflowTests(TestCase):
