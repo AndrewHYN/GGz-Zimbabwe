@@ -69,7 +69,7 @@
             {% endif %}
 
             {% if request.user.is_authenticated %}
-            <section class="composer-card">
+            <section class="composer-card" aria-label="Create post section">
                 <div class="composer-header">
                     <span class="eyebrow">Share your next play</span>
                 </div>
@@ -77,17 +77,31 @@
                     {% csrf_token %}
                     <input type="hidden" name="next" value="/feed/">
                     <label class="sr-only" for="id_body">What\'s happening in gaming?</label>
-                    {{ post_form.body }}
-                    <div class="composer-meta">
-                        {{ post_form.game }}
-                        <div class="media-upload-control">
-                            {{ post_form.image }}
-                            <label for="id_image" class="media-upload-button" aria-label="Add media to your post">
-                                <span aria-hidden="true">＋</span>
-                                <span>Add media</span>
-                            </label>
+                    <textarea id="id_body" name="body" rows="4" class="composer-textarea" placeholder="What is happening in your gaming world?">{{ post_form.body.value|default:'' }}</textarea>
+
+                    <div class="composer-toolbar">
+                        <div class="game-picker-wrap" aria-label="Select a game">
+                            <div class="game-chip-list">
+                                {% for game_choice in game_choices %}
+                                    <button type="button" class="game-chip{% if game_id and game_id|stringformat:'s' == game_choice.id|stringformat:'s' %} is-selected{% endif %}" data-game-id="{{ game_choice.id }}">{{ game_choice.name }}</button>
+                                {% endfor %}
+                            </div>
+                            <input type="hidden" name="game" id="composer-game-input" value="{{ game_id|default:'' }}">
                         </div>
-                        <button class="button button-primary" type="submit">Post</button>
+
+                        <div class="composer-actions">
+                            <div class="media-upload-control">
+                                <input class="composer-file-input" type="file" id="id_image" name="image" accept="image/*,video/*">
+                                <label for="id_image" class="media-upload-button" aria-label="Add media to your post">
+                                    <span aria-hidden="true">＋</span>
+                                    <span>Add media</span>
+                                </label>
+                            </div>
+                            <button class="button button-primary composer-submit-button" type="submit">
+                                <span aria-hidden="true">✦</span>
+                                <span>Post</span>
+                            </button>
+                        </div>
                     </div>
                 </form>
             </section>

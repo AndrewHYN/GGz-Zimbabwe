@@ -79,7 +79,15 @@ class PostForm(forms.ModelForm):
     class Meta:
         model = Post
         fields = ("body", "game", "image")
-        widgets = {"body": forms.Textarea(attrs={"rows": 4, "placeholder": "What is happening in your gaming world?"})}
+        widgets = {
+            "body": forms.Textarea(attrs={
+                "rows": 4,
+                "placeholder": "What is happening in your gaming world?",
+                "class": "composer-textarea",
+            }),
+            "game": forms.Select(attrs={"class": "composer-game-select"}),
+            "image": forms.ClearableFileInput(attrs={"class": "composer-file-input"}),
+        }
 
     def clean_image(self):
         image = self.cleaned_data.get("image")
@@ -92,4 +100,4 @@ class CommentForm(forms.ModelForm):
     class Meta:
         model = Comment
         fields = ("body",)
-        widgets = {"body": forms.TextInput(attrs={"placeholder": "Add a comment..."})}
+        widgets = {"body": forms.Textarea(attrs={"rows": 2, "placeholder": "Add a comment...", "class": "comment-input"})}

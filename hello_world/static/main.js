@@ -185,6 +185,16 @@
     });
   });
 
+  document.querySelectorAll('.game-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const list = chip.closest('.game-chip-list');
+      const hiddenInput = document.getElementById('composer-game-input');
+      if (!list || !hiddenInput) return;
+      list.querySelectorAll('.game-chip').forEach((item) => item.classList.toggle('is-selected', item === chip));
+      hiddenInput.value = chip.dataset.gameId || '';
+    });
+  });
+
   document.querySelectorAll('[data-composer-form]').forEach((form) => {
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -200,13 +210,19 @@
           if (list) {
             const firstEmpty = list.querySelector('.empty-state');
             if (firstEmpty) firstEmpty.remove();
-            list.insertAdjacentHTML('afterend', result.post_html);
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = result.post_html.trim();
+            const card = wrapper.firstElementChild;
+            if (card) list.prepend(card);
           }
           form.reset();
           const hiddenFile = form.querySelector('input[type="file"]');
           if (hiddenFile) hiddenFile.value = '';
           const label = form.querySelector('.media-upload-button span:last-child');
           if (label) label.textContent = 'Add media';
+          form.querySelectorAll('.game-chip').forEach((item) => item.classList.remove('is-selected'));
+          const gameInput = document.getElementById('composer-game-input');
+          if (gameInput) gameInput.value = '';
         }
       } catch (error) {
         const notice = document.createElement('small');

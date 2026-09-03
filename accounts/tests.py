@@ -835,6 +835,15 @@ class SocialPostTests(TestCase):
 		self.assertEqual(post.author, self.profile)
 		self.assertEqual(post.game, self.game)
 
+	def test_feed_composer_uses_single_modern_markup(self):
+		self.client.login(username="andrew", password="strong-password-123")
+		response = self.client.get(reverse("feed"))
+		self.assertContains(response, 'class="composer-textarea"')
+		self.assertContains(response, 'placeholder="What is happening in your gaming world?"')
+		self.assertContains(response, 'class="game-chip"')
+		self.assertContains(response, 'class="media-upload-button"')
+		self.assertContains(response, 'type="submit"')
+
 	def test_post_edit_and_delete_require_author(self):
 		post = Post.objects.create(author=self.profile, body="Original")
 		self.client.login(username="chipo", password="strong-password-123")

@@ -1036,6 +1036,7 @@ def feed(request):
 	else:
 		discovery_items = []
 	trending_games = Game.objects.order_by("-popularity", "name")[:5]
+	game_choices = Game.objects.order_by("-popularity", "name")[:10]
 	trending_players = GamerProfile.objects.select_related("user").order_by("-respect_points", "gamer_tag")[:5]
 	upcoming_tournaments = Tournament.objects.filter(status__in=("Registration Open", "Registration Closed", "Live")).select_related("organizer", "game").order_by("start_date")[:5]
 	upcoming_events = Event.objects.filter(status__in=("Upcoming", "Published", "Live")).select_related("organizer", "game").order_by("start_date")[:5]
@@ -1047,6 +1048,7 @@ def feed(request):
 			"tab": tab,
 			"game_id": game_id,
 			"post_form": PostForm(),
+			"game_choices": game_choices,
 			"liked_post_ids": liked_post_ids,
 			"saved_post_ids": saved_post_ids,
 			"discovery_items": discovery_items,
