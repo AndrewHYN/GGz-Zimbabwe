@@ -30,6 +30,14 @@ class HealthAndConfigTests(TestCase):
 		self.assertContains(response, "GGz")
 		self.assertNotContains(response, "GGs")
 
+	@patch("accounts.services.urlopen")
+	def test_external_feed_uses_short_runtime_safe_timeout(self, mocked_urlopen):
+		from accounts.services import fetch_public_feed
+
+		mocked_urlopen.side_effect = TimeoutError
+		self.assertEqual(fetch_public_feed({"name": "Test", "url": "https://example.com/feed"}), [])
+		self.assertEqual(mocked_urlopen.call_args.kwargs["timeout"], 3)
+
 
 class GamerProfileWorkflowTests(TestCase):
 	def setUp(self):

@@ -70,6 +70,20 @@ development intentionally remains on filesystem storage when those variables are
 - Blank `DJANGO_SECRET_KEY` values now use the explicit local development fallback instead
   of overriding it with an empty string. Production still receives its secret from the
   environment.
+- External gaming-feed requests now use the configurable `EXTERNAL_FEED_TIMEOUT`, which
+  defaults to 3 seconds instead of allowing a 20-second upstream wait to consume a Vercel
+  request budget. The timeout path is covered by a regression test.
+
+## Production timeout incident
+
+The reported authenticated timeout could not be reproduced from this Codespace because
+no production session or Vercel log access is available. The strongest code-level timeout
+hazard found is the synchronous RSS refresh path used by explicit feed refresh and by
+empty personalized discovery results. It previously allowed four upstream sources to
+wait up to 20 seconds each. This is mitigated with a 3-second per-source ceiling, while
+source failures remain non-fatal and return cached/empty results. Session cookies and
+authentication settings were not weakened. The exact live trigger and authenticated
+post-fix flow remain pending manual verification with Vercel logs and a real account.
 
 ## Verification
 
@@ -78,7 +92,7 @@ development intentionally remains on filesystem storage when those variables are
 | `python manage.py check` | PASS |
 | `python manage.py check --deploy` | PASS with `security.W004`, `security.W008`, `security.W009` warnings |
 | `python manage.py makemigrations --check --dry-run` | PASS, no changes |
-| `python manage.py test` | PASS, 135 tests |
+| `python manage.py test` | PASS, 136 tests |
 | `git diff --check` | PASS |
 | Canonical public route smoke test | PASS, all listed routes returned HTTP 200 |
 | Representative public Supabase media URLs | PASS, avatar JPEG, post PNG, and listing object returned HTTP 200 |

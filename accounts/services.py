@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone as dt_timezone
 from email.utils import parsedate_to_datetime
 from urllib.request import Request, urlopen
 
+from django.conf import settings
 from django.utils import timezone
 
 from games.models import Game
@@ -205,7 +206,7 @@ def _parse_rss_feed(source_name, source_url, xml_text):
 def fetch_public_feed(source):
     try:
         request = Request(source["url"], headers={"User-Agent": "GGz Gaming Discovery/1.0"})
-        with urlopen(request, timeout=20) as response:
+        with urlopen(request, timeout=settings.EXTERNAL_FEED_TIMEOUT) as response:
             payload = response.read()
             return _parse_rss_feed(source["name"], source["url"], payload.decode("utf-8", errors="replace"))
     except Exception:
