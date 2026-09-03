@@ -33,6 +33,21 @@ class MediaStorageConfigurationTests(SimpleTestCase):
 		self.assertEqual(Path(first).suffix, ".jpg")
 		UUID(Path(first).stem.rsplit("-", 1)[1])
 
+	def test_supabase_storage_uses_path_style_sigv4_configuration(self):
+		storage = SupabaseMediaStorage(
+			endpoint_url="https://urwolkhnjkbmblfqinlf.storage.supabase.co/storage/v1/s3",
+			region_name="eu-west-1",
+			bucket_name="ggz-media",
+			access_key="test-access-key",
+			secret_key="test-secret-key",
+			addressing_style="path",
+			signature_version="s3v4",
+		)
+		self.assertEqual(storage.addressing_style, "path")
+		self.assertEqual(storage.signature_version, "s3v4")
+		self.assertEqual(storage.bucket_name, "ggz-media")
+		self.assertEqual(storage.region_name, "eu-west-1")
+
 	def test_standard_s3_storage_re_raises_head_object_403(self):
 		storage = S3Storage()
 		error = ClientError(

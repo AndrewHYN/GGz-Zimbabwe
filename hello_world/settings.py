@@ -263,6 +263,8 @@ if USE_S3_MEDIA_STORAGE:
                 "bucket_name": s3_bucket,
                 "endpoint_url": os.environ["AWS_S3_ENDPOINT_URL"],
                 "region_name": os.environ["AWS_S3_REGION_NAME"],
+                "addressing_style": os.environ.get("AWS_S3_ADDRESSING_STYLE", "path"),
+                "signature_version": "s3v4",
                 "custom_domain": f"{s3_public_domain}/{s3_public_path}",
                 "querystring_auth": False,
                 "file_overwrite": False,
