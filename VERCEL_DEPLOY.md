@@ -15,6 +15,7 @@ DATABASE_URL=
 ALLOWED_HOSTS=
 CSRF_TRUSTED_ORIGINS=
 GOOGLE_MAPS_API_KEY=
+MAX_UPLOAD_SIZE=4194304
 DJANGO_SUPERUSER_USERNAME=Hyndrrx
 DJANGO_SUPERUSER_EMAIL=
 DJANGO_SUPERUSER_PASSWORD=
@@ -48,3 +49,8 @@ storage configuration. When all `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
 are present, Django uses `django-storages` for media and otherwise keeps local filesystem
 storage. Google Maps requires a browser key restricted to the production referrers and
 the enabled Maps APIs.
+
+`MAX_UPLOAD_SIZE` defaults to `4194304` bytes (4 MiB). This is deliberately below
+Vercel's approximately 4.5 MB serverless request-body limit so multipart overhead
+does not reject an image before Django can return a validation error. Keep the
+same value in Vercel unless the deployment runtime's request limit is verified.

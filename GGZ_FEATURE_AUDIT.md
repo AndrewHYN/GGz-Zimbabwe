@@ -14,7 +14,7 @@ Route reachability is not treated as proof that an authenticated workflow works.
 | Authentication and sessions | Yes | Public login page only | PARTIALLY WORKING | Yes | No | No | Local blank `DJANGO_SECRET_KEY` no longer prevents sessions/tests. Authenticated live flow remains unverified. |
 | Registration and password management | Yes | No | PARTIALLY WORKING | No | No | No | Registration exists; password reset/change requires authenticated flow testing. |
 | Profiles and profile editing | Yes | No | PARTIALLY WORKING | No | No | No | `GamerProfile` and edit views/templates exist. |
-| Profile avatars | Yes | No | BROKEN — BLOCKED | Validation fixed | No | No | `ImageField` exists and uses shared storage configuration; oversized uploads now fail server-side; a new live upload was not performed. |
+| Profile avatars | Yes | No | BROKEN — BLOCKED | Validation fixed | No | No | `ImageField` exists and uses shared storage configuration; the shared 4 MiB ceiling rejects oversized uploads server-side; a new live upload was not performed. |
 | Gamer discovery and maps | Yes | Public route only | PARTIALLY WORKING | No | Partial | Yes | Discovery, geo routes, map data JSON, and map controls exist. |
 | Games and game detail | Yes | No | PARTIALLY WORKING | No | No | No | Listing, detail, leaderboard, reviews, and wishlist foundations exist. |
 | Follow/unfollow and social graph | Yes | No | PARTIALLY WORKING | No | No | Yes | Follow action returns JSON for XMLHttpRequest; live state/count/notification flow unverified. |
@@ -25,9 +25,9 @@ Route reachability is not treated as proof that an authenticated workflow works.
 | Organization permissions | Yes | No | PARTIALLY WORKING | No | No | No | Permission checks exist in views; authenticated negative-path tests should be expanded. |
 | Teams and invitations | Yes | No | PARTIALLY WORKING | No | No | No | Team CRUD and invitations have models, views, forms, and templates. |
 | Tournaments | Yes | `/tournaments/` returned 200 | PARTIALLY WORKING | No | No | No | CRUD, registration, management, participants, and organizer flows exist. |
-| Tournament media | Yes | No | BROKEN — BLOCKED | Validation fixed | No | No | Banner `ImageField` and multipart forms exist; oversized uploads now fail server-side; new live upload was not performed. |
+| Tournament media | Yes | No | BROKEN — BLOCKED | Validation fixed | No | No | Banner `ImageField` and multipart forms exist; the shared 4 MiB ceiling rejects oversized uploads server-side; new live upload was not performed. |
 | Tournament brackets and advancement | Yes | No | DEMO/MVP | No | No | No | Bracket generation, byes, matches, and advancement are covered by local tests. |
-| Events | Yes | No | PARTIALLY WORKING | Validation fixed | No | No | Event CRUD and banner upload foundations exist; oversized banners now fail server-side. |
+| Events | Yes | No | PARTIALLY WORKING | Validation fixed | No | No | Event CRUD and banner upload foundations exist; the shared 4 MiB ceiling rejects oversized banners server-side. |
 | Marketplace | Yes | `/marketplace/` returned 200 | PARTIALLY WORKING | No | No | Partial | Listing ownership, detail, forms, and multiple-image request handling exist. |
 | Marketplace media | Yes | No | BROKEN — BLOCKED | Existing validation | No | No | Listing image field exists; live upload and persistence require production credentials. |
 | Contact seller | Yes | No | DEMO/MVP | No | No | No | Messaging models exist; live seller-contact workflow needs verification. |
@@ -38,7 +38,7 @@ Route reachability is not treated as proof that an authenticated workflow works.
 | Google Maps/location | Yes | No | PARTIALLY WORKING | No | Partial | Yes | Environment-based map configuration and map-data endpoint exist. |
 | Navigation and public routes | Yes | All smoke routes | WORKING | No | No | No | `/`, login, feed, organizations, tournaments, marketplace, messages, admin, and health returned 200. |
 | Admin | Yes | `/admin/` returned 200 | PARTIALLY WORKING | No | No | No | HTTP reachability only; admin authentication and model operations unverified. |
-| Persistent media storage | Yes | No | BROKEN — BLOCKED | URL generation fixed | No | No | S3-compatible Supabase branch is centralized in settings and generated public URLs were repaired; required production variables are absent locally. |
+| Persistent media storage | Yes | No | BROKEN — BLOCKED | URL generation fixed | No | No | S3-compatible Supabase branch is centralized in settings and generated public URLs were repaired; required production variables are absent locally. The 4 MiB application limit is below Vercel's request ceiling. |
 | Responsive/accessibility/UI modernization | Yes | No | PLANNED | No | No | No | Existing Bootstrap/custom CSS and templates need browser-level audit before targeted redesign. |
 
 ## Media inventory
@@ -55,6 +55,11 @@ storage code:
 | `Organization` | `logo` | `organizations/logos/` |
 | `Team` | `logo`, `banner` | `teams/logos/`, `teams/banners/` |
 | `Listing` | `image` | `listings/` |
+
+The active upload forms consistently use `settings.MAX_UPLOAD_SIZE`, defaulting to 4 MiB:
+`GamerProfileForm.avatar`, `PostForm.image`, `TournamentForm.banner`, `EventForm.banner`,
+`OrganizationForm.logo`, and `ListingImageForm.image`. `Team.logo` and `Team.banner` are
+model fields only; no supported team upload form/view currently exists.
 
 When all required AWS-compatible environment variables are present, settings select
 `storages.backends.s3boto3.S3Boto3Storage` and generate public Supabase URLs. Local

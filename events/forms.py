@@ -1,4 +1,5 @@
 from django import forms
+from django.conf import settings
 from django.utils.text import slugify
 
 from .models import Event, EventPromotionRequest, Organization, OrganizationLocation
@@ -11,8 +12,8 @@ class OrganizationForm(forms.ModelForm):
 
     def clean_logo(self):
         logo = self.cleaned_data.get("logo")
-        if logo and logo.size > 5 * 1024 * 1024:
-            raise forms.ValidationError("Images must be 5 MB or smaller.")
+        if logo and logo.size > settings.MAX_UPLOAD_SIZE:
+            raise forms.ValidationError("Images must be 4 MB or smaller.")
         return logo
 
     def save(self, commit=True, owner=None):
@@ -118,6 +119,6 @@ class EventForm(forms.ModelForm):
 
     def clean_banner(self):
         banner = self.cleaned_data.get("banner")
-        if banner and banner.size > 5 * 1024 * 1024:
-            raise forms.ValidationError("Images must be 5 MB or smaller.")
+        if banner and banner.size > settings.MAX_UPLOAD_SIZE:
+            raise forms.ValidationError("Images must be 4 MB or smaller.")
         return banner

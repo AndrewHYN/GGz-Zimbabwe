@@ -87,7 +87,7 @@ class GamerProfileWorkflowTests(TestCase):
 		)
 
 		self.assertFalse(form.is_valid())
-		self.assertIn("Images must be 5 MB or smaller.", form.errors["avatar"])
+		self.assertIn("Images must be 4 MB or smaller.", form.errors["avatar"])
 
 	def test_discovery_filters_by_location_and_platform(self):
 		response = self.client.get(

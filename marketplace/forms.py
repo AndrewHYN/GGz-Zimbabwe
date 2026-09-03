@@ -1,4 +1,5 @@
 from django import forms
+from django.conf import settings
 
 from .models import Listing, ListingImage
 
@@ -17,6 +18,6 @@ class ListingImageForm(forms.ModelForm):
 
     def clean_image(self):
         image = self.cleaned_data["image"]
-        if image.size > 5 * 1024 * 1024:
-            raise forms.ValidationError("Images must be 5 MB or smaller.")
+        if image.size > settings.MAX_UPLOAD_SIZE:
+            raise forms.ValidationError("Images must be 4 MB or smaller.")
         return image

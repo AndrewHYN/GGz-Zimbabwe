@@ -231,6 +231,7 @@ STATIC_ROOT = Path(config("STATIC_ROOT", default=str(BASE_DIR / "staticfiles")))
 
 MEDIA_URL = config("MEDIA_URL", default="media/")
 MEDIA_ROOT = Path(config("MEDIA_ROOT", default=str(BASE_DIR / "hello_world" / "media")))
+MAX_UPLOAD_SIZE = config("MAX_UPLOAD_SIZE", default=4 * 1024 * 1024, cast=int)
 
 S3_STORAGE_VARIABLES = (
     "AWS_ACCESS_KEY_ID",
