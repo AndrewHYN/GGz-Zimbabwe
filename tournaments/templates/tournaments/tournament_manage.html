@@ -51,6 +51,9 @@
         </div>
 
         <div class="actions-grid">
+            {% if tournament.status == 'Registration Open' and tournament.participant_count < tournament.max_participants %}
+                <a href="#invite-players" class="button tournament-invite-cta">Invite players<small>Select players from your community</small></a>
+            {% endif %}
             {% if tournament.status == 'Registration Open' %}
                 <form method="post" action="{% url 'tournament_toggle_registration' tournament.slug %}" class="action-form">
                     {% csrf_token %}
@@ -82,6 +85,39 @@
                 <div>Edit tournament</div>
                 <small>Update details</small>
             </a>
+        </div>
+    </section>
+
+    {% if tournament.status == 'Registration Open' and tournament.participant_count < tournament.max_participants %}
+    <section class="tournament-section invite-section" id="invite-players">
+        <div class="section-heading">
+            <div><p class="eyebrow">Build the bracket</p><h2>Invite players</h2><p class="muted">Invite eligible players who already play {{ tournament.game.name }}.</p></div>
+            <span class="muted">{{ tournament.participant_count }} / {{ tournament.max_participants }} slots used</span>
+        </div>
+        <form method="post" action="{% url 'tournament_invite' tournament.slug %}" data-invite-form>
+            {% csrf_token %}
+            <label class="invite-search"><span class="sr-only">Search eligible players</span><span aria-hidden="true">⌕</span><input type="search" placeholder="Search eligible players..." data-invite-search></label>
+            <div class="invite-player-list">
+                {% for player in invite_candidates %}
+                    <label class="invite-player-row" data-invite-player data-player-name="{{ player.gamer_tag|lower }} {{ player.user.username|lower }}">
+                        <input type="checkbox" name="player_ids" value="{{ player.id }}">
+                        {% if player.avatar %}<span class="avatar avatar-sm"><img src="{{ player.avatar.url }}" alt="{{ player.gamer_tag }}"></span>{% else %}<span class="avatar avatar-sm avatar-fallback">{{ player.gamer_tag|slice:':1'|upper }}</span>{% endif %}
+                        <span class="invite-player-copy"><strong>{{ player.gamer_tag }}</strong><small>{{ player.get_rank_display }} · {{ player.get_availability_display }} · {{ player.platform|default:'Platform open' }}</small></span>
+                        <span class="invite-player-games">{% for game in player.games.all|slice:':2' %}{{ game.name }}{% if not forloop.last %} · {% endif %}{% endfor %}</span>
+                    </label>
+                {% empty %}<p class="empty-state">No eligible players are available yet.</p>{% endfor %}
+            </div>
+            <div class="invite-submit-row"><span class="muted" data-invite-count>0 selected</span><button class="button button-primary" type="submit">Send invitations</button></div>
+        </form>
+    </section>
+    {% endif %}
+
+    <section class="tournament-section invitation-status-section">
+        <div class="section-heading"><div><p class="eyebrow">Invitation desk</p><h2>Invitation status</h2></div><span class="muted">{{ tournament.invitations.count }} total</span></div>
+        <div class="invitation-status-grid">
+            <div><h3>Pending <span>{{ pending_invitations.count }}</span></h3>{% for invitation in pending_invitations %}<p class="invitation-status-row"><strong>{{ invitation.player.gamer_tag }}</strong><small>Awaiting response</small></p>{% empty %}<p class="muted">No pending invitations.</p>{% endfor %}</div>
+            <div><h3>Accepted <span>{{ accepted_invitations.count }}</span></h3>{% for invitation in accepted_invitations %}<p class="invitation-status-row"><strong>{{ invitation.player.gamer_tag }}</strong><small>Joined the tournament</small></p>{% empty %}<p class="muted">No accepted invitations yet.</p>{% endfor %}</div>
+            <div><h3>Declined <span>{{ declined_invitations.count }}</span></h3>{% for invitation in declined_invitations %}<p class="invitation-status-row"><strong>{{ invitation.player.gamer_tag }}</strong><small>Declined</small></p>{% empty %}<p class="muted">No declined invitations.</p>{% endfor %}</div>
         </div>
     </section>
 

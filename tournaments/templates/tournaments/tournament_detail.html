@@ -25,6 +25,8 @@
                     <div class="tournament-header-actions">
                         {% if tournament.organizer.user == request.user %}
                             <a class="button alt" href="{% url 'tournament_manage' tournament.slug %}">Manage tournament</a>
+                        {% elif invitation and invitation.status == "Pending" %}
+                            <div class="invitation-actions"><span class="status-badge">Invited</span><form method="post" action="{% url 'tournament_invitation_action' invitation.id 'accept' %}" class="inline-action">{% csrf_token %}<button class="button" type="submit">Accept invitation</button></form><form method="post" action="{% url 'tournament_invitation_action' invitation.id 'decline' %}" class="inline-action">{% csrf_token %}<button class="button alt" type="submit">Decline</button></form></div>
                         {% elif not registration %}
                             <form method="post" action="{% url 'tournament_register' tournament.slug %}" class="inline-action">
                                 {% csrf_token %}
@@ -67,6 +69,8 @@
             </div>
         </div>
     </section>
+
+    {% if invitation and invitation.status == "Accepted" %}<div class="tournament-notice success-notice">You accepted an invitation to this tournament.</div>{% elif invitation and invitation.status == "Declined" %}<div class="tournament-notice">You declined the invitation to this tournament.</div>{% endif %}
 
     <!-- Prize Section -->
     <section class="tournament-section prize-section">

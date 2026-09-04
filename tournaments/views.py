@@ -2,16 +2,16 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import F, Q
+from django.db.models import Case, F, IntegerField, Q, Value, When
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.text import slugify
 
-from accounts.models import GamerProfile, Notification, notify
+from accounts.models import Block, Follow, GamerProfile, Notification, Friendship, notify
 
 from .forms import ChallengeForm, MatchCreateForm, MatchResultForm, MatchScheduleForm, TournamentForm
-from .models import Challenge, Tournament, TournamentMatch, TournamentRegistration
+from .models import Challenge, Tournament, TournamentInvitation, TournamentMatch, TournamentRegistration
 from teams.models import Team, TeamMembership
 
 
@@ -33,9 +33,10 @@ def tournament_list(request):
 
 
 def tournament_detail(request, slug):
-	tournament = get_object_or_404(Tournament.objects.select_related("game", "organizer__user").prefetch_related("registrations__player", "matches__player_one", "matches__player_two"), slug=slug)
+	tournament = get_object_or_404(Tournament.objects.select_related("game", "organizer__user").prefetch_related("registrations__player", "invitations", "matches__player_one", "matches__player_two"), slug=slug)
 	player = getattr(request.user, "gamer_profile", None)
 	registration = TournamentRegistration.objects.filter(tournament=tournament, player=player).first() if player else None
+	invitation = TournamentInvitation.objects.filter(tournament=tournament, player=player).first() if player else None
 	pending_challenges = []
 	incoming_challenges = []
 	outgoing_challenges = []
@@ -43,7 +44,7 @@ def tournament_detail(request, slug):
 		pending_challenges = list(tournament.challenges.select_related("challenger__user", "opponent__user", "game").order_by("-created_at"))
 		incoming_challenges = list(tournament.challenges.filter(opponent=player, status="Pending").select_related("challenger__user", "game").order_by("-created_at"))
 		outgoing_challenges = list(tournament.challenges.filter(challenger=player, status="Pending").select_related("opponent__user", "game").order_by("-created_at"))
-	return render(request, "tournaments/tournament_detail.html", {"tournament": tournament, "registration": registration, "challenge_form": ChallengeForm(initial={"tournament": tournament.id, "game": tournament.game_id}), "pending_challenges": pending_challenges, "incoming_challenges": incoming_challenges, "outgoing_challenges": outgoing_challenges, "player": player})
+	return render(request, "tournaments/tournament_detail.html", {"tournament": tournament, "registration": registration, "invitation": invitation, "challenge_form": ChallengeForm(initial={"tournament": tournament.id, "game": tournament.game_id}), "pending_challenges": pending_challenges, "incoming_challenges": incoming_challenges, "outgoing_challenges": outgoing_challenges, "player": player})
 
 
 @login_required
@@ -55,8 +56,86 @@ def tournament_my(request):
 
 @login_required
 def tournament_manage(request, slug):
-	tournament = get_object_or_404(Tournament.objects.prefetch_related("registrations__player", "matches__player_one", "matches__player_two"), slug=slug, organizer__user=request.user)
-	return render(request, "tournaments/tournament_manage.html", {"tournament": tournament})
+	tournament = get_object_or_404(Tournament.objects.prefetch_related("registrations__player", "invitations__player", "matches__player_one", "matches__player_two"), slug=slug, organizer__user=request.user)
+	return render(request, "tournaments/tournament_manage.html", {"tournament": tournament, "invite_candidates": _invite_candidates(tournament, tournament.organizer), "pending_invitations": tournament.invitations.filter(status="Pending"), "accepted_invitations": tournament.invitations.filter(status="Accepted"), "declined_invitations": tournament.invitations.filter(status="Declined")})
+
+
+def _invite_candidates(tournament, organizer):
+	blocked_ids = Block.objects.filter(Q(blocker=organizer) | Q(blocked=organizer)).values_list("blocker_id", "blocked_id")
+	blocked_profile_ids = {value for pair in blocked_ids for value in pair}
+	registered_ids = TournamentRegistration.objects.filter(tournament=tournament, status__in=("Registered", "Waitlisted")).values_list("player_id", flat=True)
+	pending_ids = TournamentInvitation.objects.filter(tournament=tournament, status="Pending").values_list("player_id", flat=True)
+	friend_ids = Friendship.objects.filter(Q(profile_one=organizer) | Q(profile_two=organizer)).values_list("profile_one_id", "profile_two_id")
+	friend_profile_ids = {value for pair in friend_ids for value in pair} - {organizer.id}
+	following_ids = Follow.objects.filter(follower=organizer).values_list("following_id", flat=True)
+	return GamerProfile.objects.select_related("user").prefetch_related("games").filter(games=tournament.game).exclude(id=organizer.id).exclude(id__in=blocked_profile_ids).exclude(id__in=registered_ids).exclude(id__in=pending_ids).annotate(
+		social_priority=Case(
+			When(id__in=friend_profile_ids, then=Value(3)),
+			When(id__in=following_ids, then=Value(2)),
+			default=Value(0),
+			output_field=IntegerField(),
+		)
+	).order_by("-social_priority", "-respect_points", "gamer_tag")
+
+
+@login_required
+def tournament_invite(request, slug):
+	tournament = get_object_or_404(Tournament, slug=slug, organizer__user=request.user)
+	organizer = tournament.organizer
+	if request.method != "POST":
+		return HttpResponseForbidden("This action requires POST.")
+	if tournament.status != "Registration Open" or timezone.now() > tournament.registration_deadline:
+		return HttpResponseForbidden("Invitations are closed.")
+	if tournament.participant_count >= tournament.max_participants:
+		return HttpResponseForbidden("This tournament is full.")
+	selected_ids = {int(value) for value in request.POST.getlist("player_ids") if value.isdigit()}
+	eligible_ids = set(_invite_candidates(tournament, organizer).filter(id__in=selected_ids).values_list("id", flat=True))
+	created = 0
+	for player_id in eligible_ids:
+		invitation, was_created = TournamentInvitation.objects.get_or_create(tournament=tournament, player_id=player_id, defaults={"status": "Pending"})
+		if not was_created and invitation.status == "Declined":
+			invitation.status = "Pending"
+			invitation.responded_at = None
+			invitation.save(update_fields=("status", "responded_at"))
+		if was_created or invitation.status == "Pending":
+			created += 1
+			player = GamerProfile.objects.get(id=player_id)
+			notify(player, organizer, "tournament_invitation", f"{organizer.gamer_tag} invited you to {tournament.name}", f"/tournaments/{tournament.slug}/")
+	messages.success(request, f"Sent {created} tournament invitation{'s' if created != 1 else ''}.")
+	return redirect("tournament_manage", slug=tournament.slug)
+
+
+@login_required
+def tournament_invitation_action(request, invitation_id, action):
+	if request.method != "POST" or action not in ("accept", "decline"):
+		return HttpResponseForbidden("Invalid invitation action.")
+	player = get_object_or_404(GamerProfile, user=request.user)
+	invitation = get_object_or_404(TournamentInvitation.objects.select_related("tournament", "tournament__organizer"), id=invitation_id, player=player, status="Pending")
+	tournament = invitation.tournament
+	if action == "decline":
+		invitation.status = "Declined"
+		invitation.responded_at = timezone.now()
+		invitation.save(update_fields=("status", "responded_at"))
+		messages.success(request, f"You declined the invitation to {tournament.name}.")
+		return redirect("tournament_detail", slug=tournament.slug)
+	if tournament.status != "Registration Open" or timezone.now() > tournament.registration_deadline:
+		return HttpResponseForbidden("This invitation is no longer valid.")
+	if not player.games.filter(id=tournament.game_id).exists():
+		return HttpResponseForbidden("You are not eligible for this tournament's game.")
+	if tournament.participant_count >= tournament.max_participants:
+		return HttpResponseForbidden("This tournament is full.")
+	registration, created = TournamentRegistration.objects.get_or_create(tournament=tournament, player=player, defaults={"status": "Registered"})
+	if not created and registration.status not in ("Withdrawn", "Waitlisted"):
+		return HttpResponseForbidden("You are already participating in this tournament.")
+	if not created:
+		registration.status = "Registered"
+		registration.save(update_fields=("status",))
+	invitation.status = "Accepted"
+	invitation.responded_at = timezone.now()
+	invitation.save(update_fields=("status", "responded_at"))
+	notify(tournament.organizer, player, "tournament_invitation", f"{player.gamer_tag} accepted the invitation to {tournament.name}", f"/tournaments/{tournament.slug}/manage/")
+	messages.success(request, f"You joined {tournament.name}.")
+	return redirect("tournament_detail", slug=tournament.slug)
 
 
 @login_required

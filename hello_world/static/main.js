@@ -577,6 +577,24 @@
     });
   });
 
+  document.querySelectorAll('[data-invite-form]').forEach((form) => {
+    const search = form.querySelector('[data-invite-search]');
+    const count = form.querySelector('[data-invite-count]');
+    const rows = Array.from(form.querySelectorAll('[data-invite-player]'));
+    const updateCount = () => {
+      const selected = form.querySelectorAll('input[name="player_ids"]:checked').length;
+      if (count) count.textContent = `${selected} selected`;
+    };
+    search?.addEventListener('input', () => {
+      const query = search.value.trim().toLowerCase();
+      rows.forEach((row) => {
+        row.hidden = query.length > 0 && !row.dataset.playerName.includes(query);
+      });
+    });
+    form.querySelectorAll('input[name="player_ids"]').forEach((input) => input.addEventListener('change', updateCount));
+    updateCount();
+  });
+
   const mapContainer = document.getElementById('ggz-map');
   if (mapContainer) {
     function getMapAuthFailureMessage() {

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Challenge, Tournament, TournamentMatch, TournamentRegistration
+from .models import Challenge, Tournament, TournamentInvitation, TournamentMatch, TournamentRegistration
 
 
 @admin.register(Tournament)
@@ -14,6 +14,13 @@ class TournamentAdmin(admin.ModelAdmin):
 @admin.register(TournamentRegistration)
 class TournamentRegistrationAdmin(admin.ModelAdmin):
 	list_display = ("tournament", "player", "status", "joined_at")
+	list_filter = ("status",)
+	search_fields = ("tournament__name", "player__gamer_tag")
+
+
+@admin.register(TournamentInvitation)
+class TournamentInvitationAdmin(admin.ModelAdmin):
+	list_display = ("tournament", "player", "status", "created_at", "responded_at")
 	list_filter = ("status",)
 	search_fields = ("tournament__name", "player__gamer_tag")
 

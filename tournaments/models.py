@@ -57,6 +57,19 @@ class TournamentRegistration(models.Model):
 		constraints = [models.UniqueConstraint(fields=("tournament", "player"), name="unique_tournament_registration")]
 
 
+class TournamentInvitation(models.Model):
+	STATUS_CHOICES = [(value, value) for value in ("Pending", "Accepted", "Declined")]
+	tournament = models.ForeignKey(Tournament, on_delete=models.CASCADE, related_name="invitations")
+	player = models.ForeignKey(GamerProfile, on_delete=models.CASCADE, related_name="tournament_invitations")
+	status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="Pending")
+	created_at = models.DateTimeField(auto_now_add=True)
+	responded_at = models.DateTimeField(blank=True, null=True)
+
+	class Meta:
+		constraints = [models.UniqueConstraint(fields=("tournament", "player"), name="unique_tournament_invitation")]
+		ordering = ("-created_at",)
+
+
 class Challenge(models.Model):
 	STATUS_CHOICES = [(value, value) for value in ("Pending", "Accepted", "Declined", "Cancelled", "Scheduled", "Completed")]
 	challenger = models.ForeignKey(GamerProfile, on_delete=models.CASCADE, related_name="challenges_made")

@@ -6,11 +6,11 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from accounts.models import GamerProfile
+from accounts.models import Block, GamerProfile, Notification
 from games.models import Game
 from teams.models import Team, TeamMembership
 
-from .models import Challenge, Tournament, TournamentMatch, TournamentRegistration
+from .models import Challenge, Tournament, TournamentInvitation, TournamentMatch, TournamentRegistration
 
 
 class TournamentTests(TestCase):
@@ -132,6 +132,56 @@ class TournamentTests(TestCase):
 		self.assertContains(response, "Delete tournament")
 		self.assertContains(response, 'method="post"', html=False)
 		self.assertContains(response, f'action="{reverse("generate_bracket", args=[self.tournament.slug])}"', html=False)
+
+	def test_organizer_can_invite_eligible_game_players_and_manage_statuses(self):
+		self.player.games.add(self.game)
+		self.client.login(username="organizer", password="pass-12345")
+		response = self.client.get(reverse("tournament_manage", args=[self.tournament.slug]))
+		self.assertContains(response, "Invite players")
+		self.assertContains(response, "PlayerZW")
+		invite_response = self.client.post(reverse("tournament_invite", args=[self.tournament.slug]), {"player_ids": [self.player.id]})
+		self.assertRedirects(invite_response, reverse("tournament_manage", args=[self.tournament.slug]))
+		invitation = TournamentInvitation.objects.get(tournament=self.tournament, player=self.player)
+		self.assertEqual(invitation.status, "Pending")
+		self.assertTrue(Notification.objects.filter(recipient=self.player, notification_type="tournament_invitation").exists())
+		self.assertContains(self.client.get(reverse("tournament_manage", args=[self.tournament.slug])), "Awaiting response")
+
+	def test_invitation_rejects_non_organizer_self_duplicate_and_blocked_players(self):
+		self.player.games.add(self.game)
+		self.client.login(username="player", password="pass-12345")
+		self.assertEqual(self.client.post(reverse("tournament_invite", args=[self.tournament.slug]), {"player_ids": [self.player.id]}).status_code, 404)
+		self.client.login(username="organizer", password="pass-12345")
+		self.assertEqual(self.client.post(reverse("tournament_invite", args=[self.tournament.slug]), {"player_ids": [self.organizer.id]}).status_code, 302)
+		Block.objects.create(blocker=self.organizer, blocked=self.player)
+		self.assertEqual(self.client.get(reverse("tournament_manage", args=[self.tournament.slug])).context["invite_candidates"].count(), 0)
+
+	def test_player_can_accept_or_decline_invitation_once(self):
+		self.player.games.add(self.game)
+		invitation = TournamentInvitation.objects.create(tournament=self.tournament, player=self.player)
+		self.client.login(username="player", password="pass-12345")
+		accept_response = self.client.post(reverse("tournament_invitation_action", args=[invitation.id, "accept"]))
+		self.assertRedirects(accept_response, reverse("tournament_detail", args=[self.tournament.slug]))
+		self.assertTrue(TournamentRegistration.objects.filter(tournament=self.tournament, player=self.player, status="Registered").exists())
+		invitation.refresh_from_db()
+		self.assertEqual(invitation.status, "Accepted")
+		self.assertEqual(self.client.post(reverse("tournament_invitation_action", args=[invitation.id, "accept"])).status_code, 404)
+
+		declined_player = GamerProfile.objects.create(user=User.objects.create_user(username="decliner", password="pass-12345"), gamer_tag="DeclinerZW")
+		declined = TournamentInvitation.objects.create(tournament=self.tournament, player=declined_player)
+		self.client.login(username="decliner", password="pass-12345")
+		self.client.post(reverse("tournament_invitation_action", args=[declined.id, "decline"]))
+		declined.refresh_from_db()
+		self.assertEqual(declined.status, "Declined")
+		self.assertFalse(TournamentRegistration.objects.filter(tournament=self.tournament, player=declined_player).exists())
+
+	def test_invitation_acceptance_checks_capacity(self):
+		self.player.games.add(self.game)
+		full_player = GamerProfile.objects.create(user=User.objects.create_user(username="fullplayer", password="pass-12345"), gamer_tag="FullPlayerZW")
+		TournamentRegistration.objects.create(tournament=self.tournament, player=full_player)
+		invitation = TournamentInvitation.objects.create(tournament=self.tournament, player=self.player)
+		self.client.login(username="player", password="pass-12345")
+		self.assertEqual(self.client.post(reverse("tournament_invitation_action", args=[invitation.id, "accept"])).status_code, 403)
+		self.assertFalse(TournamentRegistration.objects.filter(tournament=self.tournament, player=self.player).exists())
 
 	def test_organizer_can_toggle_registration_and_cancel_tournament(self):
 		self.client.login(username="organizer", password="pass-12345")
