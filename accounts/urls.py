@@ -8,6 +8,7 @@ urlpatterns = [
 	path("dashboard/", views.dashboard, name="dashboard"),
 	path("discover/", views.geo_discovery, name="geo_discovery"),
 	path("gamers/", views.gamer_discovery, name="gamer_discovery"),
+	path("gamers/suggestions/", views.gamer_suggestions, name="gamer_suggestions"),
 	path("notifications/", views.notification_list, name="notification_list"),
 	path("notifications/<int:notification_id>/read/", views.notification_read, name="notification_read"),
 	path("notifications/<int:notification_id>/unread/", views.notification_unread, name="notification_unread"),

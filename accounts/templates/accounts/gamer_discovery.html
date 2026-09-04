@@ -4,72 +4,53 @@
 
 {% block content %}
 <main class="page-shell gamer-discovery-page">
-    <div class="page-toolbar">
+    <a class="back-link" href="{% url 'index' %}"><span aria-hidden="true">←</span> Back to GGz</a>
+    <header class="player-discovery-header">
         <div>
-            <a class="back-link" href="{% url 'index' %}">&larr; Back to GGz</a>
-            <p class="eyebrow">The community</p>
-            {% if selected_game %}
-                <h1>Find players for {{ selected_game.name }}</h1>
-                <p class="lede">Players ready to queue for {{ selected_game.name }} across Zimbabwe.</p>
-            {% else %}
-                <h1>Find your <em>people.</em></h1>
-                <p class="lede">Search Zimbabwean players by game, city, rank, platform, or when they are ready to play.</p>
-            {% endif %}
+            <p class="eyebrow">Player discovery engine</p>
+            {% if selected_game %}<h1>Find players for {{ selected_game.name }}</h1><p class="lede">Players ready to queue for {{ selected_game.name }} across Zimbabwe.</p>{% else %}<h1>Find your <em>people.</em></h1><p class="lede">Search the GGz community by gamer tag, game, platform, rank, or city.</p>{% endif %}
         </div>
-        <div class="actions">
-            <a class="button alt" href="{% url 'leaderboard' %}">View rankings</a>
-        </div>
-    </div>
+        <a class="button button-secondary" href="{% url 'leaderboard' %}">View rankings</a>
+    </header>
 
-    <section class="filter-shell">
-        <form class="filter-bar" method="get">
-            <p><label for="id_q">Search</label><input id="id_q" name="q" value="{{ query }}" placeholder="Username or gamer tag"></p>
-            <p><label for="id_location">City</label><input id="id_location" name="location" value="{{ request.GET.location }}" placeholder="Harare, Bulawayo..."></p>
-            <p><label for="id_platform">Platform</label><select id="id_platform" name="platform"><option value="">Any platform</option>{% for value, label in platform_choices %}<option value="{{ value }}"{% if request.GET.platform == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></p>
-            <p><label for="id_rank">Rank</label><select id="id_rank" name="rank"><option value="">Any rank</option>{% for value, label in rank_choices %}<option value="{{ value }}"{% if request.GET.rank == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></p>
-            <p><label for="id_availability">Availability</label><select id="id_availability" name="availability"><option value="">Any availability</option>{% for value, label in availability_choices %}<option value="{{ value }}"{% if request.GET.availability == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></p>
-            <p><label for="id_game">Game</label><select id="id_game" name="game"><option value="">Any game</option>{% for game in game_choices %}<option value="{{ game.id }}"{% if request.GET.game == game.id|stringformat:"s" %} selected{% endif %}>{{ game.name }}</option>{% endfor %}</select></p>
-            <button class="button" type="submit">Search players</button>
-            {% if query or request.GET.location or request.GET.platform or request.GET.rank or request.GET.availability or request.GET.game %}<a class="clear-filters" href="{% url 'gamer_discovery' %}">Clear filters</a>{% endif %}
+    <section class="player-search-panel" aria-label="Find players search">
+        <form id="player-search-form" class="player-search-form" method="get" action="{% url 'gamer_discovery' %}" data-player-search-form data-suggestions-url="{% url 'gamer_suggestions' %}">
+            <div class="player-search-field">
+                <span class="player-search-icon" aria-hidden="true">⌕</span>
+                <label class="sr-only" for="player-search-input">Search gamers</label>
+                <input id="player-search-input" name="q" value="{{ query }}" placeholder="Search gamers, usernames, games..." autocomplete="off" data-player-search-input aria-controls="player-suggestions">
+                {% if query %}<a class="player-search-clear" href="{% url 'gamer_discovery' %}" aria-label="Clear player search">×</a>{% endif %}
+                <div id="player-suggestions" class="player-suggestions" role="listbox" aria-label="Player suggestions" data-player-suggestions></div>
+            </div>
+            <button class="button button-primary" type="submit">Search players</button>
         </form>
+        <div class="player-filter-row" aria-label="Player filters">
+            <label>Game<select name="game" form="player-search-form" data-filter-select><option value="">Any game</option>{% for game in game_choices %}<option value="{{ game.id }}"{% if request.GET.game == game.id|stringformat:"s" %} selected{% endif %}>{{ game.name }}</option>{% endfor %}</select></label>
+            <label>Platform<select name="platform" form="player-search-form" data-filter-select><option value="">Any platform</option>{% for value, label in platform_choices %}<option value="{{ value }}"{% if request.GET.platform == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+            <label>Rank<select name="rank" form="player-search-form" data-filter-select><option value="">Any rank</option>{% for value, label in rank_choices %}<option value="{{ value }}"{% if request.GET.rank == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+            <label>Availability<select name="availability" form="player-search-form" data-filter-select><option value="">Any availability</option>{% for value, label in availability_choices %}<option value="{{ value }}"{% if request.GET.availability == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+            <label>City<input name="location" value="{{ location }}" form="player-search-form" placeholder="Any city"></label>
+        </div>
     </section>
 
-    <section class="discovery-view">
+    <section class="player-results" aria-label="Player results">
         <div class="section-heading">
-            <div>
-                <p class="eyebrow">Community roster</p>
-                <h2>{% if selected_game %}Players ready to queue for {{ selected_game.name }}{% else %}Players ready to queue{% endif %}</h2>
-            </div>
-            <div class="muted">{{ page.paginator.count }} results</div>
+            <div><p class="eyebrow">{% if is_suggestion_state %}Suggested for you{% else %}Search results{% endif %}</p><h2>{% if selected_game %}Players ready to queue for {{ selected_game.name }}{% elif is_suggestion_state %}Players worth meeting{% elif query %}Matches for “{{ query }}”{% else %}Filtered players{% endif %}</h2></div>
+            <div class="muted">{% if is_suggestion_state %}A few community picks{% else %}{{ page.paginator.count }} result{{ page.paginator.count|pluralize }}{% endif %}</div>
         </div>
-
-        <div class="gamer-grid">
+        <div class="player-result-list">
             {% for gamer in page %}
-                <article class="gamer-card compact">
-                    <div class="gamer-card-head">
+                <article class="player-result-card">
+                    <a class="player-result-identity" href="{% url 'profile_detail' gamer.gamer_tag %}">
                         {% if gamer.avatar %}<span class="avatar avatar-medium"><img src="{{ gamer.avatar.url }}" alt="{{ gamer.gamer_tag }} avatar"></span>{% else %}<span class="avatar avatar-medium avatar-fallback">{{ gamer.gamer_tag|slice:":1"|upper }}</span>{% endif %}
-                        <div>
-                            <h2>{{ gamer.gamer_tag }}</h2>
-                            <p class="muted">{{ gamer.location|default:"Zimbabwe" }}</p>
-                        </div>
-                    </div>
-                    <div class="gamer-meta">
-                        <span class="rank-tag">{{ gamer.get_rank_display }}</span>
-                        <span>{{ gamer.platform|default:"Platform open" }}</span>
-                        <span class="status-dot">{{ gamer.get_availability_display }}</span>
-                    </div>
-                    <p class="gamer-games">{% for game in gamer.games.all|slice:":2" %}{{ game.name }}{% if not forloop.last %}, {% endif %}{% empty %}Games not listed yet{% endfor %}</p>
-                    <p class="muted compact-meta">{{ gamer.games.count }} game{% if gamer.games.count != 1 %}s{% endif %} · Competitive profile ready</p>
-                    <div class="gamer-card-foot">
-                        <span class="respect-label">{{ gamer.respect_points }} respect</span>
-                        <a class="button alt" href="{% url 'profile_detail' gamer.gamer_tag %}">View profile</a>
-                    </div>
+                        <span><strong>{{ gamer.gamer_tag }}</strong><small>@{{ gamer.user.username }} · {{ gamer.public_location_label|default:"Zimbabwe" }}</small></span>
+                    </a>
+                    <div class="player-result-meta"><span class="rank-tag">{{ gamer.get_rank_display }}</span><span class="status-dot">{{ gamer.get_availability_display }}</span><span>{{ gamer.platform|default:"Platform open" }}</span></div>
+                    <p class="player-result-games">{% for game in gamer.games.all|slice:":3" %}<span>{{ game.name }}</span>{% empty %}<span>Games not listed yet</span>{% endfor %}</p>
+                    <a class="button button-secondary compact-button" href="{% url 'profile_detail' gamer.gamer_tag %}">View profile</a>
                 </article>
             {% empty %}
-                <div class="empty-state" style="grid-column: 1 / -1;">
-                    <h2>No players match those filters yet.</h2>
-                    <p class="muted">Try widening your search or check back later for new matches.</p>
-                </div>
+                <div class="player-empty-state"><span class="player-empty-icon" aria-hidden="true">⌕</span><h2>No gamers found{% if query %} for “{{ query }}”{% endif %}.</h2><p class="muted">Try a broader search or clear a filter to explore more suggestions.</p>{% if query or location or request.GET.platform or request.GET.rank or request.GET.availability or request.GET.game %}<a class="button button-secondary compact-button" href="{% url 'gamer_discovery' %}">Browse suggestions</a>{% endif %}</div>
             {% endfor %}
         </div>
     </section>

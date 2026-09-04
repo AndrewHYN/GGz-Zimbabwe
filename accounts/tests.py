@@ -143,6 +143,52 @@ class GamerProfileWorkflowTests(TestCase):
 		self.assertContains(response, "RudoZW")
 		self.assertNotContains(response, "TendaiZW")
 
+	def test_initial_player_discovery_is_curated_and_excludes_current_user(self):
+		for index in range(8):
+			GamerProfile.objects.create(
+				user=User.objects.create_user(username=f"suggested{index}"),
+				gamer_tag=f"Suggested{index}ZW",
+				availability="Available" if index == 0 else "Sometimes",
+			)
+		self.client.login(username="tendai", password="strong-password-123")
+		response = self.client.get(reverse("gamer_discovery"))
+		self.assertTrue(response.context["is_suggestion_state"])
+		self.assertEqual(len(response.context["page"].object_list), 5)
+		self.assertNotIn(self.profile.id, {profile.id for profile in response.context["page"].object_list})
+
+	def test_player_search_prioritizes_exact_and_game_matches(self):
+		game = Game.objects.create(name="Tekken 8")
+		exact = GamerProfile.objects.create(user=User.objects.create_user(username="tekken"), gamer_tag="Tekken")
+		game_match = GamerProfile.objects.create(user=User.objects.create_user(username="fighter"), gamer_tag="FighterZW")
+		game_match.games.add(game)
+		response = self.client.get(reverse("gamer_discovery"), {"q": "Tekken"})
+		self.assertEqual(response.context["page"].object_list[0].id, exact.id)
+		self.assertContains(response, "FighterZW")
+
+	def test_player_suggestions_are_bounded_and_respect_block_privacy(self):
+		viewer = self.profile
+		blocked = GamerProfile.objects.create(user=User.objects.create_user(username="hidden"), gamer_tag="HiddenTekken")
+		Block.objects.create(blocker=viewer, blocked=blocked)
+		for index in range(7):
+			GamerProfile.objects.create(user=User.objects.create_user(username=f"tek{index}"), gamer_tag=f"Tekken{index}")
+		self.client.login(username="tendai", password="strong-password-123")
+		response = self.client.get(reverse("gamer_suggestions"), {"q": "Tekken"})
+		self.assertEqual(response.status_code, 200)
+		self.assertLessEqual(len(response.json()["results"]), 5)
+		self.assertNotIn("HiddenTekken", {item["gamer_tag"] for item in response.json()["results"]})
+
+	def test_player_search_filters_and_paginates(self):
+		for index in range(13):
+			GamerProfile.objects.create(user=User.objects.create_user(username=f"xbox{index}"), gamer_tag=f"Xbox{index}", platform="Xbox", rank="Diamond")
+		self.client.login(username="tendai", password="strong-password-123")
+		response = self.client.get(reverse("gamer_discovery"), {"q": "Xbox", "platform": "Xbox", "rank": "Diamond"})
+		self.assertEqual(response.context["page"].paginator.count, 13)
+		self.assertTrue(response.context["page"].has_next())
+
+	def test_player_search_has_a_clean_empty_state(self):
+		response = self.client.get(reverse("gamer_discovery"), {"q": "NoSuchGamer"})
+		self.assertContains(response, "No gamers found")
+
 	def test_profile_edit_is_limited_to_owner(self):
 		self.client.login(username="rudo", password="strong-password-123")
 		response = self.client.get(
@@ -1098,7 +1144,7 @@ class SearchAndRankTests(TestCase):
 	def test_discovery_cards_use_compact_scan_layout(self):
 		GamerProfile.objects.create(user=User.objects.create_user(username="compactplayer"), gamer_tag="CompactPlayer", location="Harare", platform="PC", rank="Gold", availability="Available")
 		response = self.client.get(reverse("gamer_discovery"))
-		self.assertContains(response, 'class="gamer-card compact"')
+		self.assertContains(response, 'class="player-result-card"')
 		self.assertContains(response, 'View profile')
 		self.assertContains(response, 'Search players')
 

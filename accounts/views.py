@@ -9,7 +9,7 @@ from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import F, Q
+from django.db.models import Case, Count, F, IntegerField, Q, Value, When
 from django.http import FileResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
@@ -487,7 +487,7 @@ def geo_discovery(request):
 	if viewer:
 		blocked_ids = Block.objects.filter(Q(blocker=viewer) | Q(blocked=viewer)).values_list("blocker_id", "blocked_id")
 		blocked_profile_ids = {value for pair in blocked_ids for value in pair}
-		profiles = profiles.exclude(id__in=blocked_profile_ids)
+		profiles = profiles.exclude(id=viewer.id).exclude(id__in=blocked_profile_ids)
 
 	if lat and lng:
 		lat_value = float(lat)
@@ -627,7 +627,6 @@ def geo_discovery(request):
 
 
 def gamer_discovery(request):
-	profiles = GamerProfile.objects.select_related("user").prefetch_related("games")
 	query = request.GET.get("q", "").strip()
 	location = request.GET.get("location", "").strip()
 	platform = request.GET.get("platform", "").strip()
@@ -635,11 +634,26 @@ def gamer_discovery(request):
 	availability = request.GET.get("availability", "").strip()
 	game_id = request.GET.get("game", "").strip()
 	selected_game = Game.objects.filter(id=game_id).first() if game_id else None
-
+	viewer = getattr(request.user, "gamer_profile", None)
+	profiles = GamerProfile.objects.select_related("user").prefetch_related("games")
+	if viewer:
+		blocked_ids = Block.objects.filter(Q(blocker=viewer) | Q(blocked=viewer)).values_list("blocker_id", "blocked_id")
+		blocked_profile_ids = {value for pair in blocked_ids for value in pair}
+		profiles = profiles.exclude(id=viewer.id).exclude(id__in=blocked_profile_ids)
+	criteria = any((query, location, platform, rank, availability, game_id))
 	if query:
 		profiles = profiles.filter(
-			Q(gamer_tag__icontains=query) | Q(user__username__icontains=query)
-		)
+			Q(gamer_tag__icontains=query)
+			| Q(user__username__icontains=query)
+			| Q(games__name__icontains=query)
+			| Q(platform__icontains=query)
+			| Q(rank__icontains=query)
+			| Q(availability__icontains=query)
+			| Q(location__icontains=query)
+			| Q(city__icontains=query)
+			| Q(province__icontains=query)
+			| Q(country__icontains=query)
+		).distinct()
 	if location:
 		profiles = profiles.filter(location__icontains=location)
 	if platform:
@@ -650,12 +664,32 @@ def gamer_discovery(request):
 		profiles = profiles.filter(availability=availability)
 	if game_id:
 		profiles = profiles.filter(games__id=game_id)
-	viewer = getattr(request.user, "gamer_profile", None)
-	if viewer:
-		blocked_ids = Block.objects.filter(Q(blocker=viewer) | Q(blocked=viewer)).values_list("blocker_id", "blocked_id")
-		profiles = profiles.exclude(id__in={value for pair in blocked_ids for value in pair})
-
-	page = Paginator(profiles.order_by("gamer_tag"), 12).get_page(
+	if query:
+		profiles = profiles.annotate(
+			relevance=Case(
+				When(gamer_tag__iexact=query, then=Value(100)),
+				When(user__username__iexact=query, then=Value(95)),
+				When(games__name__iexact=query, then=Value(90)),
+				When(gamer_tag__istartswith=query, then=Value(70)),
+				When(user__username__istartswith=query, then=Value(65)),
+				When(games__name__istartswith=query, then=Value(60)),
+				When(platform__iexact=query, then=Value(55)),
+				When(rank__iexact=query, then=Value(50)),
+				When(availability__iexact=query, then=Value(45)),
+				default=Value(10),
+				output_field=IntegerField(),
+			)
+		).order_by("-relevance", "-respect_points", "gamer_tag")
+	else:
+		profiles = profiles.annotate(game_total=Count("games", distinct=True)).order_by(
+			Case(When(availability="Available", then=Value(3)), default=Value(0), output_field=IntegerField()).desc(),
+			"-respect_points",
+			"-game_total",
+			"gamer_tag",
+		)
+	if not criteria:
+		profiles = profiles[:5]
+	page = Paginator(profiles, 12).get_page(
 		request.GET.get("page")
 	)
 	return render(
@@ -670,8 +704,47 @@ def gamer_discovery(request):
 			"availability_choices": GamerProfile.AVAILABILITY_CHOICES,
 			"game_choices": Game.objects.order_by("name"),
 			"selected_game": selected_game,
+			"is_suggestion_state": not criteria,
 		},
 	)
+
+
+def gamer_suggestions(request):
+	query = request.GET.get("q", "").strip()
+	if len(query) < 2:
+		return JsonResponse({"results": []})
+	viewer = getattr(request.user, "gamer_profile", None)
+	profiles = GamerProfile.objects.select_related("user").prefetch_related("games")
+	if viewer:
+		blocked_ids = Block.objects.filter(Q(blocker=viewer) | Q(blocked=viewer)).values_list("blocker_id", "blocked_id")
+		profiles = profiles.exclude(id=viewer.id).exclude(id__in={value for pair in blocked_ids for value in pair})
+	profiles = profiles.filter(
+		Q(gamer_tag__icontains=query)
+		| Q(user__username__icontains=query)
+		| Q(games__name__icontains=query)
+	).annotate(
+		relevance=Case(
+			When(gamer_tag__iexact=query, then=Value(100)),
+			When(user__username__iexact=query, then=Value(95)),
+			When(games__name__iexact=query, then=Value(90)),
+			When(gamer_tag__istartswith=query, then=Value(70)),
+			When(user__username__istartswith=query, then=Value(65)),
+			When(games__name__istartswith=query, then=Value(60)),
+			default=Value(10),
+			output_field=IntegerField(),
+		)
+	).distinct().order_by("-relevance", "gamer_tag")[:5]
+	return JsonResponse({
+		"results": [
+			{
+				"gamer_tag": profile.gamer_tag,
+				"username": profile.user.username,
+				"rank": profile.get_rank_display(),
+				"url": reverse("profile_detail", args=[profile.gamer_tag]),
+			}
+			for profile in profiles
+		]
+	})
 
 
 @login_required

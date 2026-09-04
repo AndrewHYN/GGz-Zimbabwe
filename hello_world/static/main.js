@@ -134,6 +134,68 @@
     return result;
   }
 
+  const playerSearchForm = document.querySelector('[data-player-search-form]');
+  if (playerSearchForm) {
+    const playerSearchInput = playerSearchForm.querySelector('[data-player-search-input]');
+    const playerSuggestions = playerSearchForm.querySelector('[data-player-suggestions]');
+    const suggestionUrl = playerSearchForm.dataset.suggestionsUrl;
+    let suggestionRequest = null;
+
+    function closePlayerSuggestions() {
+      playerSuggestions.innerHTML = '';
+      playerSuggestions.classList.remove('is-visible');
+    }
+
+    function renderPlayerSuggestions(results) {
+      playerSuggestions.innerHTML = '';
+      results.forEach((result) => {
+        const link = document.createElement('a');
+        link.className = 'player-suggestion';
+        link.href = result.url;
+        link.setAttribute('role', 'option');
+        const name = document.createElement('strong');
+        name.textContent = result.gamer_tag;
+        const detail = document.createElement('small');
+        detail.textContent = `@${result.username} · ${result.rank}`;
+        link.append(name, detail);
+        playerSuggestions.append(link);
+      });
+      playerSuggestions.classList.toggle('is-visible', results.length > 0);
+    }
+
+    async function loadPlayerSuggestions() {
+      const query = playerSearchInput.value.trim();
+      if (query.length < 2) {
+        closePlayerSuggestions();
+        return;
+      }
+      if (suggestionRequest) suggestionRequest.abort();
+      suggestionRequest = new AbortController();
+      try {
+        const response = await fetch(`${suggestionUrl}?q=${encodeURIComponent(query)}`, { credentials: 'same-origin', signal: suggestionRequest.signal });
+        if (!response.ok) throw new Error('Suggestion request failed');
+        const result = await response.json();
+        renderPlayerSuggestions(result.results || []);
+      } catch (error) {
+        if (error.name !== 'AbortError') closePlayerSuggestions();
+      }
+    }
+
+    playerSearchInput.addEventListener('input', loadPlayerSuggestions);
+    playerSearchInput.addEventListener('focus', loadPlayerSuggestions);
+    playerSearchInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closePlayerSuggestions();
+      if (event.key === 'ArrowDown') playerSuggestions.querySelector('a')?.focus();
+    });
+    playerSearchForm.addEventListener('submit', closePlayerSuggestions);
+    document.addEventListener('click', (event) => {
+      if (!playerSearchForm.contains(event.target)) closePlayerSuggestions();
+    });
+    playerSearchForm.querySelectorAll('[data-filter-select]').forEach((filter) => {
+      filter.addEventListener('change', () => playerSearchForm.requestSubmit());
+    });
+  }
+
   const releaseCarousel = document.querySelector('[data-release-carousel]');
   if (releaseCarousel) {
     const releaseTrack = releaseCarousel.querySelector('.release-track');
