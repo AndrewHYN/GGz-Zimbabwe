@@ -48,7 +48,7 @@
     </form>
 
     {% if featured_games %}
-    <section class="store-section" aria-label="Featured games">
+    <section class="store-section featured-games-section" aria-label="Featured games">
         <div class="section-header"><div><p class="eyebrow">Featured</p><h2>GGz picks</h2></div></div>
         <div class="game-card-grid">
             {% for game in featured_games %}{% include "games/_game_card.html" with game=game viewer_profile=viewer_profile %}{% endfor %}
@@ -56,7 +56,7 @@
     </section>
     {% endif %}
 
-    <section class="store-section">
+    <section class="store-section popular-games-section">
         <div class="section-header">
             <div>
                 <p class="eyebrow">Popular Games</p>
@@ -73,7 +73,7 @@
         </div>
     </section>
 
-    <section class="store-section">
+    <section class="store-section free-games-section">
         <div class="section-header">
             <div>
                 <p class="eyebrow">Free To Play</p>
