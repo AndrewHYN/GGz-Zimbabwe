@@ -209,8 +209,15 @@
       if (status) status.textContent = '';
       if (label && form.matches('[data-follow-form]')) label.textContent = following ? 'Unfollowing...' : 'Following...';
       if (button) { button.disabled = true; button.classList.add('is-loading'); }
-      fetch((button && button.formAction) || form.action, { method: 'POST', body: new FormData(form), credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-        .then((response) => response.ok ? response.json() : response.json().catch(() => ({})).then((payload) => Promise.reject(new Error(payload.error || 'Action failed'))))
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 10000);
+      fetch((button && button.formAction) || form.action, { method: 'POST', body: new FormData(form), credentials: 'same-origin', signal: controller.signal, headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+        .then((response) => response.text().then((body) => {
+          let payload;
+          try { payload = body ? JSON.parse(body) : {}; } catch (error) { throw new Error(response.ok ? 'The server returned an unexpected response. Try again.' : `Request failed (${response.status}). Try again.`); }
+          if (!response.ok || payload.ok === false) throw new Error(payload.error || `Request failed (${response.status}).`);
+          return payload;
+        }))
         .then((result) => {
           if (form.matches('[data-follow-form]')) {
             form.action = result.following ? form.action.replace('/follow/', '/unfollow/') : form.action.replace('/unfollow/', '/follow/');
@@ -220,7 +227,8 @@
           }
           if (button) { button.disabled = false; button.classList.remove('is-loading'); }
         })
-        .catch((error) => { if (label) label.textContent = following ? 'Following' : 'Follow'; if (button) { button.disabled = false; button.classList.remove('is-loading'); } if (status) status.textContent = error.message || 'Could not update the follow state.'; });
+        .catch((error) => { if (label) label.textContent = following ? 'Following' : 'Follow'; if (button) { button.disabled = false; button.classList.remove('is-loading'); } if (status) status.textContent = error.name === 'AbortError' ? 'The request timed out. Try again.' : error.message || 'Could not update the follow state.'; })
+        .finally(() => window.clearTimeout(timeout));
     });
   });
 

@@ -258,6 +258,20 @@ def _notify(recipient, actor, notification_type, message, target_url=""):
 	notify(recipient, actor, notification_type, message, target_url)
 
 
+def _is_json_request(request):
+	return request.headers.get("x-requested-with") == "XMLHttpRequest" or "application/json" in request.headers.get("accept", "")
+
+
+def _json_error(message, status):
+	return JsonResponse({"ok": False, "error": message}, status=status)
+
+
+def csrf_failure(request, reason=""):
+	if _is_json_request(request):
+		return _json_error("Your session or security token expired. Refresh the page and try again.", 403)
+	return render(request, "403.html", status=403)
+
+
 def _can_message(sender, recipient):
 	if sender == recipient or Block.objects.filter(Q(blocker=sender, blocked=recipient) | Q(blocker=recipient, blocked=sender)).exists():
 		return False
@@ -1191,19 +1205,24 @@ def player_match_history(request, gamer_tag):
 	)
 
 
-@login_required
 def connection_action(request, gamer_tag, action):
+	if not request.user.is_authenticated:
+		if _is_json_request(request):
+			return _json_error("Sign in to follow players.", 401)
+		return redirect(f"{settings.LOGIN_URL}?next={request.path}")
 	if request.method != "POST":
-		return HttpResponseForbidden("This action requires POST.")
-	target = get_object_or_404(GamerProfile, gamer_tag=gamer_tag)
-	viewer = get_object_or_404(GamerProfile, user=request.user)
+		return _json_error("This action requires POST.", 405) if _is_json_request(request) else HttpResponseForbidden("This action requires POST.")
+	target = GamerProfile.objects.filter(gamer_tag=gamer_tag).first()
+	viewer = GamerProfile.objects.filter(user=request.user).first()
+	if target is None:
+		return _json_error("That player could not be found.", 404) if _is_json_request(request) else HttpResponseForbidden("That player could not be found.")
+	if viewer is None:
+		return _json_error("Your player profile is unavailable.", 403) if _is_json_request(request) else HttpResponseForbidden("Your player profile is unavailable.")
 	if target == viewer:
-		return HttpResponseForbidden("You cannot interact with your own profile.")
+		return _json_error("You cannot interact with your own profile.", 403) if _is_json_request(request) else HttpResponseForbidden("You cannot interact with your own profile.")
 	if action == "follow":
 		if Block.objects.filter(Q(blocker=target, blocked=viewer) | Q(blocker=viewer, blocked=target)).exists():
-			if request.headers.get("x-requested-with") == "XMLHttpRequest":
-				return JsonResponse({"ok": False, "error": "Blocked players cannot follow each other."}, status=403)
-			return HttpResponseForbidden("Blocked players cannot follow each other.")
+			return _json_error("Blocked players cannot follow each other.", 403) if _is_json_request(request) else HttpResponseForbidden("Blocked players cannot follow each other.")
 		created = Follow.objects.get_or_create(follower=viewer, following=target)[1]
 		if created:
 			_notify(target, viewer, "follow", f"{viewer.gamer_tag} followed you", f"/profiles/{viewer.gamer_tag}/")
@@ -1263,9 +1282,9 @@ def connection_action(request, gamer_tag, action):
 	elif action == "report":
 		Report.objects.get_or_create(reporter=viewer, reported_profile=target)
 	else:
-		return HttpResponseForbidden("Unknown connection action.")
+		return _json_error("Unknown connection action.", 400) if _is_json_request(request) else HttpResponseForbidden("Unknown connection action.")
 	messages.success(request, "Your community action was updated.")
-	if request.headers.get("x-requested-with") == "XMLHttpRequest":
+	if _is_json_request(request):
 			return JsonResponse({
 				"ok": True,
 				"action": action,

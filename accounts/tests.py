@@ -9,7 +9,7 @@ from django.core import mail
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
-from django.test import TestCase, override_settings
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
@@ -1272,10 +1272,35 @@ class NotificationAndMessagingTests(TestCase):
 		url = reverse("connection_action", args=(self.recipient.gamer_tag, "follow"))
 		response = self.client.post(url, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
 		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response["Content-Type"], "application/json")
+		self.assertTrue(response.json()["ok"])
 		self.assertTrue(Follow.objects.filter(follower=self.sender, following=self.recipient).exists())
 		self.client.post(url, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
 		self.assertEqual(Follow.objects.count(), 1)
 		self.assertEqual(Notification.objects.filter(recipient=self.recipient, notification_type="follow").count(), 1)
+
+	def test_ajax_follow_failures_have_json_contract(self):
+		url = reverse("connection_action", args=(self.recipient.gamer_tag, "follow"))
+		response = self.client.post(url, HTTP_X_REQUESTED_WITH="XMLHttpRequest", HTTP_ACCEPT="application/json")
+		self.assertEqual(response.status_code, 401)
+		self.assertEqual(response.json()["ok"], False)
+
+		self.client.login(username="sender", password="pass")
+		response = self.client.get(url, HTTP_X_REQUESTED_WITH="XMLHttpRequest", HTTP_ACCEPT="application/json")
+		self.assertEqual(response.status_code, 405)
+		self.assertEqual(response.json()["ok"], False)
+		missing_url = reverse("connection_action", args=("MissingPlayer", "follow"))
+		response = self.client.post(missing_url, HTTP_X_REQUESTED_WITH="XMLHttpRequest", HTTP_ACCEPT="application/json")
+		self.assertEqual(response.status_code, 404)
+		self.assertEqual(response.json()["ok"], False)
+
+	def test_ajax_follow_csrf_failure_has_json_contract(self):
+		client = Client(enforce_csrf_checks=True)
+		client.login(username="sender", password="pass")
+		url = reverse("connection_action", args=(self.recipient.gamer_tag, "follow"))
+		with self.settings(DEBUG=False):
+			response = client.post(url, HTTP_X_REQUESTED_WITH="XMLHttpRequest", HTTP_ACCEPT="application/json")
+		self.assertEqual(response.status_code, 403)
 
 	def test_followed_player_can_start_a_conversation_without_a_reload(self):
 		self.client.login(username="sender", password="pass")

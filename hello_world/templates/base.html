@@ -88,7 +88,7 @@
                                     <a href="{% url 'team_list' %}" class="nav-profile-link"><span class="nav-link-icon" aria-hidden="true">&#9876;</span>Squads</a>
                                     <a href="{% url 'profile_friends' user_profile.gamer_tag %}" class="nav-profile-link"><span class="nav-link-icon" aria-hidden="true">&#9822;</span>Friends</a>
                                     <a href="{% url 'profile_detail' user_profile.gamer_tag %}" class="nav-profile-link"><span class="nav-link-icon" aria-hidden="true">&#9673;</span>My Profile</a>
-                                    <a href="{% url 'conversation_list' %}" class="nav-profile-link messages-nav-link"><span class="nav-link-icon" aria-hidden="true">&#9993;</span>Messages{% if unread_message_count %}<span class="nav-badge" data-message-count>{{ unread_message_count }}</span>{% endif %}</a>
+                                    <a href="{% url 'conversation_list' %}" class="nav-profile-link messages-nav-link"><span class="nav-link-icon" aria-hidden="true">&#9993;</span><span>Messages</span>{% if unread_message_count %}<span class="nav-badge" data-message-count>{{ unread_message_count }}</span>{% endif %}</a>
                                 </nav>
                                 <div class="nav-account-secondary">
                                     <a href="{% url 'account_security' %}" class="nav-profile-link"><span class="nav-link-icon" aria-hidden="true">&#9881;</span>Settings</a>

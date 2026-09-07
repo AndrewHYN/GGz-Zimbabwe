@@ -1481,6 +1481,25 @@ a:hover { color: #a5b4fc; }
     flex: 0 0 auto;
 }
 
+.nav-account-links .nav-profile-link,
+.nav-logout-form button {
+    display: grid;
+    grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.7rem;
+}
+
+.nav-account-links .nav-link-icon,
+.nav-logout-form .nav-link-icon {
+    width: 1.25rem;
+    text-align: center;
+}
+
+.nav-account-links .nav-badge {
+    position: static;
+    justify-self: end;
+}
+
 .nav-profile-link:hover,
 .nav-logout-form button:hover {
     background: rgba(99, 102, 241, 0.12);
@@ -7496,4 +7515,30 @@ a:hover { color: #a5b4fc; }
 .nav-account-links, .nav-account-secondary { display: grid; gap: .2rem; }.nav-account-secondary { margin-top: .45rem; padding-top: .45rem; border-top: 1px solid rgba(148,163,184,.14); }.nav-profile-primary { background: rgba(245,158,11,.08); }.nav-link-icon { display: inline-grid; place-items: center; width: 1.2rem; color: var(--accent-primary); font-size: 1rem; }.nav-logout-form { margin-top: .35rem; padding-top: .45rem; border-top: 1px solid rgba(148,163,184,.14); }.nav-logout-link { color: #fca5a5; }
 .stream-status { margin-left: auto; color: var(--text-tertiary); font-size: .72rem; }.chat-date-divider { display: flex; align-items: center; gap: .7rem; margin: .6rem 0; color: var(--text-tertiary); font-size: .7rem; }.chat-date-divider::before, .chat-date-divider::after { flex: 1; height: 1px; background: rgba(148,163,184,.12); content: ""; }.message-retry { margin-left: .5rem; border: 0; background: transparent; color: #fca5a5; font: inherit; font-size: .75rem; cursor: pointer; }
 @media (max-width: 600px) { .social-page-header { align-items: start; flex-direction: column; }.social-list-item { min-height: 4.6rem; padding: .7rem; }.social-message-list { max-height: calc(100vh - 270px); padding: 1rem .1rem; }.message-bubble { max-width: 86%; }.chat-page { min-height: calc(100vh - 110px); }.social-composer { bottom: .25rem; }.profile-page + .site-footer { display: none; } }
+
+/* Keep competitive imagery visible without letting it dominate the first viewport. */
+.tournament-feature { max-height: 17rem; }
+.tournament-feature-media,
+.tournament-feature-media img,
+.tournament-feature-media .tournament-banner-fallback { min-height: 14rem; }
+.tournament-feature-copy { gap: .7rem; padding: 1.5rem 2rem; overflow: auto; }
+.tournament-feature-copy h2 { font-size: clamp(1.5rem, 3vw, 2.4rem); }
+.tournament-card-media .tournament-banner { height: 9rem; aspect-ratio: 16 / 9; }
+.tournament-card-body { padding: 1rem; }
+.tournament-card-body h2 { font-size: 1.05rem; }
+.tournament-hero { grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 1.25rem; padding: 1.25rem; }
+.tournament-hero-image { aspect-ratio: 16 / 9; max-height: 14rem; }
+.tournament-hero-copy { gap: 1rem; }
+.settings-page { max-width: 980px; }
+.settings-page .card-grid { gap: 1rem; }
+.settings-panel { padding: 1.35rem; }
+@media (max-width: 760px) {
+    .tournament-feature { grid-template-columns: 1fr; max-height: none; }
+    .tournament-feature-media,
+    .tournament-feature-media img,
+    .tournament-feature-media .tournament-banner-fallback { min-height: 9rem; max-height: 11rem; }
+    .tournament-feature-copy { padding: 1.1rem; }
+    .tournament-hero { grid-template-columns: 1fr; }
+    .tournament-hero-image { max-height: 11rem; }
+}
 @media (prefers-reduced-motion: reduce) { .social-list-item, .social-message-list { scroll-behavior: auto; transition: none; } }

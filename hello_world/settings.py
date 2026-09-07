@@ -59,14 +59,14 @@ CSRF_TRUSTED_ORIGINS = config(
 ALLOWED_HOSTS = list(dict.fromkeys(ALLOWED_HOSTS))
 CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(CSRF_TRUSTED_ORIGINS))
 
-for vercel_host_variable in ("VERCEL_URL", "VERCEL_BRANCH_URL"):
-    vercel_host = os.environ.get(vercel_host_variable, "").strip()
-    if vercel_host and vercel_host not in ALLOWED_HOSTS:
-        ALLOWED_HOSTS.append(vercel_host)
-    if vercel_host:
-        vercel_origin = f"https://{vercel_host}"
-        if vercel_origin not in CSRF_TRUSTED_ORIGINS:
-            CSRF_TRUSTED_ORIGINS.append(vercel_origin)
+for deployed_host_variable in ("VERCEL_URL", "VERCEL_BRANCH_URL", "RENDER_EXTERNAL_HOSTNAME"):
+    deployed_host = os.environ.get(deployed_host_variable, "").strip()
+    if deployed_host and deployed_host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(deployed_host)
+    if deployed_host:
+        deployed_origin = f"https://{deployed_host}"
+        if deployed_origin not in CSRF_TRUSTED_ORIGINS:
+            CSRF_TRUSTED_ORIGINS.append(deployed_origin)
 
 # Application definition
 
@@ -97,6 +97,8 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django_browser_reload.middleware.BrowserReloadMiddleware",
 ]
+
+CSRF_FAILURE_VIEW = "accounts.views.csrf_failure"
 
 X_FRAME_OPTIONS = config("X_FRAME_OPTIONS", default="DENY")
 SECURE_PROXY_SSL_HEADER = (
