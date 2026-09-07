@@ -46,18 +46,23 @@ DEBUG = config("DEBUG", default=not DEPLOYED, cast=bool)
 
 ALLOWED_HOSTS = config(
     "ALLOWED_HOSTS",
-    default="" if DEPLOYED else "localhost,127.0.0.1,[::1]",
+    default="ggz-zimbabwe.onrender.com" if DEPLOYED else "localhost,127.0.0.1,[::1]",
     cast=comma_separated,
 )
 
 CSRF_TRUSTED_ORIGINS = config(
     "CSRF_TRUSTED_ORIGINS",
-    default="" if DEPLOYED else "http://localhost:8000,http://127.0.0.1:8000,https://localhost:8000,https://127.0.0.1:8000",
+    default="https://ggz-zimbabwe.onrender.com" if DEPLOYED else "http://localhost:8000,http://127.0.0.1:8000,https://localhost:8000,https://127.0.0.1:8000",
     cast=comma_separated,
 )
 
 ALLOWED_HOSTS = list(dict.fromkeys(ALLOWED_HOSTS))
 CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(CSRF_TRUSTED_ORIGINS))
+
+if DEPLOYED and "ggz-zimbabwe.onrender.com" not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append("ggz-zimbabwe.onrender.com")
+if DEPLOYED and "https://ggz-zimbabwe.onrender.com" not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append("https://ggz-zimbabwe.onrender.com")
 
 for deployed_host_variable in ("VERCEL_URL", "VERCEL_BRANCH_URL", "RENDER_EXTERNAL_HOSTNAME"):
     deployed_host = os.environ.get(deployed_host_variable, "").strip()
