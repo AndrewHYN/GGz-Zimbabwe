@@ -1392,6 +1392,17 @@ class SearchAndRankTests(TestCase):
 		self.assertNotContains(response, "Message requests")
 		self.assertContains(response, "Log out")
 
+	def test_account_dropdown_uses_one_shared_row_structure(self):
+		user = User.objects.create_user(username="consistentnav", password="strong-password-123")
+		GamerProfile.objects.create(user=user, gamer_tag="ConsistentNavZW")
+		self.client.login(username="consistentnav", password="strong-password-123")
+		response = self.client.get(reverse("index"))
+		content = response.content.decode()
+		self.assertEqual(content.count("nav-account-item"), 7)
+		self.assertNotIn("messages-nav-link", content)
+		self.assertNotIn("nav-account-secondary", content)
+		self.assertContains(response, 'class="nav-link-label">Settings</span>')
+
 	def test_logout_route_logs_user_out_and_redirects(self):
 		user = User.objects.create_user(username="logoutuser", password="strong-password-123")
 		GamerProfile.objects.create(user=user, gamer_tag="LogoutPlayer", location="Harare")
