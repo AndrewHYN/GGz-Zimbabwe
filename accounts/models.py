@@ -523,6 +523,8 @@ class Message(models.Model):
     sender = models.ForeignKey(GamerProfile, on_delete=models.CASCADE, related_name="messages_sent")
     body = models.TextField(max_length=2000)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    read_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ("created_at",)

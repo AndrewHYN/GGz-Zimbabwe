@@ -17,7 +17,7 @@ from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm, Pa
 from django.contrib.auth.models import User
 from django.contrib.auth.tokens import default_token_generator
 from django.core.paginator import Paginator
-from django.db.models import Case, Count, F, IntegerField, Q, Value, When
+from django.db.models import Case, Count, Exists, F, IntegerField, OuterRef, Q, Subquery, Value, When
 from django.http import FileResponse, HttpResponseForbidden, JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
@@ -262,7 +262,7 @@ def _can_message(sender, recipient):
 	if sender == recipient or Block.objects.filter(Q(blocker=sender, blocked=recipient) | Q(blocker=recipient, blocked=sender)).exists():
 		return False
 	first, second = sorted((sender.id, recipient.id))
-	return Friendship.objects.filter(profile_one_id=first, profile_two_id=second).exists() or (Follow.objects.filter(follower=sender, following=recipient).exists() and Follow.objects.filter(follower=recipient, following=sender).exists()) or MessageRequest.objects.filter(Q(sender=sender, recipient=recipient) | Q(sender=recipient, recipient=sender), status="Accepted").exists()
+	return Friendship.objects.filter(profile_one_id=first, profile_two_id=second).exists() or Follow.objects.filter(follower=sender, following=recipient).exists() or MessageRequest.objects.filter(Q(sender=sender, recipient=recipient) | Q(sender=recipient, recipient=sender), status="Accepted").exists()
 
 
 def _distance_km(lat1, lon1, lat2, lon2):
@@ -1263,7 +1263,12 @@ def connection_action(request, gamer_tag, action):
 		return HttpResponseForbidden("Unknown connection action.")
 	messages.success(request, "Your community action was updated.")
 	if request.headers.get("x-requested-with") == "XMLHttpRequest":
-		return JsonResponse({"ok": True, "action": action})
+			return JsonResponse({
+				"ok": True,
+				"action": action,
+				"following": Follow.objects.filter(follower=viewer, following=target).exists(),
+				"follower_count": target.followers.count(),
+			})
 	return redirect("profile_detail", gamer_tag=target.gamer_tag)
 
 
@@ -1544,15 +1549,12 @@ def post_report(request, post_id):
 
 
 def _unread_message_count(profile):
-	return Message.objects.filter(
-		conversation__participant_links__profile=profile,
-	).exclude(sender=profile).filter(
-		Q(conversation__participant_links__cleared_at__isnull=True)
-		| Q(conversation__participant_links__cleared_at__lt=F("created_at"))
+	participant = ConversationParticipant.objects.filter(conversation_id=OuterRef("conversation_id"), profile=profile)
+	return Message.objects.filter(conversation__participants=profile).exclude(sender=profile).filter(
+		Exists(participant.filter(Q(cleared_at__isnull=True) | Q(cleared_at__lt=OuterRef("created_at"))))
 	).filter(
-		Q(conversation__participant_links__last_read_at__isnull=True)
-		| Q(conversation__participant_links__last_read_at__lt=F("created_at"))
-	).distinct().count()
+		Exists(participant.filter(Q(last_read_at__isnull=True) | Q(last_read_at__lt=OuterRef("created_at"))))
+	).count()
 
 
 @login_required
@@ -1581,6 +1583,8 @@ def notification_read(request, notification_id):
 	notification = get_object_or_404(Notification, id=notification_id, recipient=profile)
 	notification.is_read = True
 	notification.save(update_fields=("is_read",))
+	if request.headers.get("x-requested-with") == "XMLHttpRequest":
+		return JsonResponse({"ok": True, "unread_count": profile.notifications.filter(is_read=False).count(), "target_url": notification.target_url})
 	return redirect(notification.target_url or "notification_list")
 
 
@@ -1590,6 +1594,8 @@ def notification_unread(request, notification_id):
 		return HttpResponseForbidden("This action requires POST.")
 	profile = get_object_or_404(GamerProfile, user=request.user)
 	Notification.objects.filter(id=notification_id, recipient=profile).update(is_read=False)
+	if request.headers.get("x-requested-with") == "XMLHttpRequest":
+		return JsonResponse({"ok": True, "unread_count": profile.notifications.filter(is_read=False).count()})
 	return redirect("notification_list")
 
 
@@ -1597,7 +1603,32 @@ def notification_unread(request, notification_id):
 def notifications_read_all(request):
 	if request.method == "POST":
 		Notification.objects.filter(recipient__user=request.user, is_read=False).update(is_read=True)
+		if request.headers.get("x-requested-with") == "XMLHttpRequest":
+			return JsonResponse({"ok": True, "unread_count": 0})
 	return redirect("notification_list")
+
+
+@login_required
+def notification_stream(request):
+	profile = get_object_or_404(GamerProfile, user=request.user)
+	def events():
+		last_signature = None
+		for _ in range(60):
+			latest = profile.notifications.select_related("actor").first()
+			payload = {
+				"unread_count": profile.notifications.filter(is_read=False).count(),
+				"latest_id": latest.id if latest else None,
+				"latest_message": latest.message if latest else "",
+				"latest_target": latest.target_url if latest else "",
+			}
+			signature = json.dumps(payload, sort_keys=True)
+			if signature != last_signature:
+				last_signature = signature
+				yield f"data: {signature}\n\n"
+			else:
+				yield ": heartbeat\n\n"
+			time.sleep(1)
+	return StreamingHttpResponse(events(), content_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @login_required
@@ -1606,12 +1637,44 @@ def conversation_list(request):
 	conversations = Conversation.objects.filter(participants=profile).prefetch_related("participants", "messages", "participant_links")
 	for conversation in conversations:
 		conversation.other = conversation.participants.exclude(id=profile.id).first()
+		conversation.other_presence = _presence_snapshot(conversation.other, profile) if conversation.other else {"status": "offline", "label": "Offline", "detail": ""}
 		participant = conversation.participant_links.get(profile=profile)
 		visible_messages = conversation.messages.filter(created_at__gt=participant.cleared_at) if participant.cleared_at else conversation.messages.all()
 		conversation.last_message = visible_messages.last()
 		unread_messages = visible_messages.exclude(sender=profile)
 		conversation.unread_count = unread_messages.filter(created_at__gt=participant.last_read_at).count() if participant.last_read_at else unread_messages.count()
-	return render(request, "accounts/conversation_list.html", {"conversations": conversations, "profile": profile})
+	return render(request, "accounts/conversation_list.html", {"conversations": conversations, "profile": profile, "unread_message_count": _unread_message_count(profile), "inbox_stream_url": reverse("conversation_inbox_stream")})
+
+
+def _conversation_snapshot(profile):
+	items = []
+	for conversation in Conversation.objects.filter(participants=profile).prefetch_related("participants", "messages", "participant_links"):
+		other = conversation.participants.exclude(id=profile.id).first()
+		if not other:
+			continue
+		participant = conversation.participant_links.get(profile=profile)
+		visible = conversation.messages.filter(created_at__gt=participant.cleared_at) if participant.cleared_at else conversation.messages.all()
+		last_message = visible.last()
+		unread = visible.exclude(sender=profile).filter(created_at__gt=participant.last_read_at).count() if participant.last_read_at else visible.exclude(sender=profile).count()
+		items.append({"id": conversation.id, "preview": last_message.body[:120] if last_message else "No messages yet", "time": timezone.localtime(last_message.created_at).strftime("%H:%M") if last_message else "", "unread_count": unread})
+	return {"items": items, "unread_message_count": _unread_message_count(profile)}
+
+
+@login_required
+def conversation_inbox_stream(request):
+	profile = get_object_or_404(GamerProfile, user=request.user)
+	def events():
+		last_payload = None
+		for _ in range(60):
+			payload = _conversation_snapshot(profile)
+			encoded = json.dumps(payload, sort_keys=True)
+			if encoded != last_payload:
+				last_payload = encoded
+				yield f"data: {encoded}\n\n"
+			else:
+				yield ": heartbeat\n\n"
+			time.sleep(1)
+	return StreamingHttpResponse(events(), content_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @login_required
@@ -1643,6 +1706,14 @@ def conversation_detail(request, conversation_id):
 	if other and Block.objects.filter(Q(blocker=profile, blocked=other) | Q(blocker=other, blocked=profile)).exists():
 		return HttpResponseForbidden("You cannot access this conversation.")
 	if request.method == "POST":
+		if request.POST.get("action") == "read":
+			now = timezone.now()
+			participant.last_read_at = now
+			participant.save(update_fields=("last_read_at",))
+			conversation.messages.filter(sender=other, read_at__isnull=True).update(delivered_at=now, read_at=now)
+			if request.headers.get("x-requested-with") == "XMLHttpRequest":
+				return JsonResponse({"ok": True, "unread_message_count": _unread_message_count(profile)})
+			return redirect("conversation_detail", conversation_id=conversation.id)
 		if request.POST.get("action") == "clear":
 			participant.cleared_at = timezone.now()
 			participant.last_read_at = participant.cleared_at
@@ -1656,25 +1727,83 @@ def conversation_detail(request, conversation_id):
 			conversation.save(update_fields=("updated_at",))
 			_notify(other, profile, "message", f"{profile.gamer_tag} sent you a message", f"/messages/{conversation.id}/")
 			if request.headers.get("x-requested-with") == "XMLHttpRequest":
-				return JsonResponse({"ok": True, "message": {"body": message.body, "time": timezone.localtime(message.created_at).strftime("%H:%M")}})
+				return JsonResponse({"ok": True, "message": _message_payload(message, profile)})
 		return redirect("conversation_detail", conversation_id=conversation.id)
 	ConversationParticipant.objects.filter(conversation=conversation, profile=profile).update(last_read_at=timezone.now())
+	conversation.messages.filter(sender=other, read_at__isnull=True).update(delivered_at=timezone.now(), read_at=timezone.now())
 	messages_qs = conversation.messages.filter(created_at__gt=participant.cleared_at) if participant.cleared_at else conversation.messages.all()
-	return render(request, "accounts/conversation_detail.html", {"conversation": conversation, "profile": profile, "other": conversation.participants.exclude(id=profile.id).first(), "conversation_messages": messages_qs})
+	return render(request, "accounts/conversation_detail.html", {"conversation": conversation, "profile": profile, "other": other, "other_presence": _presence_snapshot(other, profile) if other else {"status": "offline", "label": "Offline", "detail": ""}, "conversation_messages": messages_qs, "conversation_stream_url": reverse("conversation_stream", args=[conversation.id]), "conversation_send_url": reverse("conversation_send", args=[conversation.id])})
+
+
+def _message_payload(message, viewer):
+	return {
+		"id": message.id,
+		"body": message.body,
+		"time": timezone.localtime(message.created_at).strftime("%H:%M"),
+		"mine": message.sender_id == viewer.id,
+		"state": "read" if message.read_at else "delivered" if message.delivered_at else "sent",
+		"created_at": message.created_at.isoformat(),
+	}
+
+
+@login_required
+def conversation_send(request, conversation_id):
+	if request.method != "POST":
+		return JsonResponse({"error": "Messages require POST."}, status=405)
+	profile = get_object_or_404(GamerProfile, user=request.user)
+	conversation = get_object_or_404(Conversation, id=conversation_id, participants=profile)
+	participant = get_object_or_404(ConversationParticipant, conversation=conversation, profile=profile)
+	other = conversation.participants.exclude(id=profile.id).first()
+	if not other or Block.objects.filter(Q(blocker=profile, blocked=other) | Q(blocker=other, blocked=profile)).exists():
+		return JsonResponse({"error": "You cannot message this player."}, status=403)
+	body = request.POST.get("body", "").strip()
+	if not body or len(body) > 2000 or not _can_message(profile, other):
+		return JsonResponse({"error": "That message could not be sent."}, status=400)
+	message = Message.objects.create(conversation=conversation, sender=profile, body=body)
+	conversation.save(update_fields=("updated_at",))
+	_notify(other, profile, "message", f"{profile.gamer_tag} sent you a message", f"/messages/{conversation.id}/")
+	return JsonResponse({"ok": True, "message": _message_payload(message, profile), "unread_message_count": _unread_message_count(profile)})
+
+
+@login_required
+def conversation_stream(request, conversation_id):
+	profile = get_object_or_404(GamerProfile, user=request.user)
+	conversation = get_object_or_404(Conversation, id=conversation_id, participants=profile)
+	other = conversation.participants.exclude(id=profile.id).first()
+	if not other or Block.objects.filter(Q(blocker=profile, blocked=other) | Q(blocker=other, blocked=profile)).exists():
+		return JsonResponse({"error": "Conversation unavailable."}, status=404)
+	def events():
+		last_payloads = {}
+		for _ in range(60):
+			messages_qs = conversation.messages.select_related("sender").order_by("id")
+			for message in messages_qs:
+				if message.sender_id != profile.id and message.delivered_at is None:
+					message.delivered_at = timezone.now()
+					message.save(update_fields=("delivered_at",))
+				payload = _message_payload(message, profile)
+				if last_payloads.get(message.id) != payload:
+					last_payloads[message.id] = payload
+					yield f"data: {json.dumps(payload)}\n\n"
+			if not messages_qs:
+				yield ": heartbeat\n\n"
+			time.sleep(1)
+	return StreamingHttpResponse(events(), content_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @login_required
 def conversation_start(request, gamer_tag):
 	profile = get_object_or_404(GamerProfile, user=request.user)
 	other = get_object_or_404(GamerProfile, gamer_tag=gamer_tag)
-	if request.method != "POST":
-		return HttpResponseForbidden("This action requires POST.")
+	if request.method not in {"GET", "POST"}:
+		return HttpResponseForbidden("Invalid conversation action.")
 	if not _can_message(profile, other):
 		return HttpResponseForbidden("You cannot message this gamer.")
 	conversation = Conversation.objects.filter(participants=profile).filter(participants=other).first()
 	if not conversation:
 		conversation = Conversation.objects.create()
 		ConversationParticipant.objects.bulk_create([ConversationParticipant(conversation=conversation, profile=profile), ConversationParticipant(conversation=conversation, profile=other)])
+	if request.headers.get("x-requested-with") == "XMLHttpRequest":
+		return JsonResponse({"ok": True, "conversation_id": conversation.id, "url": reverse("conversation_detail", args=[conversation.id])})
 	return redirect("conversation_detail", conversation_id=conversation.id)
 
 

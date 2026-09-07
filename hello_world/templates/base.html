@@ -64,7 +64,7 @@
                 {% if request.user.is_authenticated %}
                     <a href="{% url 'notification_list' %}" class="nav-icon-button" title="Notifications" aria-label="Notifications">
                         <span aria-hidden="true">🔔</span>
-                        {% if unread_notification_count %}<span class="nav-badge">{{ unread_notification_count }}</span>{% endif %}
+                        <span class="nav-badge" data-notification-count{% if not unread_notification_count %} hidden{% endif %}>{{ unread_notification_count }}</span>
                     </a>
                 {% endif %}
 
@@ -87,7 +87,7 @@
                                 {% if request.user.is_staff %}<a href="{% url 'organization_portal' %}" class="nav-profile-link">Organization Management</a>{% endif %}
                                 <a href="{% url 'profile_detail' user_profile.gamer_tag %}" class="nav-profile-link">My Profile</a>
                                 <a href="{% url 'profile_edit' user_profile.gamer_tag %}" class="nav-profile-link">Edit profile</a>
-                                <a href="{% url 'conversation_list' %}" class="nav-profile-link messages-nav-link">Messages{% if unread_message_count %}<span class="nav-badge">{{ unread_message_count }}</span>{% endif %}</a>
+                                <a href="{% url 'conversation_list' %}" class="nav-profile-link messages-nav-link">Messages<span class="nav-badge" data-message-count{% if not unread_message_count %} hidden{% endif %}>{{ unread_message_count }}</span></a>
                                 <a href="{% url 'message_requests' %}" class="nav-profile-link">Message requests{% if pending_message_request_count %}<span class="nav-badge nav-badge-warning">{{ pending_message_request_count }}</span>{% endif %}</a>
                             {% endif %}
                             <form method="post" action="{% url 'logout' %}" class="nav-logout-form">

@@ -1188,6 +1188,52 @@ class NotificationAndMessagingTests(TestCase):
 		self.assertEqual(response.context["unread_notification_count"], 1)
 		self.assertEqual(response.context["unread_message_count"], 1)
 
+	def test_message_badge_counts_only_unread_messages_and_decreases_when_read(self):
+		conversation = Conversation.objects.create()
+		ConversationParticipant.objects.bulk_create([
+			ConversationParticipant(conversation=conversation, profile=self.sender),
+			ConversationParticipant(conversation=conversation, profile=self.recipient),
+		])
+		self.client.login(username="recipient", password="pass")
+		self.assertEqual(self.client.get(reverse("notification_list")).context["unread_message_count"], 0)
+		Message.objects.create(conversation=conversation, sender=self.sender, body="One")
+		self.assertEqual(self.client.get(reverse("notification_list")).context["unread_message_count"], 1)
+		Message.objects.create(conversation=conversation, sender=self.sender, body="Two")
+		self.assertEqual(self.client.get(reverse("notification_list")).context["unread_message_count"], 2)
+		self.client.post(reverse("conversation_detail", args=(conversation.id,)), {"action": "read"}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertEqual(self.client.get(reverse("notification_list")).context["unread_message_count"], 0)
+
+	def test_unrelated_notifications_do_not_change_message_badge(self):
+		Notification.objects.create(recipient=self.recipient, actor=self.sender, notification_type="follow", message="Sender followed you")
+		self.client.login(username="recipient", password="pass")
+		response = self.client.get(reverse("notification_list"))
+		self.assertEqual(response.context["unread_notification_count"], 1)
+		self.assertEqual(response.context["unread_message_count"], 0)
+
+	def test_async_message_send_read_state_and_private_access(self):
+		conversation = Conversation.objects.create()
+		ConversationParticipant.objects.bulk_create([
+			ConversationParticipant(conversation=conversation, profile=self.sender),
+			ConversationParticipant(conversation=conversation, profile=self.recipient),
+		])
+		first, second = sorted((self.sender.id, self.recipient.id))
+		Friendship.objects.create(profile_one_id=first, profile_two_id=second)
+		self.client.login(username="sender", password="pass")
+		response = self.client.post(reverse("conversation_send", args=(conversation.id,)), {"body": "Async hello"}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertEqual(response.status_code, 200)
+		message = Message.objects.get(body="Async hello")
+		self.assertEqual(response.json()["message"]["state"], "sent")
+		self.client.login(username="recipient", password="pass")
+		response = self.client.post(reverse("conversation_detail", args=(conversation.id,)), {"action": "read"}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertEqual(response.json()["unread_message_count"], 0)
+		message.refresh_from_db()
+		self.assertIsNotNone(message.delivered_at)
+		self.assertIsNotNone(message.read_at)
+		outsider = User.objects.create_user(username="outsider", password="pass")
+		GamerProfile.objects.create(user=outsider, gamer_tag="Outsider")
+		self.client.login(username="outsider", password="pass")
+		self.assertEqual(self.client.get(reverse("conversation_detail", args=(conversation.id,))).status_code, 404)
+
 	def test_message_requests_and_privacy_rules(self):
 		self.client.login(username="sender", password="pass")
 		start_url = reverse("conversation_start", args=(self.recipient.gamer_tag,))
@@ -1212,6 +1258,30 @@ class NotificationAndMessagingTests(TestCase):
 		self.client.login(username="sender", password="pass")
 		self.client.post(reverse("connection_action", args=(self.recipient.gamer_tag, "follow")))
 		self.assertFalse(Follow.objects.exists())
+
+	def test_async_follow_persists_once_and_notifies_target(self):
+		self.client.login(username="sender", password="pass")
+		url = reverse("connection_action", args=(self.recipient.gamer_tag, "follow"))
+		response = self.client.post(url, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertEqual(response.status_code, 200)
+		self.assertTrue(Follow.objects.filter(follower=self.sender, following=self.recipient).exists())
+		self.client.post(url, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertEqual(Follow.objects.count(), 1)
+		self.assertEqual(Notification.objects.filter(recipient=self.recipient, notification_type="follow").count(), 1)
+
+	def test_followed_player_can_start_a_conversation_without_a_reload(self):
+		self.client.login(username="sender", password="pass")
+		self.client.post(reverse("connection_action", args=(self.recipient.gamer_tag, "follow")))
+		response = self.client.get(reverse("conversation_start", args=(self.recipient.gamer_tag,)))
+		self.assertEqual(response.status_code, 302)
+		self.assertEqual(Conversation.objects.count(), 1)
+
+	def test_conversation_and_inbox_streams_require_membership(self):
+		conversation = Conversation.objects.create()
+		ConversationParticipant.objects.create(conversation=conversation, profile=self.sender)
+		self.client.login(username="recipient", password="pass")
+		self.assertEqual(self.client.get(reverse("conversation_stream", args=(conversation.id,))).status_code, 404)
+		self.assertEqual(self.client.get(reverse("conversation_inbox_stream")).status_code, 200)
 
 	def test_blocked_profile_hides_social_actions_and_posts(self):
 		post = Post.objects.create(author=self.recipient, body="Private post")

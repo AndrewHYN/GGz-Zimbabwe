@@ -16,4 +16,18 @@ Profile simplification and realtime presence are complete.
 - Profile viewers receive short-lived server-sent presence events with automatic browser reconnection.
 - Find Players receives privacy-aware server-rendered presence snapshots without per-user polling.
 
-Phase 3 and future feature areas remain intentionally untouched.
+## PHASE 03 Social
+
+Social messaging and notification work is complete.
+
+- Follow actions update in place and generate deduplicated social notifications.
+- Message unread counts are participant-scoped and never reuse notification counts.
+- Inbox and notification badges reconcile from server-authoritative SSE streams.
+- Conversations support async sending, retry feedback, read state, delivery/read ticks, date separators, and controlled auto-scroll.
+- Conversation and notification SSE endpoints require authentication and enforce membership/ownership.
+- Profile-to-message flow remains compatible with blocks and existing social permissions.
+- Message delivery/read timestamps are stored in migration `0019_message_delivered_at_message_read_at`.
+
+Validation: 193 Django tests passed, Django checks passed, migration drift check passed, JavaScript syntax check passed, and `git diff --check` passed.
+
+Phase 4 and future feature areas remain intentionally untouched.

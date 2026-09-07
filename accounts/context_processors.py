@@ -1,19 +1,15 @@
-from django.db.models import F, Q
+from django.db.models import Exists, F, OuterRef, Q
 
-from .models import Message, MessageRequest
+from .models import ConversationParticipant, Message, MessageRequest
 
 
 def _unread_message_count(profile):
-    unread_messages = Message.objects.filter(
-        conversation__participant_links__profile=profile,
-    ).exclude(sender=profile).filter(
-        Q(conversation__participant_links__cleared_at__isnull=True)
-        | Q(conversation__participant_links__cleared_at__lt=F("created_at"))
+    participant = ConversationParticipant.objects.filter(conversation_id=OuterRef("conversation_id"), profile=profile)
+    return Message.objects.filter(conversation__participants=profile).exclude(sender=profile).filter(
+        Exists(participant.filter(Q(cleared_at__isnull=True) | Q(cleared_at__lt=OuterRef("created_at"))))
     ).filter(
-        Q(conversation__participant_links__last_read_at__isnull=True)
-        | Q(conversation__participant_links__last_read_at__lt=F("created_at"))
-    ).distinct()
-    return unread_messages.count()
+        Exists(participant.filter(Q(last_read_at__isnull=True) | Q(last_read_at__lt=OuterRef("created_at"))))
+    ).count()
 
 
 def notification_count(request):

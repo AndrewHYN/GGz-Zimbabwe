@@ -206,10 +206,164 @@
       if (button) { button.disabled = true; button.classList.add('is-loading'); }
       fetch((button && button.formAction) || form.action, { method: 'POST', body: new FormData(form), credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
         .then((response) => response.ok ? response.json() : Promise.reject(new Error('Action failed')))
-        .then(() => window.location.reload())
-        .catch(() => { if (button) { button.disabled = false; button.classList.remove('is-loading'); } });
+        .then((result) => {
+          if (form.matches('[data-follow-form]')) {
+            form.action = result.following ? form.action.replace('/follow/', '/unfollow/') : form.action.replace('/unfollow/', '/follow/');
+            button.innerHTML = result.following ? '<span aria-hidden="true">✓</span> Following' : '<span aria-hidden="true">+</span> Follow';
+            button.setAttribute('aria-pressed', String(result.following));
+          }
+          if (button) { button.disabled = false; button.classList.remove('is-loading'); }
+        })
+        .catch(() => { if (button) { button.disabled = false; button.classList.remove('is-loading'); button.innerHTML = '<span aria-hidden="true">!</span> Try again'; } });
     });
   });
+
+  const socialJson = (form) => fetch(form.action, {
+    method: 'POST',
+    body: new FormData(form),
+    credentials: 'same-origin',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+  }).then((response) => response.ok ? response.json() : Promise.reject(new Error('Request failed')));
+
+  const updateMessageCount = (count) => document.querySelectorAll('[data-message-count]').forEach((badge) => {
+    badge.textContent = count || '';
+    badge.hidden = !count;
+  });
+
+  document.querySelectorAll('[data-notification-open], [data-notification-read-all], [data-notification-unread]').forEach((form) => {
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const item = form.closest('[data-notification-id]');
+      socialJson(form).then((result) => {
+        if (item && form.matches('[data-notification-open]')) item.classList.remove('is-unread');
+        if (form.matches('[data-notification-read-all]')) document.querySelectorAll('.social-notification').forEach((notification) => notification.classList.remove('is-unread'));
+        document.querySelectorAll('[data-notification-unread]').forEach((unreadForm) => { if (form.matches('[data-notification-read-all]')) unreadForm.remove(); });
+        document.querySelectorAll('[data-notification-count]').forEach((badge) => { badge.textContent = result.unread_count || ''; badge.hidden = !result.unread_count; });
+        if (form.matches('[data-notification-open]') && item) form.closest('button').disabled = true;
+        if (form.matches('[data-notification-open]') && result.target_url) window.location.href = result.target_url;
+      }).catch(() => { const status = document.querySelector('[data-social-status]'); if (status) status.textContent = 'Could not update notifications. Try again.'; });
+    });
+  });
+
+  const notificationPage = document.querySelector('[data-notification-stream-url]');
+  if (notificationPage) {
+    const notificationStream = new EventSource(notificationPage.dataset.notificationStreamUrl);
+    notificationStream.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        document.querySelectorAll('[data-notification-count]').forEach((badge) => { badge.textContent = payload.unread_count || ''; badge.hidden = !payload.unread_count; });
+      } catch (error) { /* Ignore transient malformed events. */ }
+    };
+  }
+
+  const conversationSearch = document.querySelector('[data-conversation-search]');
+  if (conversationSearch) conversationSearch.addEventListener('input', () => {
+    const query = conversationSearch.value.trim().toLowerCase();
+    document.querySelectorAll('[data-conversation-item]').forEach((item) => { item.hidden = query && !item.dataset.conversationName.includes(query); });
+  });
+
+  const inbox = document.querySelector('[data-inbox-stream-url]');
+  if (inbox) {
+    const inboxStream = new EventSource(inbox.dataset.inboxStreamUrl);
+    const updateInbox = (payload) => {
+      updateMessageCount(payload.unread_message_count);
+      (payload.items || []).forEach((item) => {
+        const row = document.querySelector(`[data-conversation-id="${item.id}"]`);
+        if (!row) return;
+        const preview = row.querySelector('.conversation-copy small');
+        const count = row.querySelector('[data-conversation-unread]');
+        const meta = row.querySelector('.conversation-meta');
+        if (preview) preview.textContent = item.preview;
+        if (meta && item.time) meta.firstChild.textContent = item.time;
+        if (item.unread_count) {
+          row.classList.add('is-unread');
+          if (count) count.textContent = item.unread_count;
+          else if (meta) { const badge = document.createElement('b'); badge.dataset.conversationUnread = 'true'; badge.textContent = item.unread_count; meta.append(badge); }
+        } else {
+          row.classList.remove('is-unread');
+          if (count) count.remove();
+        }
+      });
+    };
+    inboxStream.onmessage = (event) => { try { updateInbox(JSON.parse(event.data)); } catch (error) { /* Ignore transient malformed events. */ } };
+  }
+
+  const chatPage = document.querySelector('[data-chat-page]');
+  if (chatPage) {
+    const list = chatPage.querySelector('[data-message-list]');
+    const form = chatPage.querySelector('[data-message-form]');
+    const input = chatPage.querySelector('[data-message-input]');
+    const status = chatPage.querySelector('[data-message-status]');
+    const empty = chatPage.querySelector('[data-chat-empty]');
+    const nearBottom = () => list.scrollHeight - list.scrollTop - list.clientHeight < 120;
+    const scrollLatest = () => { list.scrollTop = list.scrollHeight; };
+    const appendMessage = (message, pending = false) => {
+      if (empty) empty.remove();
+      const existing = list.querySelector(`[data-message-id="${message.id}"]`);
+      if (existing) {
+        existing.dataset.messageState = message.state || 'sent';
+        const ticks = existing.querySelector('[data-message-ticks]');
+        if (ticks) {
+          const isRead = message.state === 'read';
+          ticks.textContent = isRead || message.state === 'delivered' ? '✓✓' : '✓';
+          ticks.setAttribute('aria-label', isRead ? 'Read' : message.state === 'delivered' ? 'Delivered' : 'Sent');
+        }
+        return existing;
+      }
+      const article = document.createElement('article');
+      article.className = `message-bubble${message.mine ? ' message-own' : ''}${pending ? ' is-pending' : ''}`;
+      article.dataset.messageId = message.id;
+      article.dataset.messageState = message.state || 'sent';
+      article.innerHTML = `<p></p><footer><time>${message.time || 'now'}</time>${message.mine ? `<span class="message-ticks" data-message-ticks aria-label="${message.state || 'Sent'}">${message.state === 'read' || message.state === 'delivered' ? '✓✓' : '✓'}</span>` : ''}</footer>`;
+      article.querySelector('p').textContent = message.body;
+      list.append(article);
+      return article;
+    };
+    scrollLatest();
+    const markRead = () => fetch(chatPage.dataset.chatReadUrl, { method: 'POST', body: new URLSearchParams({ action: 'read', csrfmiddlewaretoken: getCookie('csrftoken') }), credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then((response) => response.ok ? response.json() : null).then((result) => { if (result) updateMessageCount(result.unread_message_count); }).catch(() => {});
+    markRead();
+    const stream = new EventSource(chatPage.dataset.chatStreamUrl);
+    const reconnectStatus = document.createElement('span');
+    reconnectStatus.className = 'stream-status';
+    reconnectStatus.setAttribute('role', 'status');
+    chatPage.querySelector('.chat-header').append(reconnectStatus);
+    stream.onopen = () => { reconnectStatus.textContent = ''; };
+    stream.onerror = () => { reconnectStatus.textContent = 'Reconnecting...'; };
+    stream.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        const shouldScroll = nearBottom();
+        const article = appendMessage(message);
+        if (message.mine && article) article.dataset.messageState = message.state;
+        if (shouldScroll) scrollLatest();
+        if (!message.mine && shouldScroll) markRead();
+      } catch (error) { /* Ignore malformed transient events. */ }
+    };
+    const sendMessage = () => {
+      const body = input.value.trim();
+      if (!body) return;
+      const button = form.querySelector('button[type="submit"]');
+      button.disabled = true;
+      status.textContent = 'Sending...';
+      fetch(form.action, { method: 'POST', body: new FormData(form), credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then((response) => response.ok ? response.json() : response.json().then((data) => Promise.reject(new Error(data.error || 'Message failed')))).then((result) => {
+        appendMessage(result.message);
+        input.value = '';
+        status.textContent = 'Sent';
+        updateMessageCount(result.unread_message_count);
+        scrollLatest();
+      }).catch((error) => {
+        status.textContent = error.message || 'Message failed.';
+        let retry = form.querySelector('[data-message-retry]');
+        if (!retry) { retry = document.createElement('button'); retry.type = 'button'; retry.dataset.messageRetry = 'true'; retry.className = 'message-retry'; retry.textContent = 'Retry'; status.append(retry); }
+        retry.onclick = () => { retry.remove(); sendMessage(); };
+      }).finally(() => { button.disabled = false; input.focus(); });
+    };
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      sendMessage();
+    });
+    input.addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); form.requestSubmit(); } });
+  }
 
   async function readJsonResponse(response) {
     const contentType = response.headers.get('content-type') || '';
@@ -624,47 +778,6 @@
       } finally {
         button.disabled = false;
         button.classList.remove('is-loading');
-      }
-    });
-  });
-
-  document.querySelectorAll('[data-message-form]').forEach((form) => {
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      const button = form.querySelector('button[type="submit"]');
-      const textarea = form.querySelector('textarea[name="body"]');
-      const status = form.querySelector('[data-message-status]');
-      const messageList = document.getElementById('message-list');
-      const originalLabel = button.textContent;
-      button.disabled = true;
-      button.textContent = 'Sending...';
-      status.textContent = '';
-      try {
-        const response = await fetch(window.location.href, {
-          method: 'POST',
-          body: new FormData(form),
-          credentials: 'same-origin',
-          headers: { 'X-Requested-With': 'XMLHttpRequest' },
-        });
-        const result = await readJsonResponse(response);
-        const emptyState = messageList.querySelector('.empty-state');
-        if (emptyState) emptyState.remove();
-        const message = document.createElement('article');
-        message.className = 'message message-own';
-        const body = document.createElement('p');
-        body.textContent = result.message.body;
-        const time = document.createElement('small');
-        time.textContent = result.message.time;
-        message.append(body, time);
-        messageList.append(message);
-        messageList.scrollTop = messageList.scrollHeight;
-        textarea.value = '';
-        status.textContent = 'Sent';
-      } catch (error) {
-        status.textContent = error.message || 'Could not send the message. Try again.';
-      } finally {
-        button.disabled = false;
-        button.textContent = originalLabel;
       }
     });
   });
