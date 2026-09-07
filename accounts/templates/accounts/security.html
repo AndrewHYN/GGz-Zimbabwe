@@ -33,12 +33,14 @@
                                 {% csrf_token %}
                                 <button type="submit" class="button button-secondary button-danger">Disconnect</button>
                             </form>
-                        {% else %}
+                        {% elif provider.available %}
                             {% if provider.provider == 'google' %}
                                 <a class="button button-provider google-button" href="{% url 'google_login_start' %}">{{ provider.name }}</a>
                             {% else %}
                                 <a class="button button-provider apple-button" href="{% url 'apple_login_start' %}">{{ provider.name }}</a>
                             {% endif %}
+                        {% else %}
+                            <span class="muted provider-unavailable">Not configured</span>
                         {% endif %}
                     </div>
                 {% endfor %}

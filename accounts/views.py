@@ -7,6 +7,7 @@ from collections import Counter
 from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 
+import jwt
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login, logout
@@ -80,6 +81,21 @@ def _provider_error_redirect(provider, error_message):
 	return redirect("login")
 
 
+def _provider_is_configured(provider):
+	if provider == "google":
+		return bool(settings.GOOGLE_CLIENT_ID and settings.GOOGLE_CLIENT_SECRET)
+	if provider == "apple":
+		return bool(settings.APPLE_CLIENT_ID and settings.APPLE_CLIENT_SECRET)
+	return False
+
+
+def _auth_provider_context():
+	return {
+		"google_available": _provider_is_configured("google"),
+		"apple_available": _provider_is_configured("apple"),
+	}
+
+
 def _json_http_request(url, payload=None, headers=None, method="POST"):
 	request = Request(url, data=None if payload is None else urlencode(payload).encode("utf-8"), headers=headers or {}, method=method)
 	with urlopen(request, timeout=20) as response:
@@ -141,9 +157,22 @@ def google_oauth_userinfo(access_token):
 
 
 def apple_oauth_userinfo(id_token):
-	claims = _decode_jwt_claims(id_token)
-	if not claims:
-		raise ValueError("Invalid Apple ID token.")
+	if not id_token or not settings.APPLE_CLIENT_ID:
+		raise ValueError("Apple identity validation is unavailable.")
+	with urlopen("https://appleid.apple.com/auth/keys", timeout=20) as response:
+		key_set = json.loads(response.read().decode("utf-8"))
+	header = jwt.get_unverified_header(id_token)
+	key_data = next((key for key in key_set.get("keys", []) if key.get("kid") == header.get("kid")), None)
+	if not key_data:
+		raise ValueError("Apple signing key not found.")
+	public_key = jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(key_data))
+	claims = jwt.decode(
+		id_token,
+		key=public_key,
+		algorithms=["RS256"],
+		audience=settings.APPLE_CLIENT_ID,
+		issuer="https://appleid.apple.com",
+	)
 	return {
 		"sub": claims.get("sub"),
 		"email": claims.get("email", ""),
@@ -184,7 +213,9 @@ def _resolve_or_create_provider_user(provider, claims, request):
 		while User.objects.filter(username__iexact=username).exists():
 			username = f"{base_username}{suffix}"
 			suffix += 1
-		user = User.objects.create_user(username=username, email=email or f"{username}@example.invalid", password=None)
+		if not email:
+			raise ValueError("Provider identity did not include an email address.")
+		user = User.objects.create_user(username=username, email=email, password=None)
 		GamerProfile.objects.create(user=user, gamer_tag=(username[:20] or "GGzPlayer") + "ZW")
 
 	SocialIdentity.objects.create(user=user, provider=provider, provider_user_id=provider_user_id, email=email, display_name=display_name)
@@ -1690,7 +1721,7 @@ def signup(request):
 		if next_url and _safe_redirect_url(request, reverse("profile_detail", args=[user.gamer_profile.gamer_tag])) == reverse("profile_detail", args=[user.gamer_profile.gamer_tag]):
 			next_url = reverse("profile_detail", args=[user.gamer_profile.gamer_tag])
 		return redirect(next_url or reverse("profile_detail", args=[user.gamer_profile.gamer_tag]))
-	return render(request, "accounts/signup.html", {"form": form, "next": _safe_redirect_url(request, "/")})
+	return render(request, "accounts/signup.html", {"form": form, "next": _safe_redirect_url(request, "/"), **_auth_provider_context()})
 
 
 def ggz_login(request):
@@ -1703,7 +1734,7 @@ def ggz_login(request):
 			messages.success(request, "You’re signed in.")
 			return redirect(_safe_redirect_url(request, "/"))
 		messages.error(request, "We couldn’t sign you in with those details. Please try again.")
-	return render(request, "registration/login.html", {"form": form, "next": _safe_redirect_url(request, "/")})
+	return render(request, "registration/login.html", {"form": form, "next": _safe_redirect_url(request, "/"), **_auth_provider_context()})
 
 
 def ggz_logout(request):
@@ -1715,9 +1746,9 @@ def ggz_logout(request):
 
 def google_login_start(request):
 	request.session["oauth_next"] = _safe_redirect_url(request, "/")
-	if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
-		state = _safe_provider_state(request, "google")
-		return redirect(f"{reverse('google_login_callback')}?code=mock-google-code&state={state}")
+	if not _provider_is_configured("google"):
+		messages.error(request, "Google sign-in is not available right now. Please use your GGz password.")
+		return redirect("login")
 	redirect_uri = settings.GOOGLE_REDIRECT_URI or _build_provider_redirect_url("google")
 	state = _safe_provider_state(request, "google")
 	params = {
@@ -1744,18 +1775,15 @@ def google_login_callback(request):
 		code = request.GET.get("code")
 		if not code:
 			raise ValueError("Google callback code missing")
-		if code == "mock-google-code":
-			userinfo = {"sub": "mock-google-user", "email": f"mock-google-{request.user.pk if request.user.is_authenticated else 'new'}@example.com", "name": "Google Mock User"}
-		else:
-			token_response = google_oauth_exchange(code)
-			if "error" in token_response:
-				raise ValueError(token_response["error"])
-			userinfo = google_oauth_userinfo(token_response["access_token"])
-			claims = _decode_jwt_claims(token_response.get("id_token", ""))
-			if claims:
-				userinfo.setdefault("sub", claims.get("sub"))
-				userinfo.setdefault("email", claims.get("email", ""))
-				userinfo.setdefault("name", claims.get("name") or claims.get("email", "").split("@", 1)[0])
+		token_response = google_oauth_exchange(code)
+		if "error" in token_response or not token_response.get("access_token"):
+			raise ValueError(token_response.get("error", "Google access token missing"))
+		userinfo = google_oauth_userinfo(token_response["access_token"])
+		claims = _decode_jwt_claims(token_response.get("id_token", ""))
+		if claims:
+			userinfo.setdefault("sub", claims.get("sub"))
+			userinfo.setdefault("email", claims.get("email", ""))
+			userinfo.setdefault("name", claims.get("name") or claims.get("email", "").split("@", 1)[0])
 		user = _resolve_or_create_provider_user("google", userinfo, request)
 		login(request, user)
 		request.session.cycle_key()
@@ -1768,9 +1796,9 @@ def google_login_callback(request):
 
 def apple_login_start(request):
 	request.session["oauth_next"] = _safe_redirect_url(request, "/")
-	if not settings.APPLE_CLIENT_ID or not settings.APPLE_CLIENT_SECRET:
-		state = _safe_provider_state(request, "apple")
-		return redirect(f"{reverse('apple_login_callback')}?code=mock-apple-code&state={state}")
+	if not _provider_is_configured("apple"):
+		messages.error(request, "Apple sign-in is not available right now. Please use your GGz password.")
+		return redirect("login")
 	redirect_uri = settings.APPLE_REDIRECT_URI or _build_provider_redirect_url("apple")
 	state = _safe_provider_state(request, "apple")
 	nonce = secrets.token_urlsafe(16)
@@ -1780,7 +1808,7 @@ def apple_login_start(request):
 		"redirect_uri": redirect_uri,
 		"response_type": "code",
 		"scope": "name email",
-		"response_mode": "form_post",
+		"response_mode": "query",
 		"state": state,
 		"nonce": nonce,
 	}
@@ -1799,18 +1827,10 @@ def apple_login_callback(request):
 		code = request.POST.get("code") or request.GET.get("code")
 		if not code:
 			raise ValueError("Apple callback code missing")
-		if code == "mock-apple-code":
-			userinfo = {"sub": "mock-apple-user", "email": f"mock-apple-{request.user.pk if request.user.is_authenticated else 'new'}@example.com", "name": "Apple Mock User"}
-		else:
-			token_response = apple_oauth_exchange(code)
-			if "error" in token_response:
-				raise ValueError(token_response["error"])
-			userinfo = apple_oauth_userinfo(token_response.get("id_token", ""))
-			claims = _decode_jwt_claims(token_response.get("id_token", ""))
-			if claims:
-				userinfo.setdefault("sub", claims.get("sub"))
-				userinfo.setdefault("email", claims.get("email", ""))
-				userinfo.setdefault("name", claims.get("name") or claims.get("email", "").split("@", 1)[0])
+		token_response = apple_oauth_exchange(code)
+		if "error" in token_response or not token_response.get("id_token"):
+			raise ValueError(token_response.get("error", "Apple identity token missing"))
+		userinfo = apple_oauth_userinfo(token_response["id_token"])
 		user = _resolve_or_create_provider_user("apple", userinfo, request)
 		login(request, user)
 		request.session.cycle_key()
@@ -1906,5 +1926,6 @@ def account_security(request):
 			"name": provider.title(),
 			"connected": bool(connected),
 			"display_name": connected.display_name if connected else "",
+			"available": _provider_is_configured(provider),
 		})
 	return render(request, "accounts/security.html", {"user": request.user, "providers": providers})

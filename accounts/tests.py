@@ -8,7 +8,7 @@ from django.core import mail
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
@@ -120,6 +120,39 @@ class AuthSecurityWorkflowTests(TestCase):
 
 
 class ProviderIdentityAuthTests(TestCase):
+	def test_fake_provider_codes_never_create_identities(self):
+		for provider, callback_name, state_key in (
+			("google", "google_login_callback", "oauth_state_google"),
+			("apple", "apple_login_callback", "oauth_state_apple"),
+		):
+			session = self.client.session
+			session[state_key] = f"{provider}-state"
+			session.save()
+			response = self.client.get(reverse(callback_name), {"code": f"mock-{provider}-code", "state": f"{provider}-state"})
+			self.assertEqual(response.status_code, 302)
+			self.assertFalse(User.objects.filter(username__startswith="mock-").exists())
+			self.assertFalse(User.objects.filter(email__icontains="mock-").exists())
+
+	def test_unconfigured_provider_redirects_without_fake_success(self):
+		for route_name in ("google_login_start", "apple_login_start"):
+			response = self.client.get(reverse(route_name))
+			self.assertRedirects(response, reverse("login"))
+		self.assertNotIn("_auth_user_id", self.client.session)
+
+	def test_login_renders_accessible_password_control_without_unconfigured_buttons(self):
+		response = self.client.get(reverse("login"))
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, 'data-password-toggle="id_password"')
+		self.assertContains(response, 'aria-label="Show password"')
+		self.assertNotContains(response, "Continue with Google")
+		self.assertNotContains(response, "Continue with Apple")
+
+	@override_settings(GOOGLE_CLIENT_ID="google-client", GOOGLE_CLIENT_SECRET="google-secret")
+	def test_login_only_renders_configured_provider_button(self):
+		response = self.client.get(reverse("login"))
+		self.assertContains(response, "Continue with Google")
+		self.assertNotContains(response, "Continue with Apple")
+
 	def test_google_oauth_flow_creates_and_authenticates_user(self):
 		state = "google-state-123"
 		session = self.client.session

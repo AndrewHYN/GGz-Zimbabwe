@@ -128,6 +128,7 @@
       input.type = isPassword ? 'text' : 'password';
       toggle.textContent = isPassword ? 'Hide' : 'Show';
       toggle.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
+      toggle.setAttribute('aria-pressed', String(isPassword));
     });
   });
 
@@ -140,6 +141,15 @@
       const label = button.textContent.trim();
       button.dataset.originalLabel = label;
       button.textContent = 'Please wait...';
+    });
+  });
+
+  document.querySelectorAll('[data-provider-submit]').forEach((link) => {
+    link.addEventListener('click', () => {
+      link.setAttribute('aria-disabled', 'true');
+      link.classList.add('is-loading');
+      link.dataset.originalLabel = link.textContent.trim();
+      link.textContent = 'Connecting...';
     });
   });
 
