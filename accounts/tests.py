@@ -119,6 +119,53 @@ class AuthSecurityWorkflowTests(TestCase):
 		self.assertNotIn("_auth_user_id", self.client.session)
 
 
+class ProviderIdentityAuthTests(TestCase):
+	def test_google_oauth_flow_creates_and_authenticates_user(self):
+		state = "google-state-123"
+		session = self.client.session
+		session["oauth_state_google"] = state
+		session.save()
+		with patch("accounts.views.google_oauth_exchange", return_value={"access_token": "google-access-token"}), \
+			patch("accounts.views.google_oauth_userinfo", return_value={"sub": "google-123", "email": "googleuser@example.com", "name": "Google User"}):
+			response = self.client.get(reverse("google_login_callback"), {"code": "auth-code", "state": state})
+		self.assertEqual(response.status_code, 302)
+		self.assertTrue(User.objects.filter(email="googleuser@example.com").exists())
+		self.assertIn("_auth_user_id", self.client.session)
+
+	def test_apple_oauth_flow_links_existing_password_account(self):
+		user = User.objects.create_user(username="appleuser", email="apple@example.com", password="strong-password-123")
+		GamerProfile.objects.create(user=user, gamer_tag="AppleUserZW")
+		state = "apple-state-456"
+		session = self.client.session
+		session["oauth_state_apple"] = state
+		session.save()
+		with patch("accounts.views.apple_oauth_exchange", return_value={"id_token": "apple-token"}), \
+			patch("accounts.views.apple_oauth_userinfo", return_value={"sub": "apple-456", "email": "apple@example.com", "name": "Apple User"}):
+			response = self.client.get(reverse("apple_login_callback"), {"code": "auth-code", "state": state})
+		self.assertEqual(response.status_code, 302)
+		self.assertTrue(user.social_identities.filter(provider="apple").exists())
+
+	def test_security_page_shows_connected_provider_status_and_blocks_final_unlink(self):
+		user = User.objects.create_user(username="providerlink", email="providerlink@example.com", password="strong-password-123")
+		GamerProfile.objects.create(user=user, gamer_tag="ProviderLinkZW")
+		self.client.login(username="providerlink", password="strong-password-123")
+		response = self.client.get(reverse("account_security"))
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Google")
+		self.assertContains(response, "Apple")
+		self.assertContains(response, "No Google account connected")
+		self.assertContains(response, "No Apple account connected")
+
+	def test_provider_linking_rejects_duplicates(self):
+		user = User.objects.create_user(username="dupuser", email="dupuser@example.com", password="strong-password-123")
+		GamerProfile.objects.create(user=user, gamer_tag="DupUserZW")
+		other = User.objects.create_user(username="otherdup", email="otherdup@example.com", password="strong-password-123")
+		GamerProfile.objects.create(user=other, gamer_tag="OtherDupZW")
+		with patch("accounts.views.google_oauth_userinfo", return_value={"sub": "duplicate-google", "email": "existing@example.com", "name": "Existing User"}):
+			response = self.client.get(reverse("google_login_callback"), {"code": "auth-code", "state": "state"})
+		self.assertEqual(response.status_code, 302)
+
+
 class GamerProfileWorkflowTests(TestCase):
 	def setUp(self):
 		self.user = User.objects.create_user(

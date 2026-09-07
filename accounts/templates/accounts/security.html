@@ -13,6 +13,38 @@
 
     <div class="card-grid stacked"> 
         <section class="card-panel">
+            <h2>Connected accounts</h2>
+            <p class="muted">Choose which trusted sign-in methods you want to keep linked.</p>
+            <div class="provider-status-list">
+                {% for provider in providers %}
+                    <div class="provider-status-item">
+                        <div>
+                            <strong>{{ provider.name }}</strong>
+                            <p class="muted">
+                                {% if provider.connected %}
+                                    Connected as {{ provider.display_name|default:"GGz player" }}
+                                {% else %}
+                                    No {{ provider.name }} account connected
+                                {% endif %}
+                            </p>
+                        </div>
+                        {% if provider.connected %}
+                            <form method="post" action="{% url 'unlink_provider' provider.provider %}">
+                                {% csrf_token %}
+                                <button type="submit" class="button button-secondary button-danger">Disconnect</button>
+                            </form>
+                        {% else %}
+                            {% if provider.provider == 'google' %}
+                                <a class="button button-provider google-button" href="{% url 'google_login_start' %}">{{ provider.name }}</a>
+                            {% else %}
+                                <a class="button button-provider apple-button" href="{% url 'apple_login_start' %}">{{ provider.name }}</a>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        </section>
+        <section class="card-panel">
             <h2>Password</h2>
             <p class="muted">Update your password and keep your account protected.</p>
             <a class="button" href="{% url 'password_change' %}">Change password</a>

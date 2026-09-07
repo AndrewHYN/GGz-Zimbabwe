@@ -37,6 +37,10 @@ SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "").strip()
 if not SECRET_KEY:
     SECRET_KEY = "dev-secret-key-change-me-for-local-ggz-development-2026-!"
 
+SITE_URL = config("SITE_URL", default="http://localhost:8000" if not DEPLOYED else "")
+if not SITE_URL and DEPLOYED:
+    SITE_URL = "https://" + (os.environ.get("VERCEL_URL") or os.environ.get("VERCEL_BRANCH_URL") or os.environ.get("RENDER_EXTERNAL_HOSTNAME") or "localhost")
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config("DEBUG", default=not DEPLOYED, cast=bool)
 
@@ -225,10 +229,12 @@ SERVER_EMAIL = config("SERVER_EMAIL", default=DEFAULT_FROM_EMAIL)
 
 GOOGLE_CLIENT_ID = config("GOOGLE_CLIENT_ID", default="")
 GOOGLE_CLIENT_SECRET = config("GOOGLE_CLIENT_SECRET", default="")
+GOOGLE_REDIRECT_URI = config("GOOGLE_REDIRECT_URI", default="")
 APPLE_CLIENT_ID = config("APPLE_CLIENT_ID", default="")
 APPLE_TEAM_ID = config("APPLE_TEAM_ID", default="")
 APPLE_KEY_ID = config("APPLE_KEY_ID", default="")
 APPLE_CLIENT_SECRET = config("APPLE_CLIENT_SECRET", default="")
+APPLE_REDIRECT_URI = config("APPLE_REDIRECT_URI", default="")
 TURNSTILE_SITE_KEY = config("TURNSTILE_SITE_KEY", default="")
 TURNSTILE_SECRET_KEY = config("TURNSTILE_SECRET_KEY", default="")
 
