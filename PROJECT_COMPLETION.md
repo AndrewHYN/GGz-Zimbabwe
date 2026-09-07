@@ -27,6 +27,7 @@ Social messaging and notification work is complete.
 - Conversation and notification SSE endpoints require authentication and enforce membership/ownership.
 - Profile-to-message flow remains compatible with blocks and existing social permissions.
 - Message delivery/read timestamps are stored in migration `0019_message_delivered_at_message_read_at`.
+- Account navigation is consolidated into Dashboard, Squads, Friends, My Profile, Messages, Settings, and secure Log out; Messages contains the Chats and Requests tabs.
 
 Validation: 193 Django tests passed, Django checks passed, migration drift check passed, JavaScript syntax check passed, and `git diff --check` passed.
 

@@ -69,7 +69,7 @@
                 {% endif %}
 
                 {% if request.user.is_authenticated %}
-                    <div class="nav-profile">
+                    <div class="nav-profile" data-social-stream-url="{% url 'notification_stream' %}">
                         <button type="button" class="nav-profile-button" id="nav-profile-toggle" aria-expanded="false" aria-controls="nav-profile-panel" aria-haspopup="true" aria-label="Account menu">
                             {% if request.user.gamer_profile.avatar %}
                                 <img class="nav-avatar" src="{{ request.user.gamer_profile.avatar.url }}" alt="{{ request.user.username }} avatar">
@@ -83,16 +83,20 @@
                                 <span class="nav-profile-email">{{ request.user.email|default:"Player account" }}</span>
                             </div>
                             {% if user_profile %}
-                                <a href="{% url 'dashboard' %}" class="nav-profile-link">Dashboard</a>
-                                {% if request.user.is_staff %}<a href="{% url 'organization_portal' %}" class="nav-profile-link">Organization Management</a>{% endif %}
-                                <a href="{% url 'profile_detail' user_profile.gamer_tag %}" class="nav-profile-link">My Profile</a>
-                                <a href="{% url 'profile_edit' user_profile.gamer_tag %}" class="nav-profile-link">Edit profile</a>
-                                <a href="{% url 'conversation_list' %}" class="nav-profile-link messages-nav-link">Messages<span class="nav-badge" data-message-count{% if not unread_message_count %} hidden{% endif %}>{{ unread_message_count }}</span></a>
-                                <a href="{% url 'message_requests' %}" class="nav-profile-link">Message requests{% if pending_message_request_count %}<span class="nav-badge nav-badge-warning">{{ pending_message_request_count }}</span>{% endif %}</a>
+                                <nav class="nav-account-links" aria-label="Account navigation">
+                                    <a href="{% url 'dashboard' %}" class="nav-profile-link nav-profile-primary"><span class="nav-link-icon" aria-hidden="true">&#8962;</span>Dashboard</a>
+                                    <a href="{% url 'team_list' %}" class="nav-profile-link"><span class="nav-link-icon" aria-hidden="true">&#9876;</span>Squads</a>
+                                    <a href="{% url 'profile_friends' user_profile.gamer_tag %}" class="nav-profile-link"><span class="nav-link-icon" aria-hidden="true">&#9822;</span>Friends</a>
+                                    <a href="{% url 'profile_detail' user_profile.gamer_tag %}" class="nav-profile-link"><span class="nav-link-icon" aria-hidden="true">&#9673;</span>My Profile</a>
+                                    <a href="{% url 'conversation_list' %}" class="nav-profile-link messages-nav-link"><span class="nav-link-icon" aria-hidden="true">&#9993;</span>Messages<span class="nav-badge" data-message-count{% if not unread_message_count %} hidden{% endif %}>{{ unread_message_count }}</span></a>
+                                </nav>
+                                <div class="nav-account-secondary">
+                                    <a href="{% url 'account_security' %}" class="nav-profile-link"><span class="nav-link-icon" aria-hidden="true">&#9881;</span>Settings</a>
+                                </div>
                             {% endif %}
                             <form method="post" action="{% url 'logout' %}" class="nav-logout-form">
                                 {% csrf_token %}
-                                <button type="submit" class="nav-profile-link">Log out</button>
+                                <button type="submit" class="nav-profile-link nav-logout-link"><span class="nav-link-icon" aria-hidden="true">&#10132;</span>Log out</button>
                             </form>
                         </div>
                     </div>

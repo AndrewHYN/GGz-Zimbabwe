@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Notifications | GGz{% endblock %}
 {% block content %}
-<main class="page-shell social-page notification-page" data-notification-page data-notification-stream-url="{% url 'notification_stream' %}">
+<main class="page-shell social-page notification-page" data-notification-page data-social-stream-url="{% url 'notification_stream' %}">
     <header class="social-page-header"><div><p class="eyebrow">Social / activity</p><h1>Notifications</h1><p class="lede">The moments that bring your gaming circle closer.</p></div>{% if unread_count %}<form method="post" action="{% url 'notifications_read_all' %}" data-notification-read-all>{% csrf_token %}<button class="button button-secondary" type="submit">Mark all read</button></form>{% endif %}</header>
     <section class="notification-list social-list" aria-label="Notifications">
         {% for notification in notifications %}<article class="notification-item social-notification{% if not notification.is_read %} is-unread{% endif %}" data-notification-id="{{ notification.id }}">

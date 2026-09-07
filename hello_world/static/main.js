@@ -245,13 +245,14 @@
     });
   });
 
-  const notificationPage = document.querySelector('[data-notification-stream-url]');
+  const notificationPage = document.querySelector('[data-social-stream-url]');
   if (notificationPage) {
-    const notificationStream = new EventSource(notificationPage.dataset.notificationStreamUrl);
+    const notificationStream = new EventSource(notificationPage.dataset.socialStreamUrl);
     notificationStream.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
         document.querySelectorAll('[data-notification-count]').forEach((badge) => { badge.textContent = payload.unread_count || ''; badge.hidden = !payload.unread_count; });
+        updateMessageCount(payload.unread_message_count);
       } catch (error) { /* Ignore transient malformed events. */ }
     };
   }

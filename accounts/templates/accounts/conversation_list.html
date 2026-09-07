@@ -3,6 +3,7 @@
 {% block content %}
 <main class="page-shell social-page messaging-page" data-social-inbox data-inbox-stream-url="{{ inbox_stream_url }}">
     <header class="social-page-header"><div><p class="eyebrow">Social / private channel</p><h1>Messages</h1><p class="lede">Keep the next match moving.</p></div><span class="social-count" data-message-count>{{ unread_message_count }} unread</span></header>
+    <nav class="social-tabs" aria-label="Messages navigation"><a class="social-tab is-active" href="{% url 'conversation_list' %}">Chats</a><a class="social-tab" href="{% url 'message_requests' %}">Requests{% if pending_message_request_count %}<span class="tab-count">{{ pending_message_request_count }}</span>{% endif %}</a></nav>
     <div class="social-search"><span aria-hidden="true">⌕</span><label class="sr-only" for="conversation-search">Search conversations</label><input id="conversation-search" type="search" placeholder="Search conversations..." data-conversation-search></div>
     <section class="conversation-list social-list" aria-label="Conversations">
         {% for conversation in conversations %}<a class="conversation-item social-list-item{% if conversation.unread_count %} is-unread{% endif %}" href="{% url 'conversation_detail' conversation.id %}" data-conversation-item data-conversation-name="{{ conversation.other.gamer_tag|lower }}" data-conversation-id="{{ conversation.id }}">

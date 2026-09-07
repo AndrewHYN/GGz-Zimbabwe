@@ -1617,6 +1617,7 @@ def notification_stream(request):
 			latest = profile.notifications.select_related("actor").first()
 			payload = {
 				"unread_count": profile.notifications.filter(is_read=False).count(),
+				"unread_message_count": _unread_message_count(profile),
 				"latest_id": latest.id if latest else None,
 				"latest_message": latest.message if latest else "",
 				"latest_target": latest.target_url if latest else "",
@@ -1643,7 +1644,7 @@ def conversation_list(request):
 		conversation.last_message = visible_messages.last()
 		unread_messages = visible_messages.exclude(sender=profile)
 		conversation.unread_count = unread_messages.filter(created_at__gt=participant.last_read_at).count() if participant.last_read_at else unread_messages.count()
-	return render(request, "accounts/conversation_list.html", {"conversations": conversations, "profile": profile, "unread_message_count": _unread_message_count(profile), "inbox_stream_url": reverse("conversation_inbox_stream")})
+	return render(request, "accounts/conversation_list.html", {"conversations": conversations, "profile": profile, "unread_message_count": _unread_message_count(profile), "pending_message_request_count": MessageRequest.objects.filter(recipient=profile, status="Pending").count(), "inbox_stream_url": reverse("conversation_inbox_stream")})
 
 
 def _conversation_snapshot(profile):

@@ -1300,6 +1300,33 @@ class NotificationAndMessagingTests(TestCase):
 
 
 class SearchAndRankTests(TestCase):
+	def test_account_dropdown_is_concise_and_uses_single_destinations(self):
+		user = User.objects.create_user(username="navhub", password="strong-password-123")
+		profile = GamerProfile.objects.create(user=user, gamer_tag="NavHubZW")
+		self.client.login(username="navhub", password="strong-password-123")
+		response = self.client.get(reverse("index"))
+		self.assertContains(response, f'href="{reverse("dashboard")}"')
+		self.assertContains(response, f'href="{reverse("team_list")}"')
+		self.assertContains(response, f'href="{reverse("profile_friends", args=[profile.gamer_tag])}"')
+		self.assertContains(response, f'href="{reverse("profile_detail", args=[profile.gamer_tag])}"')
+		self.assertContains(response, f'href="{reverse("conversation_list")}"')
+		self.assertContains(response, f'href="{reverse("account_security")}"')
+		self.assertContains(response, "Log out")
+		self.assertNotContains(response, f'href="{reverse("profile_edit", args=[profile.gamer_tag])}"')
+		self.assertNotContains(response, f'href="{reverse("message_requests")}"')
+
+	def test_messages_hub_exposes_chats_and_requests_tabs(self):
+		user = User.objects.create_user(username="messagenav", password="strong-password-123")
+		GamerProfile.objects.create(user=user, gamer_tag="MessageNavZW")
+		self.client.login(username="messagenav", password="strong-password-123")
+		chats = self.client.get(reverse("conversation_list"))
+		requests = self.client.get(reverse("message_requests"))
+		for response in (chats, requests):
+			self.assertContains(response, "Chats")
+			self.assertContains(response, "Requests")
+		self.assertContains(chats, 'class="social-tab is-active" href="/messages/"')
+		self.assertContains(requests, 'class="social-tab is-active" href="/messages/requests/"')
+
 	def test_homepage_hero_ctas_use_button_hierarchy(self):
 		user = User.objects.create_user(username="navuser", password="strong-password-123")
 		GamerProfile.objects.create(user=user, gamer_tag="NavPlayer", location="Harare")
@@ -1312,13 +1339,16 @@ class SearchAndRankTests(TestCase):
 
 	def test_authenticated_navbar_renders_player_menu(self):
 		user = User.objects.create_user(username="navuser", password="strong-password-123")
-		GamerProfile.objects.create(user=user, gamer_tag="NavPlayer", location="Harare")
+		profile = GamerProfile.objects.create(user=user, gamer_tag="NavPlayer", location="Harare")
 		self.client.login(username="navuser", password="strong-password-123")
 		response = self.client.get(reverse("index"))
 		self.assertContains(response, 'id="nav-profile-toggle"')
 		self.assertContains(response, 'aria-controls="nav-profile-panel"')
 		self.assertContains(response, 'aria-haspopup="true"')
-		self.assertContains(response, "Message requests")
+		self.assertContains(response, f'href="{reverse("profile_friends", args=[profile.gamer_tag])}"')
+		self.assertContains(response, "Squads")
+		self.assertContains(response, "Settings")
+		self.assertNotContains(response, "Message requests")
 		self.assertContains(response, "Log out")
 
 	def test_logout_route_logs_user_out_and_redirects(self):
