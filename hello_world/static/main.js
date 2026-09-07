@@ -203,18 +203,24 @@
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       const button = form.querySelector('button[type="submit"]');
+      const label = form.querySelector('[data-follow-label]');
+      const status = form.querySelector('[data-follow-status]');
+      const following = form.action.includes('/unfollow/');
+      if (status) status.textContent = '';
+      if (label && form.matches('[data-follow-form]')) label.textContent = following ? 'Unfollowing...' : 'Following...';
       if (button) { button.disabled = true; button.classList.add('is-loading'); }
       fetch((button && button.formAction) || form.action, { method: 'POST', body: new FormData(form), credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-        .then((response) => response.ok ? response.json() : Promise.reject(new Error('Action failed')))
+        .then((response) => response.ok ? response.json() : response.json().catch(() => ({})).then((payload) => Promise.reject(new Error(payload.error || 'Action failed'))))
         .then((result) => {
           if (form.matches('[data-follow-form]')) {
             form.action = result.following ? form.action.replace('/follow/', '/unfollow/') : form.action.replace('/unfollow/', '/follow/');
-            button.innerHTML = result.following ? '<span aria-hidden="true">✓</span> Following' : '<span aria-hidden="true">+</span> Follow';
+            if (label) label.textContent = result.following ? 'Following' : 'Follow';
+            else button.innerHTML = result.following ? '<span aria-hidden="true">✓</span> Following' : '<span aria-hidden="true">+</span> Follow';
             button.setAttribute('aria-pressed', String(result.following));
           }
           if (button) { button.disabled = false; button.classList.remove('is-loading'); }
         })
-        .catch(() => { if (button) { button.disabled = false; button.classList.remove('is-loading'); button.innerHTML = '<span aria-hidden="true">!</span> Try again'; } });
+        .catch((error) => { if (label) label.textContent = following ? 'Following' : 'Follow'; if (button) { button.disabled = false; button.classList.remove('is-loading'); } if (status) status.textContent = error.message || 'Could not update the follow state.'; });
     });
   });
 
@@ -248,10 +254,12 @@
   const notificationPage = document.querySelector('[data-social-stream-url]');
   if (notificationPage) {
     const notificationStream = new EventSource(notificationPage.dataset.socialStreamUrl);
+    const applyNotificationCount = (count) => document.querySelectorAll('[data-notification-count]').forEach((badge) => { badge.textContent = count > 0 ? count : ''; badge.hidden = count <= 0; });
+    notificationStream.onopen = () => { /* The first event reconciles counts from the server. */ };
     notificationStream.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-        document.querySelectorAll('[data-notification-count]').forEach((badge) => { badge.textContent = payload.unread_count || ''; badge.hidden = !payload.unread_count; });
+        applyNotificationCount(Number(payload.unread_count) || 0);
         updateMessageCount(payload.unread_message_count);
       } catch (error) { /* Ignore transient malformed events. */ }
     };

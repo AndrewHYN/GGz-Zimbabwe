@@ -29,7 +29,8 @@ def tournament_list(request):
 		tournaments = tournaments.filter(location__icontains=request.GET["location"])
 	page = Paginator(tournaments, 12).get_page(request.GET.get("page"))
 	from games.models import Game
-	return render(request, "tournaments/tournament_list.html", {"page": page, "game_choices": Game.objects.order_by("name"), "status_choices": Tournament.STATUS_CHOICES, "format_choices": Tournament.FORMAT_CHOICES})
+	featured = tournaments.filter(status__in=("Registration Open", "Live")).order_by("start_date").first()
+	return render(request, "tournaments/tournament_list.html", {"page": page, "featured": featured, "game_choices": Game.objects.order_by("name"), "status_choices": Tournament.STATUS_CHOICES, "format_choices": Tournament.FORMAT_CHOICES})
 
 
 def tournament_detail(request, slug):

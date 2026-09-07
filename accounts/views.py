@@ -1200,10 +1200,13 @@ def connection_action(request, gamer_tag, action):
 	if target == viewer:
 		return HttpResponseForbidden("You cannot interact with your own profile.")
 	if action == "follow":
-		if not Block.objects.filter(Q(blocker=target, blocked=viewer) | Q(blocker=viewer, blocked=target)).exists():
-			created = Follow.objects.get_or_create(follower=viewer, following=target)[1]
-			if created:
-				_notify(target, viewer, "follow", f"{viewer.gamer_tag} followed you", f"/profiles/{viewer.gamer_tag}/")
+		if Block.objects.filter(Q(blocker=target, blocked=viewer) | Q(blocker=viewer, blocked=target)).exists():
+			if request.headers.get("x-requested-with") == "XMLHttpRequest":
+				return JsonResponse({"ok": False, "error": "Blocked players cannot follow each other."}, status=403)
+			return HttpResponseForbidden("Blocked players cannot follow each other.")
+		created = Follow.objects.get_or_create(follower=viewer, following=target)[1]
+		if created:
+			_notify(target, viewer, "follow", f"{viewer.gamer_tag} followed you", f"/profiles/{viewer.gamer_tag}/")
 	elif action == "unfollow":
 		Follow.objects.filter(follower=viewer, following=target).delete()
 	elif action == "friend":

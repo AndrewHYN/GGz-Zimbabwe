@@ -1259,6 +1259,14 @@ class NotificationAndMessagingTests(TestCase):
 		self.client.post(reverse("connection_action", args=(self.recipient.gamer_tag, "follow")))
 		self.assertFalse(Follow.objects.exists())
 
+	def test_blocked_ajax_follow_returns_error_without_fake_success(self):
+		Block.objects.create(blocker=self.recipient, blocked=self.sender)
+		self.client.login(username="sender", password="pass")
+		response = self.client.post(reverse("connection_action", args=(self.recipient.gamer_tag, "follow")), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertEqual(response.status_code, 403)
+		self.assertFalse(response.json()["ok"])
+		self.assertFalse(Follow.objects.exists())
+
 	def test_async_follow_persists_once_and_notifies_target(self):
 		self.client.login(username="sender", password="pass")
 		url = reverse("connection_action", args=(self.recipient.gamer_tag, "follow"))
@@ -1275,6 +1283,14 @@ class NotificationAndMessagingTests(TestCase):
 		response = self.client.get(reverse("conversation_start", args=(self.recipient.gamer_tag,)))
 		self.assertEqual(response.status_code, 302)
 		self.assertEqual(Conversation.objects.count(), 1)
+
+	def test_empty_notification_badge_is_not_rendered(self):
+		self.client.login(username="recipient", password="pass")
+		response = self.client.get(reverse("index"))
+		self.assertNotContains(response, "data-notification-count")
+		Notification.objects.create(recipient=self.recipient, actor=self.sender, notification_type="follow", message="Sender followed you")
+		response = self.client.get(reverse("index"))
+		self.assertContains(response, 'data-notification-count>1</span>')
 
 	def test_conversation_and_inbox_streams_require_membership(self):
 		conversation = Conversation.objects.create()

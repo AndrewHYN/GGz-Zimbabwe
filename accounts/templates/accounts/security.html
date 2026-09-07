@@ -3,16 +3,17 @@
 {% block title %}Security | GGz{% endblock %}
 
 {% block content %}
-<main class="page-shell">
+<main class="page-shell settings-page">
     <div class="page-header compact">
         <div>
-            <p class="eyebrow">Account security</p>
-            <h1>Security settings</h1>
+            <p class="eyebrow">Account center</p>
+            <h1>Settings</h1>
+            <p class="lede">Keep your account secure and decide how visible you are to other players.</p>
         </div>
     </div>
 
     <div class="card-grid stacked"> 
-        <section class="card-panel">
+        <section class="card-panel settings-panel">
             <h2>Connected accounts</h2>
             <p class="muted">Choose which trusted sign-in methods you want to keep linked.</p>
             <div class="provider-status-list">
@@ -46,12 +47,12 @@
                 {% endfor %}
             </div>
         </section>
-        <section class="card-panel">
+        <section class="card-panel settings-panel">
             <h2>Password</h2>
             <p class="muted">Update your password and keep your account protected.</p>
             <a class="button" href="{% url 'password_change' %}">Change password</a>
         </section>
-        <section class="card-panel">
+        <section class="card-panel settings-panel settings-danger">
             <h2>Sessions</h2>
             <p class="muted">You are currently signed in as {{ user.username }}.</p>
             <form method="post" action="{% url 'logout' %}">
@@ -59,7 +60,7 @@
                 <button class="button button-danger" type="submit">Log out</button>
             </form>
         </section>
-        <section class="card-panel">
+        <section class="card-panel settings-panel">
             <h2>Presence privacy</h2>
             <p class="muted">Choose what other players can see when you are active.</p>
             <form method="post" class="security-preferences">
