@@ -1,5 +1,6 @@
 from io import BytesIO
 import os
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
@@ -17,7 +18,7 @@ from PIL import Image
 
 from games.models import Game
 
-from .models import Block, Conversation, ConversationParticipant, ExternalFeedItem, Follow, FriendRequest, Friendship, GamerProfile, Message, MessageRequest, Notification, Post, PostLike, RespectTransaction, Venue
+from .models import Block, Conversation, ConversationParticipant, ExternalFeedItem, Follow, FriendRequest, Friendship, GamerPresence, GamerProfile, Message, MessageRequest, Notification, Post, PostLike, RespectTransaction, Venue
 from .forms import GamerProfileForm
 from .services import _parse_rss_feed, refresh_public_gaming_feed
 from events.models import Event, Organization, OrganizationLocation
@@ -367,6 +368,7 @@ class GamerProfileWorkflowTests(TestCase):
 			reverse("connection_action", args=["TendaiZW", "remove"])
 		)
 		self.assertFalse(Friendship.objects.exists())
+
 
 	def test_follow_is_unique_and_self_follow_is_forbidden(self):
 		self.client.login(username="tendai", password="strong-password-123")
@@ -1312,3 +1314,64 @@ class SearchAndRankTests(TestCase):
 		response = self.client.get(reverse("index"))
 		self.assertContains(response, "GGz")
 		self.assertNotContains(response, "GGs")
+
+
+class PresenceWorkflowTests(TestCase):
+	def setUp(self):
+		self.user = User.objects.create_user(username="presenceuser", password="strong-password-123")
+		self.profile = GamerProfile.objects.create(user=self.user, gamer_tag="PresenceUserZW")
+		self.other_user = User.objects.create_user(username="presenceviewer", password="strong-password-123")
+		self.other_profile = GamerProfile.objects.create(user=self.other_user, gamer_tag="PresenceViewerZW")
+
+	def test_heartbeat_requires_authentication_and_validates_state(self):
+		response = self.client.post(reverse("presence_heartbeat"), {"status": "online"})
+		self.assertEqual(response.status_code, 302)
+		self.client.login(username="presenceuser", password="strong-password-123")
+		response = self.client.post(reverse("presence_heartbeat"), {"status": "busy"})
+		self.assertEqual(response.status_code, 400)
+		self.assertFalse(GamerPresence.objects.exists())
+
+	def test_heartbeat_marks_owner_online_and_supports_invisible(self):
+		self.client.login(username="presenceuser", password="strong-password-123")
+		response = self.client.post(reverse("presence_heartbeat"), {"status": "online"})
+		self.assertEqual(response.json()["status"], "online")
+		response = self.client.post(reverse("presence_heartbeat"), {"status": "invisible"})
+		self.assertEqual(response.json()["status"], "invisible")
+		self.assertEqual(GamerPresence.objects.get(profile=self.profile).manual_status, "invisible")
+
+	def test_presence_transitions_from_online_to_away_to_offline(self):
+		presence = GamerPresence.objects.create(profile=self.profile, last_activity=timezone.now(), last_seen=timezone.now())
+		now = timezone.now()
+		self.assertEqual(presence.effective_status(now), "online")
+		presence.last_activity = now - timedelta(minutes=6)
+		self.assertEqual(presence.effective_status(now), "away")
+		presence.last_activity = now - timedelta(minutes=16)
+		self.assertEqual(presence.effective_status(now), "offline")
+
+	def test_hidden_presence_does_not_leak_through_stream(self):
+		presence = GamerPresence.objects.create(profile=self.profile, last_activity=timezone.now(), last_seen=timezone.now(), show_online_status=False, show_last_seen=False)
+		self.client.login(username="presenceviewer", password="strong-password-123")
+		response = self.client.get(reverse("presence_stream", args=[self.profile.gamer_tag]))
+		first_event = next(iter(response.streaming_content)).decode()
+		self.assertIn('"status": "offline"', first_event)
+		presence.show_online_status = True
+		presence.manual_status = "online"
+		presence.save()
+		response = self.client.get(reverse("presence_stream", args=[self.profile.gamer_tag]))
+		first_event = next(iter(response.streaming_content)).decode()
+		self.assertIn('"status": "online"', first_event)
+
+	def test_presence_privacy_settings_are_owner_only_and_persist(self):
+		self.client.login(username="presenceuser", password="strong-password-123")
+		response = self.client.post(reverse("account_security"), {"form_name": "presence-settings", "show_online_status": "on"})
+		self.assertRedirects(response, reverse("account_security"))
+		presence = GamerPresence.objects.get(profile=self.profile)
+		self.assertTrue(presence.show_online_status)
+		self.assertFalse(presence.show_last_seen)
+
+	def test_profile_renders_presence_and_identity_sections(self):
+		response = self.client.get(reverse("profile_detail", args=[self.profile.gamer_tag]))
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "PresenceUserZW")
+		self.assertContains(response, "Offline")
+		self.assertContains(response, "Games &amp; competition")

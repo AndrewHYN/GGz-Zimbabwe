@@ -45,7 +45,7 @@
                         {% if gamer.avatar %}<span class="avatar avatar-medium"><img src="{{ gamer.avatar.url }}" alt="{{ gamer.gamer_tag }} avatar"></span>{% else %}<span class="avatar avatar-medium avatar-fallback">{{ gamer.gamer_tag|slice:":1"|upper }}</span>{% endif %}
                         <span><strong>{{ gamer.gamer_tag }}</strong><small>@{{ gamer.user.username }} · {{ gamer.public_location_label|default:"Zimbabwe" }}</small></span>
                     </a>
-                    <div class="player-result-meta"><span class="rank-tag">{{ gamer.get_rank_display }}</span><span class="status-dot">{{ gamer.get_availability_display }}</span><span>{{ gamer.platform|default:"Platform open" }}</span></div>
+                    <div class="player-result-meta"><span class="rank-tag">{{ gamer.get_rank_display }}</span><span class="presence-status presence-{{ gamer.profile_presence.status|default:'offline' }}"><span class="presence-dot" aria-hidden="true"></span>{{ gamer.profile_presence.label|default:"Offline" }}</span><span>{{ gamer.platform|default:"Platform open" }}</span></div>
                     <p class="player-result-games">{% for game in gamer.games.all|slice:":3" %}<span>{{ game.name }}</span>{% empty %}<span>Games not listed yet</span>{% endfor %}</p>
                     <a class="button button-secondary compact-button" href="{% url 'profile_detail' gamer.gamer_tag %}">View profile</a>
                 </article>

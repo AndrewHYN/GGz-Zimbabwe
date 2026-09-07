@@ -3,6 +3,7 @@ import logging
 import math
 import re
 import secrets
+import time
 from collections import Counter
 from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
@@ -17,7 +18,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth.tokens import default_token_generator
 from django.core.paginator import Paginator
 from django.db.models import Case, Count, F, IntegerField, Q, Value, When
-from django.http import FileResponse, HttpResponseForbidden, JsonResponse
+from django.http import FileResponse, HttpResponseForbidden, JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
@@ -50,6 +51,7 @@ from .models import (
 	Report,
 	RespectTransaction,
 	SocialIdentity,
+	GamerPresence,
 	Venue,
 	notify,
 )
@@ -886,6 +888,8 @@ def gamer_discovery(request):
 	page = Paginator(profiles, 12).get_page(
 		request.GET.get("page")
 	)
+	for gamer in page:
+		gamer.profile_presence = _presence_snapshot(gamer, viewer)
 	return render(
 		request,
 		"accounts/gamer_discovery.html",
@@ -980,9 +984,64 @@ def _profile_connection_list(profile, relation_name):
 	return GamerProfile.objects.none()
 
 
+def _presence_snapshot(profile, viewer=None, refresh=False):
+	presence = GamerPresence.objects.filter(profile_id=profile.id).first() if refresh else getattr(profile, "presence", None)
+	if presence is None:
+		return {"status": "offline", "label": "Offline", "detail": "Not active recently", "last_seen": ""}
+	owner = bool(viewer and viewer.pk == profile.pk)
+	status = presence.public_status(viewer_is_owner=owner)
+	labels = {"online": "Online", "away": "Away", "offline": "Offline", "invisible": "Invisible"}
+	detail = "Active now" if status == "online" else "Away for now" if status == "away" else "Not active recently"
+	if status == "offline" and presence.show_last_seen and presence.last_seen and (owner or presence.show_online_status):
+		minutes = max(0, int((timezone.now() - presence.last_seen).total_seconds() // 60))
+		detail = "Last seen just now" if minutes < 1 else f"Last seen {minutes} min ago" if minutes < 60 else f"Last seen {minutes // 60}h ago"
+	return {"status": status, "label": labels[status], "detail": detail, "last_seen": presence.last_seen.isoformat() if presence.last_seen and (owner or presence.show_last_seen) else ""}
+
+
+def _presence_payload(profile, viewer=None, refresh=False):
+	snapshot = _presence_snapshot(profile, viewer, refresh=refresh)
+	return {"gamer_tag": profile.gamer_tag, **snapshot}
+
+
+@login_required
+def presence_heartbeat(request):
+	if request.method != "POST":
+		return JsonResponse({"error": "Presence heartbeat requires POST."}, status=405)
+	profile = get_object_or_404(GamerProfile, user=request.user)
+	requested_status = (request.POST.get("status") or "").strip().lower()
+	if requested_status and requested_status not in {"online", "away", "invisible"}:
+		return JsonResponse({"error": "Unsupported presence state."}, status=400)
+	presence, _ = GamerPresence.objects.get_or_create(profile=profile)
+	if requested_status:
+		presence.manual_status = requested_status
+	now = timezone.now()
+	presence.last_activity = now
+	presence.last_seen = now
+	presence.save(update_fields=("manual_status", "last_activity", "last_seen", "updated_at"))
+	return JsonResponse(_presence_payload(profile, profile))
+
+
+def presence_stream(request, gamer_tag):
+	profile = get_object_or_404(GamerProfile.objects.select_related("user"), gamer_tag=gamer_tag)
+	viewer = getattr(request.user, "gamer_profile", None)
+	if viewer and Block.objects.filter(Q(blocker=viewer, blocked=profile) | Q(blocker=profile, blocked=viewer)).exists():
+		return JsonResponse({"error": "Presence unavailable."}, status=404)
+	def events():
+		last_payload = None
+		for _ in range(20):
+			payload = _presence_payload(profile, viewer, refresh=True)
+			if payload != last_payload:
+				yield f"data: {json.dumps(payload)}\n\n"
+				last_payload = payload
+			else:
+				yield ": heartbeat\n\n"
+			time.sleep(1)
+	return StreamingHttpResponse(events(), content_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
 def profile_detail(request, gamer_tag):
 	profile = get_object_or_404(
-		GamerProfile.objects.select_related("user").prefetch_related("games", "posts__game"),
+		GamerProfile.objects.select_related("user", "presence").prefetch_related("games", "posts__game"),
 		gamer_tag=gamer_tag,
 	)
 	viewer = getattr(request.user, "gamer_profile", None)
@@ -1047,6 +1106,9 @@ def profile_detail(request, gamer_tag):
 			).count(),
 			"respect_giver_count": profile.respect_received.count(),
 			"game_stats": game_stats,
+			"presence": _presence_snapshot(profile, viewer),
+			"presence_stream_url": reverse("presence_stream", args=[profile.gamer_tag]),
+			"presence_heartbeat_url": reverse("presence_heartbeat"),
 		},
 	)
 
@@ -1918,6 +1980,14 @@ def ggz_password_change(request):
 
 @login_required
 def account_security(request):
+	if request.method == "POST" and request.POST.get("form_name") == "presence-settings":
+		profile = get_object_or_404(GamerProfile, user=request.user)
+		presence, _ = GamerPresence.objects.get_or_create(profile=profile)
+		presence.show_online_status = request.POST.get("show_online_status") == "on"
+		presence.show_last_seen = request.POST.get("show_last_seen") == "on"
+		presence.save(update_fields=("show_online_status", "show_last_seen", "updated_at"))
+		messages.success(request, "Presence privacy settings updated.")
+		return redirect("account_security")
 	providers = []
 	for provider in ("google", "apple"):
 		connected = SocialIdentity.objects.filter(user=request.user, provider=provider).first()
@@ -1928,4 +1998,6 @@ def account_security(request):
 			"display_name": connected.display_name if connected else "",
 			"available": _provider_is_configured(provider),
 		})
-	return render(request, "accounts/security.html", {"user": request.user, "providers": providers})
+	profile = get_object_or_404(GamerProfile, user=request.user)
+	presence, _ = GamerPresence.objects.get_or_create(profile=profile)
+	return render(request, "accounts/security.html", {"user": request.user, "providers": providers, "presence_settings": presence})

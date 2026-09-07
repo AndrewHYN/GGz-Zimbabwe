@@ -18,6 +18,7 @@ class GamerProfileForm(forms.ModelForm):
         fields = (
             "gamer_tag",
             "avatar",
+            "cover",
             "bio",
             "location",
             "city",

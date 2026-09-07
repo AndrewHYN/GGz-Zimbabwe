@@ -3,17 +3,18 @@
 {% block title %}Edit {{ profile.gamer_tag }} | GGz{% endblock %}
 
 {% block content %}
-<main class="page-shell form-page">
+<main class="page-shell form-page profile-edit-page">
     <a class="back-link" href="{% url 'profile_detail' profile.gamer_tag %}">&larr; Back to profile</a>
-    <div class="form-card">
+    <div class="form-card profile-edit-card">
         <p class="eyebrow">Your identity</p>
         <h1>Edit profile</h1>
         <p class="muted">Keep your presence current. Upload a player icon, update your details, or clear the image whenever you like.</p>
-        <form method="post" enctype="multipart/form-data">
+        <form method="post" enctype="multipart/form-data" class="profile-edit-form" data-form-submit-state>
             {% csrf_token %}
             {{ form.non_field_errors }}
-            {% for field in form %}<p><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}</p>{% endfor %}
-            <button class="button" type="submit">Save changes</button>
+            <div class="profile-upload-grid"><div class="upload-field"><label for="{{ form.avatar.id_for_label }}">Avatar</label>{% if profile.avatar %}<img class="edit-image-preview" src="{{ profile.avatar.url }}" alt="Current avatar">{% endif %}{{ form.avatar }}{{ form.avatar.errors }}</div><div class="upload-field"><label for="{{ form.cover.id_for_label }}">Cover image</label>{% if profile.cover %}<img class="edit-cover-preview" src="{{ profile.cover.url }}" alt="Current cover image">{% endif %}{{ form.cover }}{{ form.cover.errors }}</div></div>
+            <div class="profile-edit-fields">{% for field in form %}{% if field.name != 'avatar' and field.name != 'cover' %}<div class="edit-field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}{{ field.errors }}</div>{% endif %}{% endfor %}</div>
+            <button class="button button-primary auth-submit" type="submit"><span>Save changes</span><span aria-hidden="true">&rarr;</span></button>
         </form>
     </div>
 </main>

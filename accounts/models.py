@@ -2,6 +2,7 @@
 from django.contrib.auth.models import User
 from django.db import models
 from django.db.models import Q
+from django.utils import timezone
 
 
 class Venue(models.Model):
@@ -69,6 +70,7 @@ class GamerProfile(models.Model):
 
     gamer_tag = models.CharField(max_length=50, unique=True)
     avatar = models.ImageField(upload_to="avatars/", blank=True, null=True)
+    cover = models.ImageField(upload_to="covers/", blank=True, null=True)
     bio = models.TextField(blank=True)
     location = models.CharField(max_length=100, blank=True)
     city = models.CharField(max_length=120, blank=True)
@@ -160,10 +162,51 @@ class GamerProfile(models.Model):
 
     def delete(self, *args, **kwargs):
         avatar = self.avatar
+        cover = self.cover
         result = super().delete(*args, **kwargs)
         if avatar:
             avatar.delete(save=False)
+        if cover:
+            cover.delete(save=False)
         return result
+
+
+class GamerPresence(models.Model):
+    STATUS_CHOICES = [
+        ("online", "Online"),
+        ("away", "Away"),
+        ("invisible", "Invisible"),
+    ]
+    profile = models.OneToOneField(GamerProfile, on_delete=models.CASCADE, related_name="presence")
+    manual_status = models.CharField(max_length=12, choices=STATUS_CHOICES, default="online")
+    last_activity = models.DateTimeField(null=True, blank=True)
+    last_seen = models.DateTimeField(null=True, blank=True)
+    show_online_status = models.BooleanField(default=True)
+    show_last_seen = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    ONLINE_TIMEOUT = 90
+    AWAY_TIMEOUT = 300
+    OFFLINE_TIMEOUT = 900
+
+    def effective_status(self, now=None):
+        now = now or timezone.now()
+        if self.manual_status == "invisible":
+            return "invisible"
+        if not self.last_activity:
+            return "offline"
+        seconds_idle = (now - self.last_activity).total_seconds()
+        if seconds_idle >= self.OFFLINE_TIMEOUT:
+            return "offline"
+        if self.manual_status == "away" or seconds_idle >= self.AWAY_TIMEOUT:
+            return "away"
+        return "online"
+
+    def public_status(self, viewer_is_owner=False, now=None):
+        status = self.effective_status(now)
+        if not viewer_is_owner and (not self.show_online_status or status == "invisible"):
+            return "offline"
+        return status
 
 
 class SocialIdentity(models.Model):

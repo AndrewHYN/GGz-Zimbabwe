@@ -59,6 +59,17 @@
                 <button class="button button-danger" type="submit">Log out</button>
             </form>
         </section>
+        <section class="card-panel">
+            <h2>Presence privacy</h2>
+            <p class="muted">Choose what other players can see when you are active.</p>
+            <form method="post" class="security-preferences">
+                {% csrf_token %}
+                <input type="hidden" name="form_name" value="presence-settings">
+                <label><input type="checkbox" name="show_online_status"{% if presence_settings and presence_settings.show_online_status %} checked{% endif %}> Show my online status</label>
+                <label><input type="checkbox" name="show_last_seen"{% if presence_settings and presence_settings.show_last_seen %} checked{% endif %}> Show my last seen</label>
+                <button class="button button-primary" type="submit">Save privacy</button>
+            </form>
+        </section>
     </div>
 </main>
 {% endblock %}

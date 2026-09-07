@@ -1,4 +1,9 @@
 (() => {
+  function getCookie(name) {
+    const cookie = document.cookie.split('; ').find((entry) => entry.startsWith(`${name}=`));
+    return cookie ? decodeURIComponent(cookie.split('=').slice(1).join('=')) : '';
+  }
+
   const mobileToggle = document.getElementById('nav-mobile-toggle');
   const navMenu = document.getElementById('nav-menu');
   const dropdownTriggers = Array.from(document.querySelectorAll('.nav-more'));
@@ -150,6 +155,59 @@
       link.classList.add('is-loading');
       link.dataset.originalLabel = link.textContent.trim();
       link.textContent = 'Connecting...';
+    });
+  });
+
+  const presencePage = document.querySelector('[data-presence-stream-url]');
+  if (presencePage) {
+    const statusElement = presencePage.querySelector('[data-presence-status]');
+    const labelElement = presencePage.querySelector('[data-presence-label]');
+    const detailElement = presencePage.querySelector('[data-presence-detail]');
+    const indicator = presencePage.querySelector('[data-presence-indicator]');
+    const updatePresence = (payload) => {
+      if (!statusElement || !payload.status) return;
+      ['presence-online', 'presence-away', 'presence-offline', 'presence-invisible'].forEach((name) => {
+        statusElement.classList.remove(name);
+        if (indicator) indicator.classList.remove(name);
+      });
+      statusElement.classList.add(`presence-${payload.status}`);
+      if (indicator) indicator.classList.add(`presence-${payload.status}`);
+      if (labelElement) labelElement.textContent = payload.label || 'Offline';
+      if (detailElement) detailElement.textContent = payload.detail || '';
+      statusElement.setAttribute('aria-label', `${payload.label || 'Offline'} — ${payload.detail || 'Not active recently'}`);
+    };
+    const stream = new EventSource(presencePage.dataset.presenceStreamUrl);
+    stream.onmessage = (event) => {
+      try { updatePresence(JSON.parse(event.data)); } catch (error) { /* Ignore malformed transient events. */ }
+    };
+    if (presencePage.dataset.presenceOwner === 'true') {
+      const heartbeatUrl = presencePage.dataset.presenceHeartbeatUrl;
+      let lastHeartbeat = 0;
+      const heartbeat = () => {
+        if (document.visibilityState === 'hidden' || Date.now() - lastHeartbeat < 15000) return;
+        lastHeartbeat = Date.now();
+        fetch(heartbeatUrl, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'X-CSRFToken': getCookie('csrftoken'), 'X-Requested-With': 'XMLHttpRequest' },
+        }).then((response) => response.ok ? response.json() : null).then((payload) => { if (payload) updatePresence(payload); }).catch(() => {});
+      };
+      heartbeat();
+      window.setInterval(heartbeat, 30000);
+      document.addEventListener('visibilitychange', heartbeat);
+      ['click', 'keydown', 'pointerdown'].forEach((eventName) => document.addEventListener(eventName, heartbeat, { passive: true }));
+    }
+  }
+
+  document.querySelectorAll('[data-async-action]').forEach((form) => {
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const button = form.querySelector('button[type="submit"]');
+      if (button) { button.disabled = true; button.classList.add('is-loading'); }
+      fetch((button && button.formAction) || form.action, { method: 'POST', body: new FormData(form), credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then((response) => response.ok ? response.json() : Promise.reject(new Error('Action failed')))
+        .then(() => window.location.reload())
+        .catch(() => { if (button) { button.disabled = false; button.classList.remove('is-loading'); } });
     });
   });
 
