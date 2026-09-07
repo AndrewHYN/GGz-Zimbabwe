@@ -3649,28 +3649,102 @@ a:hover { color: #a5b4fc; }
     min-height: calc(100vh - 200px);
 }
 
+.auth-card,
 .form-card {
     width: min(560px, 100%);
     padding: 2rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    background: rgba(12, 17, 25, 0.9);
+    box-shadow: 0 20px 60px rgba(14, 20, 29, 0.35);
 }
 
-.form-card form {
+.auth-form {
     display: grid;
     gap: 1rem;
 }
 
-.form-card form p {
+.field-group {
     display: grid;
-    gap: 0.45rem;
-    margin: 0;
+    gap: 0.55rem;
 }
 
+.auth-form label,
 .form-card form label {
     color: var(--text-secondary);
     font-size: 0.8rem;
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+}
+
+.auth-form input,
+.form-card input,
+.form-card textarea,
+.form-card select {
+    width: 100%;
+    padding: 0.9rem 1rem;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 0.9rem;
+    background: rgba(15, 23, 42, 0.9);
+    color: var(--text-primary);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.auth-form input:focus,
+.form-card input:focus,
+.form-card textarea:focus,
+.form-card select:focus {
+    outline: none;
+    border-color: rgba(96, 165, 250, 0.9);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+}
+
+.field-error,
+.form-card .errorlist,
+.form-alert {
+    color: #fca5a5;
+    font-size: 0.8rem;
+}
+
+.form-alert {
+    padding: 0.8rem 0.9rem;
+    border: 1px solid rgba(248, 113, 113, 0.4);
+    border-radius: 0.8rem;
+    background: rgba(127, 29, 29, 0.18);
+}
+
+.password-wrap {
+    position: relative;
+}
+
+.password-wrap input {
+    padding-right: 4.2rem;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 0.7rem;
+    top: 50%;
+    transform: translateY(-50%);
+    border: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.auth-links {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    color: var(--text-secondary);
+}
+
+.auth-submit.is-loading {
+    opacity: 0.8;
+    cursor: wait;
 }
 
 .form-card .helptext,
@@ -3682,6 +3756,7 @@ a:hover { color: #a5b4fc; }
 .form-card .errorlist {
     color: #fca5a5;
     list-style: none;
+    padding-left: 0;
 }
 
 @media (max-width: 960px) {

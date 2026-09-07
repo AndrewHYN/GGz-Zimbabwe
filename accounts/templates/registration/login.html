@@ -4,17 +4,40 @@
 
 {% block content %}
 <main class="page-shell form-page">
-    <div class="form-card">
+    <div class="auth-card">
         <a class="back-link" href="{% url 'index' %}">&larr; Back to GGz</a>
         <p class="eyebrow">Welcome back</p>
         <h1>Return to the lobby.</h1>
-        <form method="post">
+        <form method="post" class="auth-form" data-form-submit-state>
             {% csrf_token %}
-            {{ form.as_p }}
+            {% if form.non_field_errors %}
+                <div class="form-alert form-alert-error" aria-live="polite">
+                    {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+                </div>
+            {% endif %}
+
+            <div class="field-group">
+                <label for="{{ form.username.id_for_label }}">Username or email</label>
+                {{ form.username }}
+                {% if form.username.errors %}<div class="field-error">{{ form.username.errors|join:' ' }}</div>{% endif %}
+            </div>
+
+            <div class="field-group password-group">
+                <label for="{{ form.password.id_for_label }}">Password</label>
+                <div class="password-wrap">
+                    {{ form.password }}
+                    <button type="button" class="password-toggle" aria-label="Show password" data-password-toggle="{{ form.password.id_for_label }}">Show</button>
+                </div>
+                {% if form.password.errors %}<div class="field-error">{{ form.password.errors|join:' ' }}</div>{% endif %}
+            </div>
+
             <input type="hidden" name="next" value="{{ next }}">
-            <button class="button" type="submit">Log in</button>
+            <button class="button button-primary auth-submit" type="submit">Log in</button>
         </form>
-        <p class="muted">New to GGz? <a href="{% url 'signup' %}">Create an account</a></p>
+        <div class="auth-links">
+            <a href="{% url 'password_reset' %}">Forgot password?</a>
+            <span>New to GGz? <a href="{% url 'signup' %}">Create an account</a></span>
+        </div>
     </div>
 </main>
 {% endblock %}

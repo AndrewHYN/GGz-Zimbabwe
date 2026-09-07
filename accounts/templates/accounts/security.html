@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Security | GGz{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <div class="page-header compact">
+        <div>
+            <p class="eyebrow">Account security</p>
+            <h1>Security settings</h1>
+        </div>
+    </div>
+
+    <div class="card-grid stacked"> 
+        <section class="card-panel">
+            <h2>Password</h2>
+            <p class="muted">Update your password and keep your account protected.</p>
+            <a class="button" href="{% url 'password_change' %}">Change password</a>
+        </section>
+        <section class="card-panel">
+            <h2>Sessions</h2>
+            <p class="muted">You are currently signed in as {{ user.username }}.</p>
+            <form method="post" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <button class="button button-danger" type="submit">Log out</button>
+            </form>
+        </section>
+    </div>
+</main>
+{% endblock %}

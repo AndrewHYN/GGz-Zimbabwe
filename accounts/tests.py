@@ -3,11 +3,15 @@ import os
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from django.contrib.auth.tokens import default_token_generator
+from django.core import mail
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
 from django.utils import timezone
 from PIL import Image
 
@@ -59,6 +63,60 @@ class HealthAndConfigTests(TestCase):
 			"posts": Post.objects.filter(body="Ready for the GGz demo tournament!").count(),
 			"conversations": Conversation.objects.count(),
 		})
+
+
+class AuthSecurityWorkflowTests(TestCase):
+	def setUp(self):
+		self.user = User.objects.create_user(
+			username="existinguser",
+			email="existing@example.com",
+			password="strong-password-123",
+		)
+		GamerProfile.objects.create(user=self.user, gamer_tag="ExistingUserZW")
+
+	def test_signup_rejects_duplicate_email_and_invalid_password(self):
+		response = self.client.post(
+			reverse("signup"),
+			{
+				"username": "newuser",
+				"email": "existing@example.com",
+				"gamer_tag": "NewUserZW",
+				"password1": "short",
+				"password2": "short",
+			},
+		)
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "already in use")
+		self.assertContains(response, "at least 12")
+
+	def test_login_rejects_inactive_user_with_safe_message(self):
+		self.user.is_active = False
+		self.user.save(update_fields=["is_active"])
+		response = self.client.post(
+			reverse("login"),
+			{"username": "existinguser", "password": "strong-password-123"},
+			follow=True,
+		)
+		self.assertContains(response, "We couldn’t sign you in")
+		self.assertNotIn("inactive", response.content.decode("utf-8").lower())
+
+	def test_password_reset_flow_is_safe_and_tokenized(self):
+		mail.outbox.clear()
+		response = self.client.post(reverse("password_reset"), {"email": "existing@example.com"})
+		self.assertEqual(response.status_code, 302)
+		self.assertEqual(len(mail.outbox), 1)
+		self.assertIn("password reset", mail.outbox[0].body.lower())
+		uid = urlsafe_base64_encode(force_bytes(self.user.pk))
+		token = default_token_generator.make_token(self.user)
+		reset_url = reverse("password_reset_confirm", kwargs={"uidb64": uid, "token": token})
+		self.assertIn("reset", reset_url)
+
+	def test_logout_invalidates_session(self):
+		self.client.login(username="existinguser", password="strong-password-123")
+		self.assertIn("_auth_user_id", self.client.session)
+		response = self.client.post(reverse("logout"), follow=True)
+		self.assertEqual(response.status_code, 200)
+		self.assertNotIn("_auth_user_id", self.client.session)
 
 
 class GamerProfileWorkflowTests(TestCase):

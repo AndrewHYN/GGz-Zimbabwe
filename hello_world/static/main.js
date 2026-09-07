@@ -119,6 +119,30 @@
     }
   });
 
+  document.querySelectorAll('[data-password-toggle]').forEach((toggle) => {
+    toggle.addEventListener('click', () => {
+      const targetId = toggle.dataset.passwordToggle;
+      const input = document.getElementById(targetId);
+      if (!input) return;
+      const isPassword = input.type === 'password';
+      input.type = isPassword ? 'text' : 'password';
+      toggle.textContent = isPassword ? 'Hide' : 'Show';
+      toggle.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
+    });
+  });
+
+  document.querySelectorAll('[data-form-submit-state]').forEach((form) => {
+    const button = form.querySelector('button[type="submit"]');
+    if (!button) return;
+    form.addEventListener('submit', () => {
+      button.disabled = true;
+      button.classList.add('is-loading');
+      const label = button.textContent.trim();
+      button.dataset.originalLabel = label;
+      button.textContent = 'Please wait...';
+    });
+  });
+
   async function readJsonResponse(response) {
     const contentType = response.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {

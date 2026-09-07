@@ -3,11 +3,15 @@ import logging
 
 import json
 from collections import Counter
+from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import login
+from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm, PasswordResetForm, SetPasswordForm
+from django.contrib.auth.models import User
+from django.contrib.auth.tokens import default_token_generator
 from django.core.paginator import Paginator
 from django.db.models import Case, Count, F, IntegerField, Q, Value, When
 from django.http import FileResponse, HttpResponseForbidden, JsonResponse
@@ -15,6 +19,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.encoding import force_str
+from django.utils.http import urlsafe_base64_decode
 from botocore.exceptions import BotoCoreError, ClientError
 
 from events.models import Event, Organization, OrganizationLocation, OrganizationLocationRating, OrganizationLocationReview
@@ -47,6 +53,27 @@ from .services import refresh_public_gaming_feed
 from hello_world.storage import log_s3_client_error
 
 logger = logging.getLogger(__name__)
+
+
+class GGZAuthenticationForm(AuthenticationForm):
+	error_messages = {
+		**AuthenticationForm.error_messages,
+		"invalid_login": "We couldn’t sign you in with those details. Please try again.",
+		"inactive": "This account is unavailable right now.",
+	}
+
+
+def _safe_redirect_url(request, fallback_url="/"):
+	"""Allow only internal relative redirects to reduce open redirect exposure."""
+	next_url = request.POST.get("next") or request.GET.get("next") or fallback_url
+	if not next_url:
+		return fallback_url
+	if next_url.startswith("/") and not next_url.startswith("//"):
+		return next_url
+	parsed = urlsplit(next_url)
+	if parsed.scheme or parsed.netloc:
+		return fallback_url
+	return next_url
 
 
 def _media_storage_error(form, exception, field_name="image"):
@@ -1519,9 +1546,93 @@ def profile_edit(request, gamer_tag):
 
 def signup(request):
 	form = SignupForm(request.POST or None)
-	if form.is_valid():
+	if request.method == "POST" and form.is_valid():
 		user = form.save()
 		login(request, user)
-		return redirect("profile_detail", gamer_tag=user.gamer_profile.gamer_tag)
+		messages.success(request, "Welcome to GGz. Your account is ready.")
+		next_url = request.POST.get("next")
+		if next_url and _safe_redirect_url(request, reverse("profile_detail", args=[user.gamer_profile.gamer_tag])) == reverse("profile_detail", args=[user.gamer_profile.gamer_tag]):
+			next_url = reverse("profile_detail", args=[user.gamer_profile.gamer_tag])
+		return redirect(next_url or reverse("profile_detail", args=[user.gamer_profile.gamer_tag]))
+	return render(request, "accounts/signup.html", {"form": form, "next": _safe_redirect_url(request, "/")})
 
-	return render(request, "accounts/signup.html", {"form": form})
+
+def ggz_login(request):
+	form = GGZAuthenticationForm(request, data=request.POST or None)
+	if request.method == "POST":
+		if form.is_valid():
+			user = form.get_user()
+			login(request, user)
+			request.session.cycle_key()
+			messages.success(request, "You’re signed in.")
+			return redirect(_safe_redirect_url(request, "/"))
+		messages.error(request, "We couldn’t sign you in with those details. Please try again.")
+	return render(request, "registration/login.html", {"form": form, "next": _safe_redirect_url(request, "/")})
+
+
+def ggz_logout(request):
+	if request.method == "POST":
+		logout(request)
+		messages.success(request, "You have been signed out.")
+	return redirect("login")
+
+
+def ggz_password_reset(request):
+	form = PasswordResetForm(request.POST or None)
+	if request.method == "POST" and form.is_valid():
+		form.save(
+			request=request,
+			subject_template_name="registration/password_reset_subject.txt",
+			email_template_name="registration/password_reset_email.html",
+			from_email=settings.DEFAULT_FROM_EMAIL,
+			use_https=request.is_secure(),
+		)
+		messages.success(request, "If that account exists, a password reset email has been sent.")
+		return redirect("password_reset_done")
+	return render(request, "registration/password_reset_form.html", {"form": form})
+
+
+def ggz_password_reset_done(request):
+	return render(request, "registration/password_reset_done.html")
+
+
+def ggz_password_reset_complete(request):
+	return render(request, "registration/password_reset_complete.html")
+
+
+def ggz_password_change_done(request):
+	return render(request, "registration/password_change_done.html")
+
+
+def ggz_password_reset_confirm(request, uidb64, token):
+	try:
+		uid = force_str(urlsafe_base64_decode(uidb64))
+		user = User.objects.get(pk=uid)
+	except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+		user = None
+
+	if user is not None and default_token_generator.check_token(user, token):
+		form = SetPasswordForm(user, request.POST or None)
+		if request.method == "POST" and form.is_valid():
+			form.save()
+			messages.success(request, "Your password has been reset. You can now sign in.")
+			return redirect("login")
+		return render(request, "registration/password_reset_confirm.html", {"form": form, "validlink": True})
+	return render(request, "registration/password_reset_confirm.html", {"form": None, "validlink": False})
+
+
+def ggz_password_change(request):
+	if not request.user.is_authenticated:
+		return redirect("login")
+	form = PasswordChangeForm(request.user, request.POST or None)
+	if request.method == "POST" and form.is_valid():
+		form.save()
+		logout(request)
+		messages.success(request, "Your password was changed. Please sign in again.")
+		return redirect("password_change_done")
+	return render(request, "registration/password_change_form.html", {"form": form})
+
+
+@login_required
+def account_security(request):
+	return render(request, "accounts/security.html", {"user": request.user})
