@@ -2,7 +2,7 @@
 
 The Django WSGI application is `hello_world.wsgi:application`. Current Vercel Django guidance is the source of truth: <https://vercel.com/docs/frameworks/backend/django>.
 
-This repository currently has no `vercel.json` or `api/index.py`. Do not add either unless the current Vercel documentation or deployment output explicitly requires it. Do not add migration, import, admin-bootstrap, or destructive commands to a build or startup hook.
+The repository uses `vercel.json` only to set the build command. Vercel executes `scripts/vercel-build.sh`, which installs requirements, applies Django migrations to PostgreSQL, and runs `collectstatic`. The Django runtime and WSGI entrypoint remain Vercel's detected configuration and `hello_world.wsgi:application`. Do not add import, admin-bootstrap, or destructive commands to a build or startup hook.
 
 ## Environment variables
 
@@ -37,7 +37,7 @@ Use the exact Vercel production domain and custom domain in `ALLOWED_HOSTS`, and
 8. Configure persistent Supabase S3-compatible object storage for media; Vercel function storage is ephemeral.
 9. Run non-destructive smoke tests.
 
-Do not automatically import data on every deployment. Do not use Vercel build steps for database data migration.
+Do not automatically import data on every deployment. The Vercel build migration step is limited to Django schema migrations and refuses SQLite or unsupported database URLs.
 
 ## Current status
 

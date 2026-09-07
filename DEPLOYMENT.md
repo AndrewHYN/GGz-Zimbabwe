@@ -72,9 +72,9 @@ Vercel’s filesystem is ephemeral for deployed functions. This repository has n
 
 ## Vercel and Render
 
-The current Vercel Django documentation is the source of truth for supported Python runtime, project structure, build output, function timeout, filesystem, environment variables, and migrations: <https://vercel.com/docs/frameworks/backend/django>. This repository was not verified against a live Vercel deployment, and it has no `vercel.json` or `api/index.py`; neither should be added until the current documentation explicitly requires it. The WSGI callable in this repository is `hello_world.wsgi:application`.
+The current Vercel Django documentation is the source of truth for supported Python runtime, project structure, build output, function timeout, filesystem, and environment variables: <https://vercel.com/docs/frameworks/backend/django>. The repository's `vercel.json` keeps Vercel's detected Django runtime and explicitly runs `scripts/vercel-build.sh`; the WSGI callable remains `hello_world.wsgi:application`.
 
-Do not put migrations, imports, admin creation, or destructive database commands in a Vercel build or startup hook. Apply migrations and run the explicit import command as an operator-controlled release step. Vercel preview URLs must be added to `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS` only when those previews are intended to accept authenticated form submissions. Render remains supported by `render.yaml`; its persistent disk is separate from the Vercel deployment model.
+The Vercel build runs `python manage.py migrate --noinput` through `scripts/vercel-build.sh` before `collectstatic`. The script requires `DATABASE_URL`, refuses SQLite, and accepts only PostgreSQL URLs. Do not put imports, admin creation, or destructive database commands in a Vercel build or startup hook. Vercel preview URLs must be added to `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS` only when those previews are intended to accept authenticated form submissions. Render remains supported by `render.yaml`; its persistent disk is separate from the Vercel deployment model.
 
 ## Rollback and smoke test
 
