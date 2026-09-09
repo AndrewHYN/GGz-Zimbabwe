@@ -1371,6 +1371,49 @@ class NotificationAndMessagingTests(TestCase):
 		self.client.login(username="sender", password="pass")
 		self.assertEqual(self.client.post(start_url).status_code, 403)
 
+	def test_follow_grants_message_permission_and_unfollow_reverts_to_request(self):
+		self.client.login(username="sender", password="pass")
+		follow_url = reverse("connection_action", args=(self.recipient.gamer_tag, "follow"))
+		response = self.client.post(follow_url, HTTP_X_REQUESTED_WITH="XMLHttpRequest", HTTP_ACCEPT="application/json")
+		self.assertTrue(response.json()["following"])
+		message_response = self.client.post(reverse("conversation_start", args=(self.recipient.gamer_tag,)), HTTP_X_REQUESTED_WITH="XMLHttpRequest", HTTP_ACCEPT="application/json")
+		self.assertTrue(message_response.json()["ok"])
+		self.client.post(reverse("connection_action", args=(self.recipient.gamer_tag, "unfollow")), HTTP_X_REQUESTED_WITH="XMLHttpRequest", HTTP_ACCEPT="application/json")
+		message_response = self.client.post(reverse("conversation_start", args=(self.recipient.gamer_tag,)), HTTP_X_REQUESTED_WITH="XMLHttpRequest", HTTP_ACCEPT="application/json")
+		self.assertTrue(message_response.json()["requested"])
+		self.assertEqual(MessageRequest.objects.filter(sender=self.sender, recipient=self.recipient).count(), 1)
+
+	def test_friendship_and_accepted_request_survive_unfollow_permission(self):
+		self.client.login(username="sender", password="pass")
+		first, second = sorted((self.sender.id, self.recipient.id))
+		Friendship.objects.create(profile_one_id=first, profile_two_id=second)
+		self.client.post(reverse("connection_action", args=(self.recipient.gamer_tag, "follow")))
+		self.client.post(reverse("connection_action", args=(self.recipient.gamer_tag, "unfollow")))
+		response = self.client.post(reverse("conversation_start", args=(self.recipient.gamer_tag,)), HTTP_X_REQUESTED_WITH="XMLHttpRequest", HTTP_ACCEPT="application/json")
+		self.assertTrue(response.json()["conversation_id"])
+		Friendship.objects.filter(profile_one_id=first, profile_two_id=second).delete()
+		MessageRequest.objects.create(sender=self.sender, recipient=self.recipient, status="Accepted")
+		response = self.client.post(reverse("conversation_start", args=(self.recipient.gamer_tag,)), HTTP_X_REQUESTED_WITH="XMLHttpRequest", HTTP_ACCEPT="application/json")
+		self.assertTrue(response.json()["conversation_id"])
+
+	def test_declined_request_does_not_grant_message_permission(self):
+		MessageRequest.objects.create(sender=self.sender, recipient=self.recipient, status="Declined")
+		self.client.login(username="sender", password="pass")
+		response = self.client.post(reverse("conversation_start", args=(self.recipient.gamer_tag,)), HTTP_X_REQUESTED_WITH="XMLHttpRequest", HTTP_ACCEPT="application/json")
+		self.assertTrue(response.json()["requested"])
+
+	def test_profile_exposes_request_states_without_contradictory_message_action(self):
+		self.client.login(username="recipient", password="pass")
+		MessageRequest.objects.create(sender=self.sender, recipient=self.recipient, status="Pending")
+		response = self.client.get(reverse("profile_detail", args=(self.sender.gamer_tag,)))
+		self.assertContains(response, "Accept request")
+		self.assertContains(response, "Decline")
+		self.assertNotContains(response, ">Message</button>")
+		self.client.login(username="sender", password="pass")
+		response = self.client.get(reverse("profile_detail", args=(self.recipient.gamer_tag,)))
+		self.assertContains(response, "Request sent")
+		self.assertContains(response, "Cancel request")
+
 	def test_message_request_actions_return_async_json_contracts(self):
 		self.client.login(username="sender", password="pass")
 		response = self.client.post(reverse("message_request_action", args=(self.recipient.gamer_tag, "send")), HTTP_X_REQUESTED_WITH="XMLHttpRequest")

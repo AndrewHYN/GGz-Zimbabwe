@@ -63,7 +63,6 @@
       const isOpen = trigger.getAttribute('aria-expanded') === 'true';
       closeDropdowns();
       closeProfileMenu();
-      closeMobileMenu();
       if (!isOpen && panel) {
         trigger.setAttribute('aria-expanded', 'true');
         panel.setAttribute('aria-hidden', 'false');
@@ -84,6 +83,12 @@
       }
       profileToggle.setAttribute('aria-expanded', 'true');
       profilePanel.setAttribute('aria-hidden', 'false');
+    });
+  }
+
+  if (navMenu) {
+    navMenu.addEventListener('click', (event) => {
+      if (event.target.closest('a')) closeMobileMenu();
     });
   }
 
@@ -234,6 +239,7 @@
             else button.innerHTML = result.following ? '<span aria-hidden="true">✓</span> Following' : '<span aria-hidden="true">+</span> Follow';
             button.setAttribute('aria-pressed', String(result.following));
             document.querySelectorAll('[data-followers-count]').forEach((count) => { count.textContent = result.follower_count; });
+            updateProfileConnectionState(result);
           }
           if (button) { button.disabled = false; button.classList.remove('is-loading'); }
         })
@@ -242,40 +248,87 @@
     });
   });
 
+  const parseJsonResponse = (response) => response.text().then((body) => {
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error(response.redirected || body.includes('<html') ? 'Your session expired or the action needs a page refresh.' : 'The server returned an unexpected response. Try again.');
+    }
+    let payload;
+    try { payload = body ? JSON.parse(body) : {}; } catch (error) { throw new Error('The server returned an unexpected response. Try again.'); }
+    if (!response.ok || payload.ok === false) throw new Error(payload.error || `Request failed (${response.status}).`);
+    return payload;
+  });
+
   const socialJson = (form) => fetch(form.action, {
     method: 'POST',
     body: new FormData(form),
     credentials: 'same-origin',
-    headers: { 'X-Requested-With': 'XMLHttpRequest' },
-  }).then((response) => response.ok ? response.json() : Promise.reject(new Error('Request failed')));
+    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+  }).then(parseJsonResponse);
 
-  document.querySelectorAll('[data-async-mutation]').forEach((form) => {
+  const csrfInput = () => `<input type="hidden" name="csrfmiddlewaretoken" value="${getCookie('csrftoken')}">`;
+  const bindAsyncMutation = (form) => {
+    if (form.dataset.asyncBound === 'true') return;
+    form.dataset.asyncBound = 'true';
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       const button = form.querySelector('button[type="submit"]');
-      const original = button?.textContent || '';
-      if (button) { button.disabled = true; button.textContent = 'Saving...'; }
+      const original = button?.innerHTML || '';
+      if (button) { button.disabled = true; button.classList.add('is-loading'); button.textContent = 'Saving...'; }
       socialJson(form).then((result) => {
-        if (!result.ok) throw new Error(result.error || 'Could not save this action.');
-        if (button) {
-          if (typeof result.saved === 'boolean') button.textContent = result.saved ? 'Unsave listing' : 'Save listing';
-          else button.textContent = result.status || (result.attending === false || result.registered === false ? 'Removed' : 'Saved');
-        }
-        const status = form.querySelector('.async-status') || document.createElement('span');
-        status.className = 'async-status';
-        status.setAttribute('role', 'status');
-        status.textContent = result.message || 'Saved';
-        if (!status.parentNode) form.append(status);
+        if (button) { button.disabled = false; button.classList.remove('is-loading'); }
+        updateProfileConnectionState(result);
         if (result.url) window.location.href = result.url;
-      }).catch((error) => {
-        if (button) { button.disabled = false; button.textContent = original; }
+        else if (button) button.textContent = result.status || result.message || 'Saved';
         const status = form.querySelector('.async-status') || document.createElement('span');
-        status.className = 'async-status';
-        status.setAttribute('role', 'alert');
-        status.textContent = error.message || 'Could not save this action.';
+        status.className = 'async-status'; status.setAttribute('role', 'status'); status.textContent = result.message || '';
+        if (!status.parentNode) form.append(status);
+      }).catch((error) => {
+        if (button) { button.disabled = false; button.classList.remove('is-loading'); button.innerHTML = original; }
+        const status = form.querySelector('.async-status') || document.createElement('span');
+        status.className = 'async-status'; status.setAttribute('role', 'alert'); status.textContent = error.message || 'Could not save this action.';
         if (!status.parentNode) form.append(status);
       });
     });
+  };
+
+  const renderProfileMessageActions = (container, state) => {
+    const messageActions = container.querySelector('[data-message-actions]');
+    if (!messageActions) return;
+    const messageUrl = container.dataset.messageUrl;
+    const sendUrl = container.dataset.requestSendUrl;
+    const cancelUrl = container.dataset.requestCancelUrl;
+    const acceptUrl = container.dataset.requestAcceptUrl;
+    const declineUrl = container.dataset.requestDeclineUrl;
+    if (state.message_state === 'direct') {
+      messageActions.innerHTML = `<form method="post" action="${messageUrl}" class="inline-action" data-async-mutation>${csrfInput()}<button class="icon-action" type="submit"><span aria-hidden="true">&#9993;</span> Message</button></form>`;
+    } else if (state.request_state === 'incoming') {
+      messageActions.innerHTML = `<form method="post" action="${acceptUrl}" class="inline-action" data-async-mutation>${csrfInput()}<button class="icon-action" type="submit">Accept request</button></form><form method="post" action="${declineUrl}" class="inline-action" data-async-mutation>${csrfInput()}<button class="icon-action" type="submit">Decline</button></form>`;
+    } else if (state.request_state === 'outgoing') {
+      messageActions.innerHTML = `<span class="icon-action" aria-live="polite">Request sent</span><form method="post" action="${cancelUrl}" class="inline-action" data-async-mutation>${csrfInput()}<button class="icon-action" type="submit">Cancel request</button></form>`;
+    } else {
+      messageActions.innerHTML = `<form method="post" action="${messageUrl}" class="inline-action" data-async-mutation>${csrfInput()}<button class="icon-action" type="submit"><span aria-hidden="true">&#9993;</span> Message</button></form>`;
+    }
+    messageActions.querySelectorAll('[data-async-mutation]').forEach(bindAsyncMutation);
+    container.dataset.messageState = state.message_state || 'request';
+    container.dataset.requestState = state.request_state || 'none';
+  };
+
+  const updateProfileConnectionState = (result) => {
+    const container = document.querySelector('[data-profile-actions]');
+    if (!container || typeof result.following !== 'boolean') return;
+    const followForm = container.querySelector('[data-follow-form]');
+    const label = followForm?.querySelector('[data-follow-label]');
+    const button = followForm?.querySelector('[data-follow-button]');
+    if (followForm) followForm.action = result.following ? container.dataset.unfollowUrl : container.dataset.followUrl;
+    if (label) label.textContent = result.following ? 'Following' : 'Follow';
+    if (button) { button.innerHTML = result.following ? '<span aria-hidden="true">✓</span> Following' : '<span aria-hidden="true">+</span> Follow'; button.setAttribute('aria-pressed', String(result.following)); }
+    document.querySelectorAll('[data-followers-count]').forEach((count) => { if (typeof result.follower_count === 'number') count.textContent = result.follower_count; });
+    renderProfileMessageActions(container, result);
+  };
+
+  document.querySelectorAll('[data-async-mutation]').forEach((form) => {
+    bindAsyncMutation(form);
   });
 
   const updateMessageCount = (count) => document.querySelectorAll('[data-message-count]').forEach((badge) => {
@@ -460,7 +513,7 @@
         if (!first) return;
         historyButton.disabled = true;
         fetch(`${list.dataset.messageHistoryUrl}?format=json&before=${encodeURIComponent(first.dataset.messageId)}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-          .then((response) => response.ok ? response.json() : Promise.reject(new Error('History unavailable')))
+          .then(readJsonResponse)
           .then((result) => { prependHistory(result.messages || []); historyButton.hidden = !result.has_more; })
           .catch(() => { historyButton.textContent = 'Could not load older messages'; })
           .finally(() => { historyButton.disabled = false; });
@@ -497,7 +550,7 @@
       status.textContent = 'Sending...';
       const formData = new FormData(form);
       formData.set('client_id', clientId);
-      fetch(form.action, { method: 'POST', body: formData, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then((response) => response.ok ? response.json() : response.json().then((data) => Promise.reject(new Error(data.error || 'Message failed')))).then((result) => {
+      fetch(form.action, { method: 'POST', body: formData, credentials: 'same-origin', headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } }).then(readJsonResponse).then((result) => {
         appendMessage(result.message);
         input.value = '';
         status.textContent = 'Sent';

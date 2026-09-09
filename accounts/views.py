@@ -1012,6 +1012,36 @@ def _presence_payload(profile, viewer=None, refresh=False):
 	return {"gamer_tag": profile.gamer_tag, **snapshot}
 
 
+def _connection_state(viewer, target):
+	outgoing = MessageRequest.objects.filter(sender=viewer, recipient=target).first()
+	incoming = MessageRequest.objects.filter(sender=target, recipient=viewer).first()
+	first, second = sorted((viewer.id, target.id))
+	friends = Friendship.objects.filter(profile_one_id=first, profile_two_id=second).exists()
+	following = Follow.objects.filter(follower=viewer, following=target).exists()
+	blocked = Block.objects.filter(Q(blocker=viewer, blocked=target) | Q(blocker=target, blocked=viewer)).exists()
+	if incoming and incoming.status == "Pending":
+		request_state = "incoming"
+	elif outgoing and outgoing.status == "Pending":
+		request_state = "outgoing"
+	else:
+		request_state = "none"
+	if blocked:
+		message_state = "blocked"
+	elif friends or following or (outgoing and outgoing.status == "Accepted") or (incoming and incoming.status == "Accepted"):
+		message_state = "direct"
+	else:
+		message_state = "request"
+	return {
+		"following": following,
+		"friends": friends,
+		"blocked": blocked,
+		"message_state": message_state,
+		"request_state": request_state,
+		"outgoing_request_status": outgoing.status if outgoing else "",
+		"incoming_request_status": incoming.status if incoming else "",
+	}
+
+
 @login_required
 def presence_heartbeat(request):
 	if request.method != "POST":
@@ -1118,6 +1148,7 @@ def profile_detail(request, gamer_tag):
 			"presence": _presence_snapshot(profile, viewer),
 			"presence_stream_url": reverse("presence_stream", args=[profile.gamer_tag]),
 			"presence_heartbeat_url": reverse("presence_heartbeat"),
+			"connection_state": _connection_state(viewer, profile) if viewer and viewer != profile else {},
 		},
 	)
 
@@ -1280,11 +1311,13 @@ def connection_action(request, gamer_tag, action):
 		return _json_error("Unknown connection action.", 400) if _is_json_request(request) else HttpResponseForbidden("Unknown connection action.")
 	messages.success(request, "Your community action was updated.")
 	if _is_json_request(request):
-			return JsonResponse({
+		state = _connection_state(viewer, target)
+		return JsonResponse({
 				"ok": True,
 				"action": action,
 				"following": Follow.objects.filter(follower=viewer, following=target).exists(),
 				"follower_count": target.followers.count(),
+				**state,
 			})
 	return redirect("profile_detail", gamer_tag=target.gamer_tag)
 
@@ -1931,7 +1964,7 @@ def conversation_start(request, gamer_tag):
 				request_row.save(update_fields=("status", "context_url", "context_label"))
 			_notify(other, profile, "message_request", f"{profile.gamer_tag} sent you a message request", f"/profiles/{profile.gamer_tag}/")
 			if request.headers.get("x-requested-with") == "XMLHttpRequest":
-				return JsonResponse({"ok": True, "requested": True, "message": "Message request sent."})
+				return JsonResponse({"ok": True, "requested": True, "message": "Message request sent.", **_connection_state(profile, other)})
 			return redirect("message_requests")
 		return HttpResponseForbidden("You need permission or an accepted message request to contact this gamer.")
 	conversation = Conversation.objects.filter(participants=profile).filter(participants=other).first()
@@ -1939,7 +1972,7 @@ def conversation_start(request, gamer_tag):
 		conversation = Conversation.objects.create()
 		ConversationParticipant.objects.bulk_create([ConversationParticipant(conversation=conversation, profile=profile), ConversationParticipant(conversation=conversation, profile=other)])
 	if request.headers.get("x-requested-with") == "XMLHttpRequest":
-		return JsonResponse({"ok": True, "conversation_id": conversation.id, "url": reverse("conversation_detail", args=[conversation.id])})
+		return JsonResponse({"ok": True, "conversation_id": conversation.id, "url": reverse("conversation_detail", args=[conversation.id]), **_connection_state(profile, other)})
 	return redirect("conversation_detail", conversation_id=conversation.id)
 
 
@@ -1965,7 +1998,7 @@ def message_request_action(request, gamer_tag, action):
 		request_row = get_object_or_404(MessageRequest, Q(sender=profile, recipient=other) | Q(sender=other, recipient=profile))
 		request_row.delete()
 		if request.headers.get("x-requested-with") == "XMLHttpRequest":
-			return JsonResponse({"ok": True, "message": "Message request cancelled.", "status": "Deleted"})
+			return JsonResponse({"ok": True, "message": "Message request cancelled.", "status": "Deleted", **_connection_state(profile, other)})
 		return redirect("profile_detail", gamer_tag=other.gamer_tag)
 	else:
 		request_row = get_object_or_404(MessageRequest, sender=other, recipient=profile)
@@ -1981,7 +2014,7 @@ def message_request_action(request, gamer_tag, action):
 			return redirect("profile_detail", gamer_tag=other.gamer_tag)
 		request_row.save(update_fields=("status",))
 	if request.headers.get("x-requested-with") == "XMLHttpRequest":
-		return JsonResponse({"ok": True, "message": f"Message request {request_row.status.lower()}.", "status": request_row.status})
+		return JsonResponse({"ok": True, "message": f"Message request {request_row.status.lower()}.", "status": request_row.status, **_connection_state(profile, other)})
 	return redirect("profile_detail", gamer_tag=other.gamer_tag)
 
 
