@@ -3,7 +3,7 @@
 {% block title %}GGz Companion | GGz{% endblock %}
 
 {% block content %}
-<main class="page-shell companion-shell">
+<main class="page-shell companion-shell companion-workspace">
     <section class="panel-surface companion-hero">
         <div>
             <p class="eyebrow">GGz Companion</p>
@@ -22,13 +22,19 @@
         </div>
     </section>
 
+    <section class="companion-workspace-grid">
+    <aside class="panel-surface companion-history" aria-label="Companion workspace">
+      <div class="companion-history-header"><span class="eyebrow">Workspace</span><button type="button" class="icon-only-action" data-companion-reset aria-label="Start a new chat" title="Start a new chat">＋</button></div>
+      <p class="muted">Keep your next GGz move in view.</p>
+      <div class="companion-history-list" data-companion-history-list><span class="companion-history-item is-active">Current conversation</span></div>
+    </aside>
     <section class="panel-surface companion-panel">
         <div class="companion-chat" aria-live="polite">
             <div class="assistant-bubble assistant-bubble-system">
                 <span class="assistant-badge">GGz Companion</span>
                 <p>I’m ready to help you find the right match, event, or community move. Ask me anything about GGz.</p>
             </div>
-            <div id="companion-response" class="assistant-bubble assistant-bubble-meta">
+            <div id="companion-response" class="assistant-bubble assistant-bubble-meta" data-companion-response>
                 <p>Tip: ask for a tournament, a game recommendation, or a local scene update.</p>
               <div class="companion-results" data-companion-results></div>
             </div>
@@ -39,10 +45,10 @@
             <label class="sr-only" for="companion-message">Ask GGz Companion</label>
             <textarea id="companion-message" name="message" rows="3" placeholder="Ask GGz Companion about tournaments, events, games, or community..."></textarea>
             <div class="companion-actions">
-              <button type="button" class="button button-secondary" data-companion-reset>New chat</button>
                 <button type="submit" class="button button-primary">Ask GGz Companion</button>
             </div>
         </form>
+    </section>
     </section>
 
     <section class="panel-surface companion-grid">
@@ -130,6 +136,25 @@
             });
           });
           responseBox.append(results);
+          if (result.action) {
+            const action = document.createElement('div');
+            action.className = 'companion-action-card';
+            action.innerHTML = `<strong></strong><div><button type="button" class="button button-primary" data-companion-confirm>Confirm</button><button type="button" class="button button-secondary" data-companion-cancel>Cancel</button></div>`;
+            action.querySelector('strong').textContent = result.action.label;
+            action.querySelector('[data-companion-confirm]').addEventListener('click', async () => {
+              const confirmButton = action.querySelector('[data-companion-confirm]');
+              confirmButton.disabled = true;
+              try {
+                const response = await fetch(result.action.url, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, body: new URLSearchParams({ csrfmiddlewaretoken: form.querySelector('input[name="csrfmiddlewaretoken"]')?.value || '' }) });
+                const payload = await response.json();
+                if (!response.ok || payload.ok === false) throw new Error(payload.error || 'The action could not be completed.');
+                action.replaceChildren();
+                const done = document.createElement('span'); done.textContent = `Confirmed: ${result.action.target} is now followed.`; action.append(done);
+              } catch (error) { confirmButton.disabled = false; confirmButton.textContent = error.message; }
+            });
+            action.querySelector('[data-companion-cancel]').addEventListener('click', () => action.remove());
+            responseBox.append(action);
+          }
           saveHistory({ message, response: result.response || '' });
           textarea.value = '';
         })

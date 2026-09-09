@@ -1,4 +1,28 @@
 (() => {
+  function managedEventStream(url, handlers) {
+    let source = null;
+    let retryTimer = null;
+    let retryCount = 0;
+    let stopped = false;
+    const delays = [1000, 2000, 4000, 8000, 15000];
+    const close = () => { if (source) { source.close(); source = null; } };
+    const schedule = () => {
+      if (stopped || document.visibilityState === 'hidden' || retryTimer) return;
+      retryTimer = window.setTimeout(() => { retryTimer = null; connect(); }, delays[Math.min(retryCount++, delays.length - 1)]);
+    };
+    const connect = () => {
+      if (stopped || document.visibilityState === 'hidden' || source) return;
+      source = new EventSource(url);
+      source.onopen = () => { retryCount = 0; handlers.onopen?.(); };
+      source.onmessage = (event) => handlers.onmessage?.(event);
+      source.onerror = () => { close(); handlers.onerror?.(); schedule(); };
+    };
+    const resume = () => { if (document.visibilityState === 'hidden') close(); else { retryCount = 0; connect(); } };
+    document.addEventListener('visibilitychange', resume);
+    connect();
+    return () => { stopped = true; window.clearTimeout(retryTimer); document.removeEventListener('visibilitychange', resume); close(); };
+  }
+
   function getCookie(name) {
     const cookie = document.cookie.split('; ').find((entry) => entry.startsWith(`${name}=`));
     return cookie ? decodeURIComponent(cookie.split('=').slice(1).join('=')) : '';
@@ -353,7 +377,6 @@
 
   const notificationPage = document.querySelector('[data-social-stream-url]');
   if (notificationPage) {
-    const notificationStream = new EventSource(notificationPage.dataset.socialStreamUrl);
     const permissionButton = notificationPage.querySelector('[data-browser-notification-opt-in]');
     let latestNotificationId = null;
     let notificationPoll = null;
@@ -416,15 +439,14 @@
           .catch(() => {});
       }, 15000);
     };
-    notificationStream.onopen = () => { stopNotificationPoll(); notificationPage.classList.remove('is-reconnecting'); };
-    notificationStream.onerror = () => { notificationPage.classList.add('is-reconnecting'); startNotificationPoll(); };
-    notificationStream.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data);
-        notificationPage.classList.remove('is-reconnecting');
-        applyNotificationPayload(payload);
-      } catch (error) { /* Ignore transient malformed events. */ }
-    };
+    const closeNotificationStream = managedEventStream(notificationPage.dataset.socialStreamUrl, {
+      onopen: () => { stopNotificationPoll(); notificationPage.classList.remove('is-reconnecting'); },
+      onerror: () => { notificationPage.classList.add('is-reconnecting'); startNotificationPoll(); },
+      onmessage: (event) => {
+        try { const payload = JSON.parse(event.data); notificationPage.classList.remove('is-reconnecting'); applyNotificationPayload(payload); } catch (error) { /* Ignore transient malformed events. */ }
+      },
+    });
+    window.addEventListener('pagehide', closeNotificationStream, { once: true });
   }
 
   const conversationSearch = document.querySelector('[data-conversation-search]');
@@ -435,7 +457,6 @@
 
   const inbox = document.querySelector('[data-inbox-stream-url]');
   if (inbox) {
-    const inboxStream = new EventSource(inbox.dataset.inboxStreamUrl);
     const updateInbox = (payload) => {
       updateMessageCount(payload.unread_message_count);
       (payload.items || []).forEach((item) => {
@@ -456,7 +477,10 @@
         }
       });
     };
-    inboxStream.onmessage = (event) => { try { updateInbox(JSON.parse(event.data)); } catch (error) { /* Ignore transient malformed events. */ } };
+    const closeInboxStream = managedEventStream(inbox.dataset.inboxStreamUrl, {
+      onmessage: (event) => { try { updateInbox(JSON.parse(event.data)); } catch (error) { /* Ignore transient malformed events. */ } },
+    });
+    window.addEventListener('pagehide', closeInboxStream, { once: true });
   }
 
   const chatPage = document.querySelector('[data-chat-page]');

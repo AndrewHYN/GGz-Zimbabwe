@@ -69,6 +69,16 @@ class HealthAndConfigTests(TestCase):
 		self.assertEqual(response.status_code, 200)
 		self.assertEqual(response.json()["results"]["games"][0]["name"], "GGz Test Arena")
 
+	def test_ai_companion_prepares_follow_only_after_explicit_confirmation(self):
+		player = GamerProfile.objects.create(user=User.objects.create_user(username="neo"), gamer_tag="NeoZim")
+		viewer_user = User.objects.create_user(username="viewer", password="pass")
+		viewer = GamerProfile.objects.create(user=viewer_user, gamer_tag="Viewer")
+		self.client.login(username="viewer", password="pass")
+		response = self.client.post(reverse("ai_companion"), {"message": "Follow NeoZim"})
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.json()["action"]["type"], "follow")
+		self.assertFalse(Follow.objects.filter(follower=viewer, following=player).exists())
+
 	def test_ai_companion_keeps_bounded_server_side_conversation_context(self):
 		self.client.post(reverse("ai_companion"), {"message": "Find a tournament"})
 		for index in range(7):

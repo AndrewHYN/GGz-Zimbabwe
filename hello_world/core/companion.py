@@ -1,4 +1,5 @@
 import json
+import re
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -147,7 +148,19 @@ def build_context(message, user=None):
         reply = "I can help you explore public games, players, tournaments, events, and marketplace listings. I can also explain profiles, messaging, notifications, and community features."
     else:
         reply = "Tell me what you want to find on GGz, such as a tournament, game, player, event, or marketplace listing."
-    return {"reply": reply, "data": results}
+    action = None
+    follow_match = re.match(r"\s*follow\s+([A-Za-z0-9_]+)", query, re.IGNORECASE)
+    if follow_match and user and getattr(user, "is_authenticated", False):
+        candidate = GamerProfile.objects.filter(gamer_tag__iexact=follow_match.group(1)).first()
+        if candidate and candidate.user_id != user.id:
+            action = {
+                "type": "follow",
+                "label": f"Follow {candidate.gamer_tag}?",
+                "url": reverse("connection_action", args=[candidate.gamer_tag, "follow"]),
+                "target": candidate.gamer_tag,
+            }
+            reply = f"I found {candidate.gamer_tag}. I can prepare the follow action, but I will wait for your confirmation."
+    return {"reply": reply, "data": results, "action": action}
 
 
 def answer(message, user=None, history=None):
@@ -158,4 +171,4 @@ def answer(message, user=None, history=None):
         if entry.get("role") in {"user", "assistant"} and isinstance(entry.get("content"), str)
     ][-10:]
     response = _provider().respond(message, context)
-    return {"response": response, "results": context["data"], "provider": settings.AI_COMPANION_PROVIDER}
+    return {"response": response, "results": context["data"], "action": context.get("action"), "provider": settings.AI_COMPANION_PROVIDER}
