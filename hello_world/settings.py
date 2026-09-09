@@ -31,7 +31,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Deployed platforms set one of these values. Local development remains usable
 # without an .env file, while deployed hosts and origins must be explicit.
-DEPLOYED = bool(os.environ.get("VERCEL") or os.environ.get("RENDER_EXTERNAL_HOSTNAME") or os.environ.get("DATABASE_URL"))
+DEPLOYED = bool(os.environ.get("VERCEL") or os.environ.get("DATABASE_URL"))
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "").strip()
@@ -42,32 +42,27 @@ if not SECRET_KEY:
 
 SITE_URL = config("SITE_URL", default="http://localhost:8000" if not DEPLOYED else "")
 if not SITE_URL and DEPLOYED:
-    SITE_URL = "https://" + (os.environ.get("VERCEL_URL") or os.environ.get("VERCEL_BRANCH_URL") or os.environ.get("RENDER_EXTERNAL_HOSTNAME") or "localhost")
+    SITE_URL = "https://" + (os.environ.get("VERCEL_URL") or os.environ.get("VERCEL_BRANCH_URL") or os.environ.get("VERCEL_PROJECT_PRODUCTION_URL") or "localhost")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config("DEBUG", default=not DEPLOYED, cast=bool)
 
 ALLOWED_HOSTS = config(
     "ALLOWED_HOSTS",
-    default="ggz-zimbabwe.onrender.com" if DEPLOYED else "localhost,127.0.0.1,[::1]",
+    default="localhost,127.0.0.1,[::1]",
     cast=comma_separated,
 )
 
 CSRF_TRUSTED_ORIGINS = config(
     "CSRF_TRUSTED_ORIGINS",
-    default="https://ggz-zimbabwe.onrender.com" if DEPLOYED else "http://localhost:8000,http://127.0.0.1:8000,https://localhost:8000,https://127.0.0.1:8000",
+    default="http://localhost:8000,http://127.0.0.1:8000,https://localhost:8000,https://127.0.0.1:8000",
     cast=comma_separated,
 )
 
 ALLOWED_HOSTS = list(dict.fromkeys(ALLOWED_HOSTS))
 CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(CSRF_TRUSTED_ORIGINS))
 
-if DEPLOYED and "ggz-zimbabwe.onrender.com" not in ALLOWED_HOSTS:
-    ALLOWED_HOSTS.append("ggz-zimbabwe.onrender.com")
-if DEPLOYED and "https://ggz-zimbabwe.onrender.com" not in CSRF_TRUSTED_ORIGINS:
-    CSRF_TRUSTED_ORIGINS.append("https://ggz-zimbabwe.onrender.com")
-
-for deployed_host_variable in ("VERCEL_URL", "VERCEL_BRANCH_URL", "VERCEL_PROJECT_PRODUCTION_URL", "RENDER_EXTERNAL_HOSTNAME"):
+for deployed_host_variable in ("VERCEL_URL", "VERCEL_BRANCH_URL", "VERCEL_PROJECT_PRODUCTION_URL"):
     deployed_host = os.environ.get(deployed_host_variable, "").strip()
     if deployed_host and deployed_host not in ALLOWED_HOSTS:
         ALLOWED_HOSTS.append(deployed_host)

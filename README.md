@@ -42,7 +42,7 @@ Required environment variables:
 - `SESSION_COOKIE_AGE`, `SESSION_COOKIE_SAMESITE`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SAMESITE`, `CSRF_COOKIE_SECURE`, `SECURE_SSL_REDIRECT`: security/session settings for deployed environments
 - `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`: optional CAPTCHA protection for high-risk auth actions when configured
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for production hardening, Vercel/Render notes, backup verification, the guarded SQLite-to-PostgreSQL import command, media storage requirements, rollback guidance, and explicit verification status.
+See [DEPLOYMENT.md](DEPLOYMENT.md) for production hardening, Vercel deployment notes, backup verification, the guarded SQLite-to-PostgreSQL import command, media storage requirements, rollback guidance, and explicit verification status.
 Focused runbooks: [DATABASE_MIGRATION.md](DATABASE_MIGRATION.md) and [VERCEL_DEPLOY.md](VERCEL_DEPLOY.md).
 
 ## GGz Radar map provider decision
