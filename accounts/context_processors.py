@@ -1,5 +1,10 @@
+import hashlib
+
 from django.conf import settings
+from django.core.cache import cache
 from django.db.models import Exists, F, OuterRef, Q
+
+from games.models import Game
 
 from .models import ConversationParticipant, Message, MessageRequest
 
@@ -14,7 +19,18 @@ def _unread_message_count(profile):
 
 
 def notification_count(request):
-    push_context = {"VAPID_PUBLIC_KEY": getattr(settings, "VAPID_PUBLIC_KEY", "")}
+    path = request.path.rstrip("/") or "/"
+    ambient_enabled = path in {"/", "/accounts/login", "/profiles/signup"}
+    ambient_media = []
+    if ambient_enabled:
+        pool = cache.get("ggz_ambient_game_media")
+        if pool is None:
+            pool = list(Game.objects.filter(Q(cover_art_url__startswith="http://") | Q(cover_art_url__startswith="https://")).order_by("-featured", "-popularity", "name").values_list("cover_art_url", flat=True)[:12])
+            cache.set("ggz_ambient_game_media", pool, 900)
+        if pool:
+            start = int(hashlib.sha256(path.encode("utf-8")).hexdigest(), 16) % len(pool)
+            ambient_media = [pool[(start + offset) % len(pool)] for offset in range(min(3, len(pool)))]
+    push_context = {"VAPID_PUBLIC_KEY": getattr(settings, "VAPID_PUBLIC_KEY", ""), "ambient_media": ambient_media, "ambient_enabled": ambient_enabled}
     if not request.user.is_authenticated:
         return {**push_context, "unread_notification_count": 0, "unread_message_count": 0, "pending_message_request_count": 0, "user_profile": None}
     profile = getattr(request.user, "gamer_profile", None)

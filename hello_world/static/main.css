@@ -1771,6 +1771,35 @@ a:hover { color: #a5b4fc; }
     }
 }
 
+/* Ambient game artwork is decorative only and never participates in layout. */
+.ggz-page { min-width: 0; }
+.ggz-ambient-media { position: fixed; z-index: 0; inset: 0; overflow: hidden; pointer-events: none; background: #090d12; isolation: isolate; }
+.ggz-ambient-layer, .ggz-ambient-image, .ggz-ambient-vignette { position: absolute; inset: -12%; }
+.ggz-ambient-layer { z-index: 0; background: radial-gradient(circle at 18% 20%, rgba(245,158,11,.14), transparent 34%), radial-gradient(circle at 82% 74%, rgba(124,58,237,.16), transparent 38%); }
+.ggz-ambient-layer-one { opacity: .8; animation: ggz-ambient-drift-one 22s ease-in-out infinite alternate; }
+.ggz-ambient-layer-two { opacity: .65; background: linear-gradient(115deg, rgba(7,11,16,.1), rgba(124,58,237,.12) 48%, rgba(7,11,16,.5)); animation: ggz-ambient-drift-two 28s ease-in-out infinite alternate; }
+.ggz-ambient-image { z-index: 1; width: 58vw; height: 76vh; object-fit: cover; opacity: .09; filter: saturate(.72) contrast(1.08) blur(1px); mix-blend-mode: screen; mask-image: linear-gradient(110deg, transparent 0%, black 26%, black 72%, transparent 100%); animation: ggz-ambient-image-one 24s ease-in-out infinite alternate; }
+.ggz-ambient-image-1 { top: 4%; left: -10%; transform: rotate(-5deg); }
+.ggz-ambient-image-2 { top: 24%; left: 48%; opacity: .065; transform: rotate(7deg); animation-name: ggz-ambient-image-two; animation-duration: 30s; }
+.ggz-ambient-image-3 { top: -12%; left: 25%; opacity: .045; transform: rotate(-2deg); animation-name: ggz-ambient-image-three; animation-duration: 18s; }
+.ggz-ambient-vignette { z-index: 2; inset: 0; background: radial-gradient(ellipse at center, transparent 16%, rgba(7,11,16,.42) 72%, rgba(7,11,16,.86) 100%), linear-gradient(90deg, rgba(7,11,16,.66), transparent 42%, rgba(7,11,16,.5)); }
+.site-nav, .site-shell, .site-footer { position: relative; z-index: 1; }
+.ggz-page--login .site-shell, .ggz-page--signup .site-shell { min-height: calc(100vh - 160px); display: grid; align-items: center; }
+@keyframes ggz-ambient-drift-one { from { transform: translate3d(-2%, -1%, 0) scale(1); } to { transform: translate3d(3%, 2%, 0) scale(1.06); } }
+@keyframes ggz-ambient-drift-two { from { transform: translate3d(2%, 1%, 0) scale(1.03); } to { transform: translate3d(-3%, -2%, 0) scale(1); } }
+@keyframes ggz-ambient-image-one { from { transform: translate3d(-2%, 1%, 0) rotate(-5deg) scale(1); } to { transform: translate3d(4%, -2%, 0) rotate(-2deg) scale(1.08); } }
+@keyframes ggz-ambient-image-two { from { transform: translate3d(3%, -1%, 0) rotate(7deg) scale(1.02); } to { transform: translate3d(-4%, 2%, 0) rotate(4deg) scale(1.08); } }
+@keyframes ggz-ambient-image-three { from { opacity: .035; transform: translate3d(0, 2%, 0) rotate(-2deg) scale(1.04); } to { opacity: .065; transform: translate3d(-2%, -2%, 0) rotate(1deg) scale(1.1); } }
+@media (max-width: 640px) {
+    .ggz-ambient-image { width: 106vw; height: 58vh; opacity: .055; filter: saturate(.58) contrast(1.04) blur(1px); }
+    .ggz-ambient-image-1 { top: 7%; left: -28%; }
+    .ggz-ambient-image-2, .ggz-ambient-image-3 { display: none; }
+    .ggz-ambient-vignette { background: linear-gradient(180deg, rgba(7,11,16,.64), rgba(7,11,16,.28) 38%, rgba(7,11,16,.84) 100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .ggz-ambient-layer, .ggz-ambient-image { animation: none; }
+}
+
 .avatar {
     display: flex;
     align-items: center;

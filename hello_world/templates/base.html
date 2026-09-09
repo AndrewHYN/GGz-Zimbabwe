@@ -11,7 +11,13 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'main.css' %}">
 </head>
-<body data-csrf-token="{{ csrf_token }}">
+<body class="ggz-page{% block body_class %}{% endblock %}{% if ambient_enabled %} ggz-page--ambient{% endif %}" data-csrf-token="{{ csrf_token }}">
+    {% if ambient_enabled %}<div class="ggz-ambient-media" aria-hidden="true">
+        <div class="ggz-ambient-layer ggz-ambient-layer-one"></div>
+        <div class="ggz-ambient-layer ggz-ambient-layer-two"></div>
+        {% for media_url in ambient_media %}<img class="ggz-ambient-image ggz-ambient-image-{{ forloop.counter }}" src="{{ media_url }}" alt=""{% if not forloop.first %} loading="lazy"{% endif %} referrerpolicy="no-referrer">{% endfor %}
+        <div class="ggz-ambient-vignette"></div>
+    </div>{% endif %}
     <nav class="site-nav" id="primary-navigation" aria-label="Main navigation">
         <div class="nav-container">
             <a href="{% url 'index' %}" class="nav-logo" aria-label="GGz home">

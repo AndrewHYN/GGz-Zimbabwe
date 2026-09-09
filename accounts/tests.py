@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.contrib.auth.tokens import default_token_generator
+from django.core.cache import cache
 from django.core import mail
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -37,6 +38,22 @@ class HealthAndConfigTests(TestCase):
 		self.assertEqual(response.status_code, 200)
 		self.assertContains(response, "GGz")
 		self.assertNotContains(response, "GGs")
+
+	def test_homepage_uses_cached_existing_game_art_for_ambient_media(self):
+		cache.clear()
+		Game.objects.create(name="Ambient Arena", cover_art_url="https://example.com/ambient-arena.jpg", popularity=99)
+		response = self.client.get(reverse("index"))
+		self.assertContains(response, "ggz-ambient-media")
+		self.assertContains(response, "https://example.com/ambient-arena.jpg")
+
+	def test_login_and_signup_enable_ambient_media_without_affecting_form_content(self):
+		cache.clear()
+		login_response = self.client.get(reverse("login"))
+		signup_response = self.client.get(reverse("signup"))
+		self.assertContains(login_response, "ggz-page--login")
+		self.assertContains(login_response, "ggz-ambient-media")
+		self.assertContains(signup_response, "ggz-page--signup")
+		self.assertContains(signup_response, "ggz-ambient-media")
 
 	def test_ai_companion_endpoint_is_available_and_responds(self):
 		response = self.client.get(reverse("ai_companion"))
