@@ -10,6 +10,17 @@
 .site-nav .nav-profile-panel { z-index: 1100 !important; }
 .site-shell,
 .site-footer { position: relative; z-index: 2; }
+.chat-overflow { position: relative; }
+.chat-overflow-menu { position: absolute; top: calc(100% + .45rem); right: 0; z-index: 20; display: grid; min-width: 10.5rem; gap: .15rem; padding: .35rem; border: 1px solid var(--border); border-radius: .65rem; background: rgba(16,24,32,.98); box-shadow: 0 1rem 2rem rgba(0,0,0,.32); }
+.chat-overflow-menu a, .chat-overflow-menu button { display: block; width: 100%; padding: .65rem .7rem; border: 0; background: transparent; color: var(--text-secondary); font: inherit; font-size: .8rem; text-align: left; text-decoration: none; cursor: pointer; }
+.chat-overflow-menu a:hover, .chat-overflow-menu button:hover, .chat-overflow-menu a:focus-visible, .chat-overflow-menu button:focus-visible { background: rgba(245,158,11,.1); color: var(--text-primary); }
+.ggz-page input[type="text"], .ggz-page input[type="email"], .ggz-page input[type="password"], .ggz-page input[type="url"], .ggz-page input[type="number"], .ggz-page input[type="search"], .ggz-page select, .ggz-page textarea { width: 100%; min-height: 2.75rem; padding: .75rem .85rem; border: 1px solid rgba(148,163,184,.28); border-radius: .65rem; background: rgba(8,13,19,.72); color: var(--text-primary); font: inherit; font-size: 1rem; box-shadow: inset 0 1px 0 rgba(255,255,255,.025), 0 8px 22px rgba(0,0,0,.08); }
+.ggz-page input::placeholder, .ggz-page textarea::placeholder { color: rgba(203,213,225,.58); }
+.ggz-page input:focus, .ggz-page select:focus, .ggz-page textarea:focus { border-color: rgba(245,158,11,.78); outline: 0; box-shadow: 0 0 0 3px rgba(245,158,11,.16), inset 0 1px 0 rgba(255,255,255,.04); }
+.ggz-page input:disabled, .ggz-page select:disabled, .ggz-page textarea:disabled { cursor: not-allowed; opacity: .58; }
+.companion-form textarea { min-height: 7rem; resize: vertical; background: rgba(8,13,19,.9); border-color: rgba(139,92,246,.42); }
+.social-composer textarea { min-height: 2.75rem; padding: .7rem .8rem; background: rgba(8,13,19,.82); }
+@media (max-width: 900px) { .nav-menu { max-width: calc(100vw - 1.5rem); max-height: calc(100vh - 6rem); overflow-x: hidden; overflow-y: auto; } .nav-dropdown-panel { position: relative; top: auto; right: auto; left: auto; width: 100%; max-width: 100%; overflow-x: hidden; } }
 
 .ggz-home .hero-shell { isolation: isolate; overflow: hidden; }
 .ggz-home .hero-shell::after {

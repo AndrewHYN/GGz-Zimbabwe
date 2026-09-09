@@ -55,6 +55,13 @@ class HealthAndConfigTests(TestCase):
 		self.assertContains(signup_response, "ggz-page--signup")
 		self.assertContains(signup_response, "ggz-ambient-media")
 
+	def test_non_home_frontend_page_receives_cached_ambient_media(self):
+		cache.clear()
+		Game.objects.create(name="Ambient Discovery", cover_art_url="https://example.com/discovery.jpg", popularity=99)
+		response = self.client.get(reverse("game_list"))
+		self.assertContains(response, "ggz-ambient-media")
+		self.assertContains(response, "https://example.com/discovery.jpg")
+
 	def test_ai_companion_endpoint_is_available_and_responds(self):
 		response = self.client.get(reverse("ai_companion"))
 		self.assertEqual(response.status_code, 200)
@@ -1377,6 +1384,19 @@ class NotificationAndMessagingTests(TestCase):
 		GamerProfile.objects.create(user=outsider, gamer_tag="Outsider")
 		self.client.login(username="outsider", password="pass")
 		self.assertEqual(self.client.get(reverse("conversation_detail", args=(conversation.id,))).status_code, 404)
+
+	def test_conversation_has_live_presence_and_overflow_actions(self):
+		conversation = Conversation.objects.create()
+		ConversationParticipant.objects.bulk_create([
+			ConversationParticipant(conversation=conversation, profile=self.sender),
+			ConversationParticipant(conversation=conversation, profile=self.recipient),
+		])
+		self.client.login(username="sender", password="pass")
+		response = self.client.get(reverse("conversation_detail", args=(conversation.id,)))
+		self.assertContains(response, "data-presence-stream-url")
+		self.assertContains(response, "View profile")
+		self.assertContains(response, "Clear chat")
+		self.assertContains(response, "Block player")
 
 	def test_message_requests_and_privacy_rules(self):
 		self.client.login(username="sender", password="pass")

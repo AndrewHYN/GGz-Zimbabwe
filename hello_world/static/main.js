@@ -28,6 +28,31 @@
     return cookie ? decodeURIComponent(cookie.split('=').slice(1).join('=')) : '';
   }
 
+  const heartbeatPage = document.body;
+  if (heartbeatPage?.dataset.authenticated === 'true' && heartbeatPage.dataset.presenceHeartbeatUrl) {
+    let lastHeartbeat = 0;
+    let heartbeatTimer = null;
+    const heartbeat = () => {
+      if (document.visibilityState === 'hidden' || Date.now() - lastHeartbeat < 10000) return;
+      lastHeartbeat = Date.now();
+      fetch(heartbeatPage.dataset.presenceHeartbeatUrl, {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'X-CSRFToken': getCookie('csrftoken'), 'X-Requested-With': 'XMLHttpRequest' },
+      }).catch(() => {});
+    };
+    heartbeat();
+    heartbeatTimer = window.setInterval(heartbeat, 30000);
+    const onVisibility = () => { if (document.visibilityState === 'visible') heartbeat(); };
+    const onActivity = () => heartbeat();
+    document.addEventListener('visibilitychange', onVisibility);
+    ['click', 'pointerdown', 'keydown', 'touchstart'].forEach((eventName) => document.addEventListener(eventName, onActivity, { passive: true }));
+    window.addEventListener('pagehide', () => {
+      window.clearInterval(heartbeatTimer);
+      document.removeEventListener('visibilitychange', onVisibility);
+      ['click', 'pointerdown', 'keydown', 'touchstart'].forEach((eventName) => document.removeEventListener(eventName, onActivity));
+    }, { once: true });
+  }
+
   const mobileToggle = document.getElementById('nav-mobile-toggle');
   const navMenu = document.getElementById('nav-menu');
   const dropdownTriggers = Array.from(document.querySelectorAll('.nav-more'));
@@ -205,36 +230,22 @@
       if (detailElement) detailElement.textContent = payload.detail || '';
       statusElement.setAttribute('aria-label', `${payload.label || 'Offline'} — ${payload.detail || 'Not active recently'}`);
     };
-    let stream = null;
-    const connectPresence = () => {
-      if (document.visibilityState === 'hidden' || stream) return;
-      stream = new EventSource(presencePage.dataset.presenceStreamUrl);
-      stream.onmessage = (event) => {
-        try { updatePresence(JSON.parse(event.data)); } catch (error) { /* Ignore malformed transient events. */ }
-      };
-      stream.onerror = () => { stream?.close(); stream = null; };
-    };
-    const disconnectPresence = () => { stream?.close(); stream = null; };
-    connectPresence();
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') disconnectPresence(); else connectPresence(); });
-    window.addEventListener('pagehide', disconnectPresence, { once: true });
-    if (presencePage.dataset.presenceOwner === 'true') {
-      const heartbeatUrl = presencePage.dataset.presenceHeartbeatUrl;
-      let lastHeartbeat = 0;
-      const heartbeat = () => {
-        if (document.visibilityState === 'hidden' || Date.now() - lastHeartbeat < 15000) return;
-        lastHeartbeat = Date.now();
-        fetch(heartbeatUrl, {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'X-CSRFToken': getCookie('csrftoken'), 'X-Requested-With': 'XMLHttpRequest' },
-        }).then((response) => response.ok ? response.json() : null).then((payload) => { if (payload) updatePresence(payload); }).catch(() => {});
-      };
-      heartbeat();
-      window.setInterval(heartbeat, 30000);
-      document.addEventListener('visibilitychange', heartbeat);
-      ['click', 'keydown', 'pointerdown'].forEach((eventName) => document.addEventListener(eventName, heartbeat, { passive: true }));
-    }
+    const closePresenceStream = managedEventStream(presencePage.dataset.presenceStreamUrl, {
+      onmessage: (event) => { try { updatePresence(JSON.parse(event.data)); } catch (error) { /* Ignore malformed transient events. */ } },
+    });
+    window.addEventListener('pagehide', closePresenceStream, { once: true });
+  }
+
+  const overflowToggle = document.querySelector('[data-chat-overflow-toggle]');
+  const overflowMenu = document.querySelector('[data-chat-overflow-menu]');
+  const closeOverflow = () => { if (overflowMenu) overflowMenu.hidden = true; if (overflowToggle) overflowToggle.setAttribute('aria-expanded', 'false'); };
+  if (overflowToggle && overflowMenu) {
+    overflowToggle.addEventListener('click', (event) => { event.stopPropagation(); const open = !overflowMenu.hidden; overflowMenu.hidden = open; overflowToggle.setAttribute('aria-expanded', String(!open)); });
+    document.addEventListener('click', (event) => { if (!event.target.closest('.chat-overflow')) closeOverflow(); });
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeOverflow(); });
+    overflowMenu.querySelectorAll('a, form').forEach((item) => item.addEventListener('click', () => closeOverflow()));
+    const blockForm = overflowMenu.querySelector('[data-block-player]');
+    blockForm?.addEventListener('submit', (event) => { if (!window.confirm('Block this player?')) { event.preventDefault(); } });
   }
 
   document.querySelectorAll('[data-async-action]').forEach((form) => {
@@ -546,14 +557,14 @@
     scrollLatest();
     const markRead = () => fetch(chatPage.dataset.chatReadUrl, { method: 'POST', body: new URLSearchParams({ action: 'read', csrfmiddlewaretoken: getCookie('csrftoken') }), credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then((response) => response.ok ? response.json() : null).then((result) => { if (result) updateMessageCount(result.unread_message_count); }).catch(() => {});
     markRead();
-    const stream = new EventSource(chatPage.dataset.chatStreamUrl);
     const reconnectStatus = document.createElement('span');
     reconnectStatus.className = 'stream-status';
     reconnectStatus.setAttribute('role', 'status');
     chatPage.querySelector('.chat-header').append(reconnectStatus);
-    stream.onopen = () => { reconnectStatus.textContent = ''; };
-    stream.onerror = () => { reconnectStatus.textContent = 'Reconnecting...'; };
-    stream.onmessage = (event) => {
+    managedEventStream(chatPage.dataset.chatStreamUrl, {
+      onopen: () => { reconnectStatus.textContent = ''; },
+      onerror: () => { reconnectStatus.textContent = 'Reconnecting...'; },
+      onmessage: (event) => {
       try {
         const message = JSON.parse(event.data);
         if (message.event === 'typing') { updateTyping(message.typing); return; }
@@ -564,7 +575,8 @@
         else if (!message.mine) { pendingMessages += 1; if (newMessagePrompt) { newMessagePrompt.hidden = false; const count = newMessagePrompt.querySelector('[data-new-message-count]'); if (count) count.textContent = pendingMessages; } }
         if (!message.mine && shouldScroll) markRead();
       } catch (error) { /* Ignore malformed transient events. */ }
-    };
+      },
+    });
     const sendMessage = () => {
       const body = input.value.trim();
       if (!body) return;
