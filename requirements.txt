@@ -7,5 +7,6 @@ boto3~=1.40.0
 django-storages[s3]~=1.14.6
 psycopg[binary]~=3.2.1
 PyJWT~=2.10.1
+pywebpush~=2.0.3
 python-decouple~=3.8
 sqlparse~=0.5.1

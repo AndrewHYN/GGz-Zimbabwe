@@ -1241,6 +1241,12 @@ class NotificationAndMessagingTests(TestCase):
 		notify(self.recipient, self.sender, "follow", "Sender followed you", "/profiles/Sender/")
 		self.assertEqual(Notification.objects.filter(recipient=self.recipient).count(), 1)
 
+	@patch("accounts.push.send_notification")
+	def test_notification_sends_push_only_for_new_events(self, send_push):
+		notify(self.recipient, self.sender, "follow", "Sender followed you", "/profiles/Sender/")
+		notify(self.recipient, self.sender, "follow", "Sender followed you", "/profiles/Sender/")
+		send_push.assert_called_once_with(self.recipient, "Sender followed you", "/profiles/Sender/", "follow")
+
 	def test_message_creates_notification_and_clear_is_per_user(self):
 		conversation = Conversation.objects.create()
 		ConversationParticipant.objects.create(conversation=conversation, profile=self.sender)

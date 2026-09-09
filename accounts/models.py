@@ -496,7 +496,7 @@ def notify(recipient, actor, notification_type, message, target_url="", event_ke
     normalized_event_key = event_key or f"{notification_type}:{actor.pk if actor else 0}:{normalized_target}:{message}"
     normalized_event_key = hashlib.sha256(normalized_event_key.encode("utf-8")).hexdigest()
     try:
-        Notification.objects.get_or_create(
+        notification, created = Notification.objects.get_or_create(
             recipient=recipient,
             event_key=normalized_event_key,
             defaults={
@@ -506,6 +506,9 @@ def notify(recipient, actor, notification_type, message, target_url="", event_ke
                 "target_url": normalized_target,
             },
         )
+        if created:
+            from .push import send_notification
+            send_notification(recipient, message, normalized_target, notification_type)
     except Exception:
         return
 
