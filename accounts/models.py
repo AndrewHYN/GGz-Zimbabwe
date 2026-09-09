@@ -513,6 +513,7 @@ class ConversationParticipant(models.Model):
     profile = models.ForeignKey(GamerProfile, on_delete=models.CASCADE, related_name="conversation_links")
     last_read_at = models.DateTimeField(null=True, blank=True)
     cleared_at = models.DateTimeField(null=True, blank=True)
+    typing_until = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=("conversation", "profile"), name="unique_conversation_participant")]
@@ -522,12 +523,20 @@ class Message(models.Model):
     conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name="messages")
     sender = models.ForeignKey(GamerProfile, on_delete=models.CASCADE, related_name="messages_sent")
     body = models.TextField(max_length=2000)
+    client_id = models.CharField(max_length=64, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     delivered_at = models.DateTimeField(null=True, blank=True)
     read_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ("created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("conversation", "client_id"),
+                condition=Q(client_id__isnull=False),
+                name="unique_message_client_id",
+            )
+        ]
 
 
 class MessageRequest(models.Model):

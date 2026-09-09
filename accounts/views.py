@@ -5,6 +5,7 @@ import re
 import secrets
 import time
 from collections import Counter
+from datetime import timedelta
 from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 
@@ -1735,7 +1736,7 @@ def message_requests(request):
 @login_required
 def conversation_detail(request, conversation_id):
 	profile = get_object_or_404(GamerProfile, user=request.user)
-	conversation = get_object_or_404(Conversation.objects.prefetch_related("participants", "messages__sender"), id=conversation_id, participants=profile)
+	conversation = get_object_or_404(Conversation.objects.prefetch_related("participants"), id=conversation_id, participants=profile)
 	participant = get_object_or_404(ConversationParticipant, conversation=conversation, profile=profile)
 	other = conversation.participants.exclude(id=profile.id).first()
 	if other and Block.objects.filter(Q(blocker=profile, blocked=other) | Q(blocker=other, blocked=profile)).exists():
@@ -1756,17 +1757,24 @@ def conversation_detail(request, conversation_id):
 			messages.success(request, "Conversation cleared for you.")
 			return redirect("conversation_detail", conversation_id=conversation.id)
 		body = request.POST.get("body", "").strip()
+		client_id = (request.POST.get("client_id") or "").strip()[:64] or None
 		other = conversation.participants.exclude(id=profile.id).first()
 		if body and other and _can_message(profile, other):
-			message = Message.objects.create(conversation=conversation, sender=profile, body=body)
+			message = Message.objects.filter(conversation=conversation, sender=profile, client_id=client_id).first() if client_id else None
+			created = message is None
+			if message is None:
+				message = Message.objects.create(conversation=conversation, sender=profile, body=body, client_id=client_id)
 			conversation.save(update_fields=("updated_at",))
-			_notify(other, profile, "message", f"{profile.gamer_tag} sent you a message", f"/messages/{conversation.id}/")
+			if created:
+				_notify(other, profile, "message", f"{profile.gamer_tag} sent you a message", f"/messages/{conversation.id}/")
 			if request.headers.get("x-requested-with") == "XMLHttpRequest":
 				return JsonResponse({"ok": True, "message": _message_payload(message, profile)})
 		return redirect("conversation_detail", conversation_id=conversation.id)
 	ConversationParticipant.objects.filter(conversation=conversation, profile=profile).update(last_read_at=timezone.now())
 	conversation.messages.filter(sender=other, read_at__isnull=True).update(delivered_at=timezone.now(), read_at=timezone.now())
 	messages_qs = conversation.messages.filter(created_at__gt=participant.cleared_at) if participant.cleared_at else conversation.messages.all()
+	messages_qs = list(messages_qs.select_related("sender").order_by("-id")[:50])
+	messages_qs.reverse()
 	return render(request, "accounts/conversation_detail.html", {"conversation": conversation, "profile": profile, "other": other, "other_presence": _presence_snapshot(other, profile) if other else {"status": "offline", "label": "Offline", "detail": ""}, "conversation_messages": messages_qs, "conversation_stream_url": reverse("conversation_stream", args=[conversation.id]), "conversation_send_url": reverse("conversation_send", args=[conversation.id])})
 
 
@@ -1774,6 +1782,7 @@ def _message_payload(message, viewer):
 	return {
 		"id": message.id,
 		"body": message.body,
+		"client_id": message.client_id or "",
 		"time": timezone.localtime(message.created_at).strftime("%H:%M"),
 		"mine": message.sender_id == viewer.id,
 		"state": "read" if message.read_at else "delivered" if message.delivered_at else "sent",
@@ -1792,12 +1801,32 @@ def conversation_send(request, conversation_id):
 	if not other or Block.objects.filter(Q(blocker=profile, blocked=other) | Q(blocker=other, blocked=profile)).exists():
 		return JsonResponse({"error": "You cannot message this player."}, status=403)
 	body = request.POST.get("body", "").strip()
+	client_id = (request.POST.get("client_id") or "").strip()[:64] or None
 	if not body or len(body) > 2000 or not _can_message(profile, other):
 		return JsonResponse({"error": "That message could not be sent."}, status=400)
-	message = Message.objects.create(conversation=conversation, sender=profile, body=body)
+	message = Message.objects.filter(conversation=conversation, sender=profile, client_id=client_id).first() if client_id else None
+	created = message is None
+	if message is None:
+		message = Message.objects.create(conversation=conversation, sender=profile, body=body, client_id=client_id)
 	conversation.save(update_fields=("updated_at",))
-	_notify(other, profile, "message", f"{profile.gamer_tag} sent you a message", f"/messages/{conversation.id}/")
+	if created:
+		_notify(other, profile, "message", f"{profile.gamer_tag} sent you a message", f"/messages/{conversation.id}/")
 	return JsonResponse({"ok": True, "message": _message_payload(message, profile), "unread_message_count": _unread_message_count(profile)})
+
+
+@login_required
+def conversation_typing(request, conversation_id):
+	if request.method != "POST":
+		return JsonResponse({"error": "Typing state requires POST."}, status=405)
+	profile = get_object_or_404(GamerProfile, user=request.user)
+	conversation = get_object_or_404(Conversation, id=conversation_id, participants=profile)
+	participant = get_object_or_404(ConversationParticipant, conversation=conversation, profile=profile)
+	if request.POST.get("typing") == "true":
+		participant.typing_until = timezone.now() + timedelta(seconds=4)
+	else:
+		participant.typing_until = None
+	participant.save(update_fields=("typing_until",))
+	return JsonResponse({"ok": True})
 
 
 @login_required
@@ -1810,18 +1839,27 @@ def conversation_stream(request, conversation_id):
 	if request.GET.get("format") == "json":
 		try:
 			after_id = max(0, int(request.GET.get("after", 0) or 0))
+			before_id = max(0, int(request.GET.get("before", 0) or 0))
 		except (TypeError, ValueError):
 			return JsonResponse({"error": "Invalid message cursor."}, status=400)
-		messages = conversation.messages.select_related("sender").filter(id__gt=after_id).order_by("id")
+		messages_query = conversation.messages.select_related("sender")
+		if before_id:
+			messages_query = messages_query.filter(id__lt=before_id).order_by("-id")[:50]
+		else:
+			messages_query = messages_query.filter(id__gt=after_id).order_by("id")[:50]
+		messages = list(messages_query)
+		if before_id:
+			messages.reverse()
 		payloads = []
 		for message in messages:
 			if message.sender_id != profile.id and message.delivered_at is None:
 				message.delivered_at = timezone.now()
 				message.save(update_fields=("delivered_at",))
 			payloads.append(_message_payload(message, profile))
-		return JsonResponse({"messages": payloads, "unread_message_count": _unread_message_count(profile)})
+		return JsonResponse({"messages": payloads, "has_more": len(messages) == 50, "unread_message_count": _unread_message_count(profile)})
 	def events():
 		last_payloads = {}
+		last_typing = None
 		for _ in range(60):
 			messages_qs = conversation.messages.select_related("sender").order_by("id")
 			for message in messages_qs:
@@ -1834,6 +1872,11 @@ def conversation_stream(request, conversation_id):
 					yield f"data: {json.dumps(payload)}\n\n"
 			if not messages_qs:
 				yield ": heartbeat\n\n"
+			typing_link = ConversationParticipant.objects.filter(conversation=conversation, profile=other).first()
+			typing = bool(typing_link and typing_link.typing_until and typing_link.typing_until > timezone.now())
+			if typing != last_typing:
+				last_typing = typing
+				yield f"data: {json.dumps({'event': 'typing', 'typing': typing})}\n\n"
 			time.sleep(1)
 	return StreamingHttpResponse(events(), content_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 

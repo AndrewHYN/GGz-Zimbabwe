@@ -21,6 +21,7 @@ urlpatterns = [
 	path("messages/requests/", views.message_requests, name="message_requests"),
 	path("messages/<int:conversation_id>/", views.conversation_detail, name="conversation_detail"),
 	path("messages/<int:conversation_id>/send/", views.conversation_send, name="conversation_send"),
+	path("messages/<int:conversation_id>/typing/", views.conversation_typing, name="conversation_typing"),
 	path("messages/<int:conversation_id>/stream/", views.conversation_stream, name="conversation_stream"),
 	path("messages/stream/", views.conversation_inbox_stream, name="conversation_inbox_stream"),
 	path("messages/start/<str:gamer_tag>/", views.conversation_start, name="conversation_start"),

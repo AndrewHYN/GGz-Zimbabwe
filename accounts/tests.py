@@ -1366,6 +1366,22 @@ class NotificationAndMessagingTests(TestCase):
 		self.assertEqual(message_payload.json()["messages"][0]["body"], message.body)
 		self.assertEqual(self.client.get(reverse("conversation_stream", args=(conversation.id,)), {"format": "json", "after": "bad"}).status_code, 400)
 
+	def test_message_client_id_is_idempotent_and_typing_is_private(self):
+		conversation = Conversation.objects.create()
+		ConversationParticipant.objects.bulk_create([
+			ConversationParticipant(conversation=conversation, profile=self.sender),
+			ConversationParticipant(conversation=conversation, profile=self.recipient),
+		])
+		first, second = sorted((self.sender.id, self.recipient.id))
+		Friendship.objects.create(profile_one_id=first, profile_two_id=second)
+		self.client.login(username="sender", password="pass")
+		payload = {"body": "Retry-safe", "client_id": "client-123"}
+		self.assertEqual(self.client.post(reverse("conversation_send", args=(conversation.id,)), payload).status_code, 200)
+		self.assertEqual(self.client.post(reverse("conversation_send", args=(conversation.id,)), payload).status_code, 200)
+		self.assertEqual(Message.objects.filter(conversation=conversation).count(), 1)
+		self.assertEqual(self.client.post(reverse("conversation_typing", args=(conversation.id,)), {"typing": "true"}).status_code, 200)
+		self.assertIsNotNone(ConversationParticipant.objects.get(conversation=conversation, profile=self.sender).typing_until)
+
 	def test_blocked_profile_hides_social_actions_and_posts(self):
 		post = Post.objects.create(author=self.recipient, body="Private post")
 		Block.objects.create(blocker=self.sender, blocked=self.recipient)

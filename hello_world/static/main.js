@@ -369,7 +369,11 @@
     const status = chatPage.querySelector('[data-message-status]');
     const empty = chatPage.querySelector('[data-chat-empty]');
     const newMessagePrompt = chatPage.querySelector('[data-new-message-prompt]');
+    const historyButton = chatPage.querySelector('[data-load-history]');
+    const typingIndicator = chatPage.querySelector('[data-typing-indicator]');
+    const typingUrl = list.dataset.messageTypingUrl;
     let pendingMessages = 0;
+    let typingTimer = null;
     const nearBottom = () => list.scrollHeight - list.scrollTop - list.clientHeight < 120;
     const scrollLatest = () => { list.scrollTop = list.scrollHeight; };
     const appendMessage = (message, pending = false) => {
@@ -394,6 +398,29 @@
       list.append(article);
       return article;
     };
+    const updateTyping = (typing) => { if (typingIndicator) typingIndicator.hidden = !typing; };
+    const sendTyping = (typing) => fetch(typingUrl, { method: 'POST', body: new URLSearchParams({ typing: String(typing), csrfmiddlewaretoken: getCookie('csrftoken') }), credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } }).catch(() => {});
+    const prependHistory = (messages) => {
+      const anchor = list.querySelector('[data-message-id]');
+      messages.forEach((message) => {
+        const article = appendMessage(message);
+        if (anchor) list.insertBefore(article, anchor);
+      });
+    };
+    if (historyButton) {
+      const firstMessage = () => list.querySelector('[data-message-id]');
+      historyButton.hidden = !firstMessage();
+      historyButton.addEventListener('click', () => {
+        const first = firstMessage();
+        if (!first) return;
+        historyButton.disabled = true;
+        fetch(`${list.dataset.messageHistoryUrl}?format=json&before=${encodeURIComponent(first.dataset.messageId)}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+          .then((response) => response.ok ? response.json() : Promise.reject(new Error('History unavailable')))
+          .then((result) => { prependHistory(result.messages || []); historyButton.hidden = !result.has_more; })
+          .catch(() => { historyButton.textContent = 'Could not load older messages'; })
+          .finally(() => { historyButton.disabled = false; });
+      });
+    }
     scrollLatest();
     const markRead = () => fetch(chatPage.dataset.chatReadUrl, { method: 'POST', body: new URLSearchParams({ action: 'read', csrfmiddlewaretoken: getCookie('csrftoken') }), credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then((response) => response.ok ? response.json() : null).then((result) => { if (result) updateMessageCount(result.unread_message_count); }).catch(() => {});
     markRead();
@@ -407,6 +434,7 @@
     stream.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
+        if (message.event === 'typing') { updateTyping(message.typing); return; }
         const shouldScroll = nearBottom();
         const article = appendMessage(message);
         if (message.mine && article) article.dataset.messageState = message.state;
@@ -418,10 +446,13 @@
     const sendMessage = () => {
       const body = input.value.trim();
       if (!body) return;
+      const clientId = window.crypto?.randomUUID ? window.crypto.randomUUID() : `ggz-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       const button = form.querySelector('button[type="submit"]');
       button.disabled = true;
       status.textContent = 'Sending...';
-      fetch(form.action, { method: 'POST', body: new FormData(form), credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then((response) => response.ok ? response.json() : response.json().then((data) => Promise.reject(new Error(data.error || 'Message failed')))).then((result) => {
+      const formData = new FormData(form);
+      formData.set('client_id', clientId);
+      fetch(form.action, { method: 'POST', body: formData, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then((response) => response.ok ? response.json() : response.json().then((data) => Promise.reject(new Error(data.error || 'Message failed')))).then((result) => {
         appendMessage(result.message);
         input.value = '';
         status.textContent = 'Sent';
@@ -439,6 +470,7 @@
       sendMessage();
     });
     input.addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); form.requestSubmit(); } });
+    input.addEventListener('input', () => { sendTyping(true); window.clearTimeout(typingTimer); typingTimer = window.setTimeout(() => sendTyping(false), 2500); });
     newMessagePrompt?.querySelector('button')?.addEventListener('click', () => { scrollLatest(); pendingMessages = 0; newMessagePrompt.hidden = true; markRead(); });
   }
 
