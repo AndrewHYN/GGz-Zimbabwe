@@ -49,6 +49,7 @@ from .models import (
 	Post,
 	PostLike,
 	PostSave,
+	PushSubscription,
 	Report,
 	RespectTransaction,
 	SocialIdentity,
@@ -1624,6 +1625,38 @@ def notifications_read_all(request):
 		if request.headers.get("x-requested-with") == "XMLHttpRequest":
 			return JsonResponse({"ok": True, "unread_count": 0})
 	return redirect("notification_list")
+
+
+@login_required
+def push_subscription(request):
+	if request.method not in {"POST", "DELETE"}:
+		return JsonResponse({"ok": False, "error": "Push subscriptions require POST or DELETE."}, status=405)
+	if request.method == "DELETE":
+		try:
+			payload = json.loads(request.body or "{}")
+		except (TypeError, ValueError):
+			payload = {}
+		endpoint = str(payload.get("endpoint") or "").strip()
+		if endpoint:
+			PushSubscription.objects.filter(user=request.user, endpoint=endpoint).delete()
+		return JsonResponse({"ok": True, "subscribed": False})
+	try:
+		payload = json.loads(request.body or "{}")
+	except (TypeError, ValueError):
+		return JsonResponse({"ok": False, "error": "Invalid subscription payload."}, status=400)
+	endpoint = str(payload.get("endpoint") or "").strip()
+	keys = payload.get("keys") or {}
+	p256dh = str(keys.get("p256dh") or "").strip()
+	auth = str(keys.get("auth") or "").strip()
+	if not endpoint.startswith("https://") or not p256dh or not auth:
+		return JsonResponse({"ok": False, "error": "A valid browser subscription is required."}, status=400)
+	if len(endpoint) > 500 or len(p256dh) > 255 or len(auth) > 255:
+		return JsonResponse({"ok": False, "error": "The browser subscription is too large."}, status=400)
+	PushSubscription.objects.update_or_create(
+		endpoint=endpoint,
+		defaults={"user": request.user, "p256dh": p256dh, "auth": auth},
+	)
+	return JsonResponse({"ok": True, "subscribed": True})
 
 
 @login_required

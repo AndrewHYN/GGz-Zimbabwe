@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db.models import Exists, F, OuterRef, Q
 
 from .models import ConversationParticipant, Message, MessageRequest
@@ -13,13 +14,15 @@ def _unread_message_count(profile):
 
 
 def notification_count(request):
+    push_context = {"VAPID_PUBLIC_KEY": getattr(settings, "VAPID_PUBLIC_KEY", "")}
     if not request.user.is_authenticated:
-        return {"unread_notification_count": 0, "unread_message_count": 0, "pending_message_request_count": 0, "user_profile": None}
+        return {**push_context, "unread_notification_count": 0, "unread_message_count": 0, "pending_message_request_count": 0, "user_profile": None}
     profile = getattr(request.user, "gamer_profile", None)
     if not profile:
-        return {"unread_notification_count": 0, "unread_message_count": 0, "pending_message_request_count": 0, "user_profile": None}
+        return {**push_context, "unread_notification_count": 0, "unread_message_count": 0, "pending_message_request_count": 0, "user_profile": None}
     pending_message_requests = MessageRequest.objects.filter(recipient=profile, status="Pending").count()
     return {
+        **push_context,
         "unread_notification_count": profile.notifications.filter(is_read=False).count(),
         "unread_message_count": _unread_message_count(profile),
         "pending_message_request_count": pending_message_requests,

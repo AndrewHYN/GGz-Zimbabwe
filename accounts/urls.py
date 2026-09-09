@@ -16,6 +16,7 @@ urlpatterns = [
 	path("notifications/<int:notification_id>/read/", views.notification_read, name="notification_read"),
 	path("notifications/<int:notification_id>/unread/", views.notification_unread, name="notification_unread"),
 	path("notifications/read-all/", views.notifications_read_all, name="notifications_read_all"),
+	path("notifications/push/", views.push_subscription, name="push_subscription"),
 	path("notifications/stream/", views.notification_stream, name="notification_stream"),
 	path("messages/", views.conversation_list, name="conversation_list"),
 	path("messages/requests/", views.message_requests, name="message_requests"),

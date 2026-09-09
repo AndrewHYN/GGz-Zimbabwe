@@ -11,7 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'main.css' %}">
 </head>
-<body>
+<body data-csrf-token="{{ csrf_token }}">
     <nav class="site-nav" id="primary-navigation" aria-label="Main navigation">
         <div class="nav-container">
             <a href="{% url 'index' %}" class="nav-logo" aria-label="GGz home">

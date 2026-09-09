@@ -304,12 +304,43 @@
     const permissionButton = notificationPage.querySelector('[data-browser-notification-opt-in]');
     let latestNotificationId = null;
     let notificationPoll = null;
+    const pushUrl = notificationPage.dataset.pushSubscriptionUrl;
+    const pushPublicKey = notificationPage.dataset.pushPublicKey;
+    const serviceWorkerUrl = notificationPage.dataset.serviceWorkerUrl;
+    const base64ToBytes = (value) => {
+      const padding = '='.repeat((4 - (value.length % 4)) % 4);
+      const binary = window.atob((value + padding).replace(/-/g, '+').replace(/_/g, '/'));
+      return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    };
+    const savePushSubscription = (subscription) => fetch(pushUrl, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken'), 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify(subscription.toJSON()),
+    }).then((response) => response.ok ? response.json() : Promise.reject(new Error('Push subscription failed')));
+    const enablePush = async () => {
+      if (!pushPublicKey || !('serviceWorker' in navigator) || !('PushManager' in window)) return false;
+      const registration = await navigator.serviceWorker.register(serviceWorkerUrl, { scope: '/' });
+      const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: base64ToBytes(pushPublicKey) });
+      await savePushSubscription(subscription);
+      return true;
+    };
     if (permissionButton && 'Notification' in window && Notification.permission === 'default') {
       permissionButton.hidden = false;
       permissionButton.addEventListener('click', async () => {
-        const permission = await Notification.requestPermission();
-        permissionButton.textContent = permission === 'granted' ? 'Browser updates on' : 'Updates not enabled';
         permissionButton.disabled = true;
+        try {
+          const permission = await Notification.requestPermission();
+          if (permission === 'granted') {
+            const pushed = await enablePush();
+            permissionButton.textContent = pushed ? 'Push updates on' : 'Browser updates on';
+          } else {
+            permissionButton.textContent = 'Updates not enabled';
+          }
+        } catch (error) {
+          permissionButton.textContent = 'Browser updates unavailable';
+          permissionButton.disabled = false;
+        }
       });
     }
     const applyNotificationCount = (count) => document.querySelectorAll('[data-notification-count]').forEach((badge) => { badge.textContent = count > 0 ? count : ''; badge.hidden = count <= 0; });

@@ -562,3 +562,15 @@ class MessageRequest(models.Model):
             models.CheckConstraint(condition=~Q(sender=models.F("recipient")), name="message_request_no_self"),
         ]
         ordering = ("-created_at",)
+
+
+class PushSubscription(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="push_subscriptions")
+    endpoint = models.URLField(max_length=500, unique=True)
+    p256dh = models.CharField(max_length=255)
+    auth = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-updated_at",)

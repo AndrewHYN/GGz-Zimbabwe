@@ -2,7 +2,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.admin.views.decorators import staff_member_required
-from django.http import JsonResponse
+from django.http import FileResponse, JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
 
@@ -20,6 +20,10 @@ from .companion import answer as companion_answer
 
 def health_check(request):
     return JsonResponse({"status": "ok", "service": "GGz"})
+
+
+def service_worker(request):
+	return FileResponse((settings.BASE_DIR / "hello_world" / "static" / "ggz-service-worker.js").open("rb"), content_type="application/javascript")
 
 
 def _companion_fallback_reply(message, user=None):

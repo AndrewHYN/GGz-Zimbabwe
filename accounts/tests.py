@@ -1,4 +1,5 @@
 from io import BytesIO
+import json
 import os
 from datetime import timedelta
 from unittest.mock import patch
@@ -18,7 +19,7 @@ from PIL import Image
 
 from games.models import Game
 
-from .models import Block, Conversation, ConversationParticipant, ExternalFeedItem, Follow, FriendRequest, Friendship, GamerPresence, GamerProfile, Message, MessageRequest, Notification, Post, PostLike, RespectTransaction, Venue, notify
+from .models import Block, Conversation, ConversationParticipant, ExternalFeedItem, Follow, FriendRequest, Friendship, GamerPresence, GamerProfile, Message, MessageRequest, Notification, Post, PostLike, PushSubscription, RespectTransaction, Venue, notify
 from .forms import GamerProfileForm
 from .services import _parse_rss_feed, refresh_public_gaming_feed
 from events.models import Event, Organization, OrganizationLocation
@@ -1212,6 +1213,20 @@ class NotificationAndMessagingTests(TestCase):
 		self.client.post(reverse("notification_unread", args=(notification.id,)))
 		notification.refresh_from_db()
 		self.assertFalse(notification.is_read)
+
+	def test_push_subscription_requires_authentication_and_validates_payload(self):
+		url = reverse("push_subscription")
+		self.assertEqual(self.client.post(url, data="{}", content_type="application/json").status_code, 302)
+		self.client.login(username="recipient", password="pass")
+		response = self.client.post(url, data="{}", content_type="application/json")
+		self.assertEqual(response.status_code, 400)
+		response = self.client.post(url, data=json.dumps({"endpoint": "https://push.example/sub", "keys": {"p256dh": "public", "auth": "secret"}}), content_type="application/json")
+		self.assertEqual(response.status_code, 200)
+		self.assertTrue(response.json()["subscribed"])
+		self.assertTrue(PushSubscription.objects.filter(user=self.recipient.user, endpoint="https://push.example/sub").exists())
+		response = self.client.delete(url, data=json.dumps({"endpoint": "https://push.example/sub"}), content_type="application/json")
+		self.assertEqual(response.status_code, 200)
+		self.assertFalse(PushSubscription.objects.filter(endpoint="https://push.example/sub").exists())
 
 	def test_notification_identity_prevents_duplicate_events(self):
 		notify(self.recipient, self.sender, "follow", "Sender followed you", "/profiles/Sender/")

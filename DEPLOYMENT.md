@@ -14,7 +14,7 @@ Production must set:
 - `GOOGLE_MAPS_API_KEY`: a browser key restricted by HTTP referrer and the required Maps APIs.
 - `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_EMAIL`, and `DJANGO_SUPERUSER_PASSWORD` when creating the initial admin explicitly.
 - `AI_COMPANION_PROVIDER`, `AI_COMPANION_MODEL`, and `AI_COMPANION_BASE_URL`; set `AI_COMPANION_API_KEY` only for a configured server-side OpenAI-compatible provider.
-- `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` are reserved for future background Web Push. The current implementation uses user-initiated foreground browser notifications and does not require private VAPID material.
+- `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` enable opt-in background Web Push. The public key is exposed only to authenticated notification pages; the private key remains server-side. A missing VAPID configuration gracefully keeps foreground browser notifications available.
 
 For local development, leave `DATABASE_URL` unset and use the SQLite defaults. Set `ALLOWED_HOSTS=localhost,127.0.0.1` and `CSRF_TRUSTED_ORIGINS=http://localhost:8000,http://127.0.0.1:8000`. Set `USE_X_FORWARDED_PROTO=True` only when Vercel forwards `X-Forwarded-Proto`; leave it false for direct local HTTP.
 
