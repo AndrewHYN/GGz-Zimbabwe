@@ -79,7 +79,12 @@
     const history = () => { try { return JSON.parse(localStorage.getItem(historyKey) || '[]'); } catch (error) { return []; } };
     const saveHistory = (entry) => { try { localStorage.setItem(historyKey, JSON.stringify([...history().slice(-9), entry])); } catch (error) { /* Storage is optional. */ } };
     document.querySelectorAll('[data-companion-prompt]').forEach((prompt) => prompt.addEventListener('click', () => { textarea.value = prompt.dataset.companionPrompt; textarea.focus(); form.requestSubmit(); }));
-    resetButton?.addEventListener('click', () => { try { localStorage.removeItem(historyKey); } catch (error) { /* Storage is optional. */ } responseBox.replaceChildren(); const reset = document.createElement('p'); reset.textContent = 'New chat ready. What should we explore?'; responseBox.append(reset); textarea.value = ''; textarea.focus(); });
+    resetButton?.addEventListener('click', () => {
+      const csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]')?.value || '';
+      fetch(form.action, { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'reset=1' })
+        .catch(() => {})
+        .finally(() => { try { localStorage.removeItem(historyKey); } catch (error) { /* Storage is optional. */ } responseBox.replaceChildren(); const reset = document.createElement('p'); reset.textContent = 'New chat ready. What should we explore?'; responseBox.append(reset); textarea.value = ''; textarea.focus(); });
+    });
 
     form.addEventListener('submit', function (event) {
       event.preventDefault();

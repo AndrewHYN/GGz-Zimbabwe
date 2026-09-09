@@ -46,6 +46,10 @@ def _companion_fallback_reply(message, user=None):
 
 def ai_companion(request):
     if request.method == "POST":
+        if request.POST.get("reset") == "1":
+            request.session.pop("companion_history", None)
+            request.session.modified = True
+            return JsonResponse({"ok": True, "reset": True})
         request_times = [value for value in request.session.get("companion_request_times", []) if timezone.now().timestamp() - value < 60]
         if len(request_times) >= 20:
             return JsonResponse({"ok": False, "error": "GGz Companion is taking a short breather. Try again in a moment."}, status=429)

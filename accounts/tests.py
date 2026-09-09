@@ -60,6 +60,13 @@ class HealthAndConfigTests(TestCase):
 		self.assertEqual(len(history), 10)
 		self.assertEqual(history[-1]["role"], "assistant")
 
+	def test_ai_companion_new_chat_clears_server_context(self):
+		self.client.post(reverse("ai_companion"), {"message": "Find a tournament"})
+		self.assertTrue(self.client.session.get("companion_history"))
+		response = self.client.post(reverse("ai_companion"), {"reset": "1"})
+		self.assertEqual(response.status_code, 200)
+		self.assertNotIn("companion_history", self.client.session)
+
 	def test_ai_companion_does_not_return_blocked_profiles(self):
 		blocked_user = User.objects.create_user(username="blocked-player", password="pass")
 		blocked_profile = GamerProfile.objects.create(user=blocked_user, gamer_tag="Blocked Arena")
