@@ -18,7 +18,7 @@ from PIL import Image
 
 from games.models import Game
 
-from .models import Block, Conversation, ConversationParticipant, ExternalFeedItem, Follow, FriendRequest, Friendship, GamerPresence, GamerProfile, Message, MessageRequest, Notification, Post, PostLike, RespectTransaction, Venue
+from .models import Block, Conversation, ConversationParticipant, ExternalFeedItem, Follow, FriendRequest, Friendship, GamerPresence, GamerProfile, Message, MessageRequest, Notification, Post, PostLike, RespectTransaction, Venue, notify
 from .forms import GamerProfileForm
 from .services import _parse_rss_feed, refresh_public_gaming_feed
 from events.models import Event, Organization, OrganizationLocation
@@ -1152,6 +1152,8 @@ class NotificationAndMessagingTests(TestCase):
 		notification = Notification.objects.create(recipient=self.recipient, actor=self.sender, notification_type="follow", message="Sender followed you", target_url="/profiles/Sender/")
 		self.client.login(username="recipient", password="pass")
 		self.assertContains(self.client.get(reverse("notification_list")), "Sender")
+		notification.refresh_from_db()
+		self.assertIsNotNone(notification.seen_at)
 		self.assertEqual(self.client.get(reverse("notification_read", args=(notification.id,))).status_code, 403)
 		self.client.post(reverse("notification_read", args=(notification.id,)))
 		notification.refresh_from_db()
@@ -1159,6 +1161,11 @@ class NotificationAndMessagingTests(TestCase):
 		self.client.post(reverse("notification_unread", args=(notification.id,)))
 		notification.refresh_from_db()
 		self.assertFalse(notification.is_read)
+
+	def test_notification_identity_prevents_duplicate_events(self):
+		notify(self.recipient, self.sender, "follow", "Sender followed you", "/profiles/Sender/")
+		notify(self.recipient, self.sender, "follow", "Sender followed you", "/profiles/Sender/")
+		self.assertEqual(Notification.objects.filter(recipient=self.recipient).count(), 1)
 
 	def test_message_creates_notification_and_clear_is_per_user(self):
 		conversation = Conversation.objects.create()

@@ -1,4 +1,5 @@
-# Create your models here.
+import hashlib
+
 from django.contrib.auth.models import User
 from django.db import models
 from django.db.models import Q
@@ -473,31 +474,38 @@ class Notification(models.Model):
     message = models.CharField(max_length=255)
     target_url = models.CharField(max_length=255, blank=True)
     is_read = models.BooleanField(default=False)
+    seen_at = models.DateTimeField(null=True, blank=True)
+    event_key = models.CharField(max_length=64, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
         ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("recipient", "event_key"),
+                condition=~Q(event_key=""),
+                name="unique_notification_event_key",
+            )
+        ]
 
 
-def notify(recipient, actor, notification_type, message, target_url=""):
+def notify(recipient, actor, notification_type, message, target_url="", event_key=""):
     if recipient is None or recipient == actor:
         return
     normalized_target = (target_url or "").strip()
+    normalized_event_key = event_key or f"{notification_type}:{actor.pk if actor else 0}:{normalized_target}:{message}"
+    normalized_event_key = hashlib.sha256(normalized_event_key.encode("utf-8")).hexdigest()
     try:
-        if not Notification.objects.filter(
+        Notification.objects.get_or_create(
             recipient=recipient,
-            actor=actor,
-            notification_type=notification_type,
-            message=message,
-            target_url=normalized_target,
-        ).exists():
-            Notification.objects.create(
-                recipient=recipient,
-                actor=actor,
-                notification_type=notification_type,
-                message=message,
-                target_url=normalized_target,
-            )
+            event_key=normalized_event_key,
+            defaults={
+                "actor": actor,
+                "notification_type": notification_type,
+                "message": message,
+                "target_url": normalized_target,
+            },
+        )
     except Exception:
         return
 

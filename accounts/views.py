@@ -1583,6 +1583,7 @@ def _unread_message_count(profile):
 @login_required
 def notification_list(request):
 	profile = get_object_or_404(GamerProfile, user=request.user)
+	profile.notifications.filter(seen_at__isnull=True).update(seen_at=timezone.now())
 	notifications = profile.notifications.all()
 	pending_message_request_count = MessageRequest.objects.filter(recipient=profile, status="Pending").count()
 	return render(
@@ -1605,7 +1606,8 @@ def notification_read(request, notification_id):
 	profile = get_object_or_404(GamerProfile, user=request.user)
 	notification = get_object_or_404(Notification, id=notification_id, recipient=profile)
 	notification.is_read = True
-	notification.save(update_fields=("is_read",))
+	notification.seen_at = notification.seen_at or timezone.now()
+	notification.save(update_fields=("is_read", "seen_at"))
 	if request.headers.get("x-requested-with") == "XMLHttpRequest":
 		return JsonResponse({"ok": True, "unread_count": profile.notifications.filter(is_read=False).count(), "target_url": notification.target_url})
 	return redirect(notification.target_url or "notification_list")

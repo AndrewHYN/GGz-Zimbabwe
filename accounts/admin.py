@@ -99,8 +99,8 @@ class ReportAdmin(admin.ModelAdmin):
 
 @admin.register(Notification)
 class NotificationAdmin(admin.ModelAdmin):
-    list_display = ("recipient", "actor", "notification_type", "is_read", "created_at")
-    list_filter = ("notification_type", "is_read")
+    list_display = ("recipient", "actor", "notification_type", "is_read", "seen_at", "created_at")
+    list_filter = ("notification_type", "is_read", "seen_at")
     search_fields = ("recipient__gamer_tag", "message")
 
 
