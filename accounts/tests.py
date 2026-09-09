@@ -52,6 +52,14 @@ class HealthAndConfigTests(TestCase):
 		self.assertEqual(response.status_code, 200)
 		self.assertEqual(response.json()["results"]["games"][0]["name"], "GGz Test Arena")
 
+	def test_ai_companion_keeps_bounded_server_side_conversation_context(self):
+		self.client.post(reverse("ai_companion"), {"message": "Find a tournament"})
+		for index in range(7):
+			self.client.post(reverse("ai_companion"), {"message": f"Follow-up {index}"})
+		history = self.client.session["companion_history"]
+		self.assertEqual(len(history), 10)
+		self.assertEqual(history[-1]["role"], "assistant")
+
 	def test_ai_companion_does_not_return_blocked_profiles(self):
 		blocked_user = User.objects.create_user(username="blocked-player", password="pass")
 		blocked_profile = GamerProfile.objects.create(user=blocked_user, gamer_tag="Blocked Arena")

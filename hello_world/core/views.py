@@ -54,7 +54,17 @@ def ai_companion(request):
         message = (request.POST.get("message") or "").strip()
         if not message:
             return JsonResponse({"ok": False, "error": "Please enter a message for GGz Companion."}, status=400)
-        companion = companion_answer(message, request.user)
+        history = [
+            entry for entry in request.session.get("companion_history", [])
+            if entry.get("role") in {"user", "assistant"} and isinstance(entry.get("content"), str)
+        ][-10:]
+        companion = companion_answer(message, request.user, history=history)
+        history.extend([
+            {"role": "user", "content": message},
+            {"role": "assistant", "content": companion["response"]},
+        ])
+        request.session["companion_history"] = history[-10:]
+        request.session.modified = True
         return JsonResponse({
             "ok": True,
             **companion,

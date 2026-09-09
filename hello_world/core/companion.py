@@ -27,18 +27,20 @@ class LocalCompanionProvider(CompanionProvider):
 class OpenAICompatibleProvider(CompanionProvider):
     def respond(self, message, context):
         base_url = settings.AI_COMPANION_BASE_URL.rstrip("/")
+        messages = [
+            {
+                "role": "system",
+                "content": "You are GGz Companion. Use only the supplied GGz context. Never claim an action was completed unless the user completed it. Keep answers concise and useful.",
+            },
+        ]
+        messages.extend(context.get("history", []))
+        messages.append({"role": "user", "content": f"GGz context:\n{json.dumps(context['data'], default=str)}\n\nQuestion: {message}"})
         request = Request(
             f"{base_url}/chat/completions",
             data=json.dumps({
                 "model": settings.AI_COMPANION_MODEL,
                 "temperature": 0.3,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are GGz Companion. Use only the supplied GGz context. Never claim an action was completed unless the user completed it. Keep answers concise and useful.",
-                    },
-                    {"role": "user", "content": f"GGz context:\n{json.dumps(context['data'], default=str)}\n\nQuestion: {message}"},
-                ],
+                "messages": messages,
             }).encode("utf-8"),
             headers={
                 "Authorization": f"Bearer {settings.AI_COMPANION_API_KEY}",
@@ -148,7 +150,12 @@ def build_context(message, user=None):
     return {"reply": reply, "data": results}
 
 
-def answer(message, user=None):
+def answer(message, user=None, history=None):
     context = build_context(message, user)
+    context["history"] = [
+        {"role": entry["role"], "content": entry["content"]}
+        for entry in (history or [])
+        if entry.get("role") in {"user", "assistant"} and isinstance(entry.get("content"), str)
+    ][-10:]
     response = _provider().respond(message, context)
     return {"response": response, "results": context["data"], "provider": settings.AI_COMPANION_PROVIDER}
