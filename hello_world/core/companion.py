@@ -7,6 +7,7 @@ from django.db.models import Q
 from django.urls import reverse
 
 from accounts.models import GamerProfile
+from accounts.models import Block
 from events.models import Event
 from games.models import Game
 from marketplace.models import Listing
@@ -78,7 +79,11 @@ def _search_profiles(query, viewer):
     filters = Q()
     for term in terms:
         filters |= Q(gamer_tag__icontains=term) | Q(user__username__icontains=term) | Q(city__icontains=term)
-    profiles = GamerProfile.objects.select_related("user").filter(filters).exclude(id=getattr(viewer, "id", None)).order_by("gamer_tag")[:5]
+    profiles = GamerProfile.objects.select_related("user").filter(filters).exclude(id=getattr(viewer, "id", None))
+    if viewer:
+        blocked_ids = Block.objects.filter(Q(blocker=viewer) | Q(blocked=viewer)).values_list("blocker_id", "blocked_id")
+        profiles = profiles.exclude(id__in={profile_id for pair in blocked_ids for profile_id in pair})
+    profiles = profiles.order_by("gamer_tag")[:5]
     return [{"gamer_tag": profile.gamer_tag, "city": profile.city, "url": reverse("profile_detail", args=[profile.gamer_tag])} for profile in profiles]
 
 

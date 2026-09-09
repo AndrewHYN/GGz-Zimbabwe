@@ -15,6 +15,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from decouple import config
+from django.core.exceptions import ImproperlyConfigured
 
 
 def comma_separated(value):
@@ -35,6 +36,8 @@ DEPLOYED = bool(os.environ.get("VERCEL") or os.environ.get("RENDER_EXTERNAL_HOST
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "").strip()
 if not SECRET_KEY:
+    if DEPLOYED:
+        raise ImproperlyConfigured("DJANGO_SECRET_KEY must be configured in deployed environments.")
     SECRET_KEY = "dev-secret-key-change-me-for-local-ggz-development-2026-!"
 
 SITE_URL = config("SITE_URL", default="http://localhost:8000" if not DEPLOYED else "")

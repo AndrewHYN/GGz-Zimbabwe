@@ -51,6 +51,17 @@ class HealthAndConfigTests(TestCase):
 		self.assertEqual(response.status_code, 200)
 		self.assertEqual(response.json()["results"]["games"][0]["name"], "GGz Test Arena")
 
+	def test_ai_companion_does_not_return_blocked_profiles(self):
+		blocked_user = User.objects.create_user(username="blocked-player", password="pass")
+		blocked_profile = GamerProfile.objects.create(user=blocked_user, gamer_tag="Blocked Arena")
+		viewer_user = User.objects.create_user(username="viewer", password="pass")
+		viewer = GamerProfile.objects.create(user=viewer_user, gamer_tag="Viewer")
+		Block.objects.create(blocker=viewer, blocked=blocked_profile)
+		self.client.login(username="viewer", password="pass")
+		response = self.client.post(reverse("ai_companion"), {"message": "Find blocked player"})
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.json()["results"].get("profiles"), [])
+
 	def test_admin_dashboard_requires_staff_access(self):
 		response = self.client.get(reverse("admin_dashboard"))
 		self.assertEqual(response.status_code, 302)

@@ -39,6 +39,7 @@
             <label class="sr-only" for="companion-message">Ask GGz Companion</label>
             <textarea id="companion-message" name="message" rows="3" placeholder="Ask GGz Companion about tournaments, events, games, or community..."></textarea>
             <div class="companion-actions">
+              <button type="button" class="button button-secondary" data-companion-reset>New chat</button>
                 <button type="submit" class="button button-primary">Ask GGz Companion</button>
             </div>
         </form>
@@ -49,16 +50,19 @@
             <p class="eyebrow small-eyebrow">Suggested next</p>
             <h3>Find a tournament</h3>
             <p>Look for your ideal bracket, skill level, and local venue in one move.</p>
+            <button class="companion-prompt" type="button" data-companion-prompt="Find an upcoming tournament">Ask about tournaments</button>
         </article>
         <article class="info-card">
             <p class="eyebrow small-eyebrow">Community</p>
             <h3>Build your scene</h3>
             <p>Connect with players and teams that match your play style and location.</p>
+            <button class="companion-prompt" type="button" data-companion-prompt="Find players near me">Find players</button>
         </article>
         <article class="info-card">
             <p class="eyebrow small-eyebrow">Live</p>
             <h3>Track upcoming events</h3>
             <p>Follow tournaments and events that are about to open registration.</p>
+            <button class="companion-prompt" type="button" data-companion-prompt="Show upcoming events">Show events</button>
         </article>
     </section>
 </main>
@@ -68,7 +72,14 @@
     const form = document.getElementById('companion-form');
     const textarea = document.getElementById('companion-message');
     const responseBox = document.getElementById('companion-response');
+    const resetButton = document.querySelector('[data-companion-reset]');
+    const historyKey = 'ggz-companion-history';
     if (!form || !textarea || !responseBox) return;
+
+    const history = () => { try { return JSON.parse(localStorage.getItem(historyKey) || '[]'); } catch (error) { return []; } };
+    const saveHistory = (entry) => { try { localStorage.setItem(historyKey, JSON.stringify([...history().slice(-9), entry])); } catch (error) { /* Storage is optional. */ } };
+    document.querySelectorAll('[data-companion-prompt]').forEach((prompt) => prompt.addEventListener('click', () => { textarea.value = prompt.dataset.companionPrompt; textarea.focus(); form.requestSubmit(); }));
+    resetButton?.addEventListener('click', () => { try { localStorage.removeItem(historyKey); } catch (error) { /* Storage is optional. */ } responseBox.replaceChildren(); const reset = document.createElement('p'); reset.textContent = 'New chat ready. What should we explore?'; responseBox.append(reset); textarea.value = ''; textarea.focus(); });
 
     form.addEventListener('submit', function (event) {
       event.preventDefault();
@@ -114,6 +125,7 @@
             });
           });
           responseBox.append(results);
+          saveHistory({ message, response: result.response || '' });
           textarea.value = '';
         })
         .catch((error) => {
