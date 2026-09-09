@@ -28,9 +28,6 @@
                         {% elif invitation and invitation.status == "Pending" %}
                             <div class="invitation-actions"><span class="status-badge">Invited</span><form method="post" action="{% url 'tournament_invitation_action' invitation.id 'accept' %}" class="inline-action">{% csrf_token %}<button class="button" type="submit">Accept invitation</button></form><form method="post" action="{% url 'tournament_invitation_action' invitation.id 'decline' %}" class="inline-action">{% csrf_token %}<button class="button alt" type="submit">Decline</button></form></div>
                         {% elif not registration %}
-                            <form method="post" action="{% url 'conversation_start' tournament.organizer.gamer_tag %}" class="inline-action" data-async-mutation>
-                                {% csrf_token %}<input type="hidden" name="context_url" value="{% url 'tournament_detail' tournament.slug %}"><input type="hidden" name="context_label" value="{{ tournament.name }}"><button class="button alt" type="submit">Contact organizer</button>
-                            </form>
                             <form method="post" action="{% url 'tournament_register' tournament.slug %}" class="inline-action" data-async-mutation>
                                 {% csrf_token %}
                                 <button class="button" type="submit">Join tournament</button>
@@ -359,6 +356,7 @@
                 </div>
             </a>
             <a href="{% url 'profile_detail' tournament.organizer.gamer_tag %}" class="button alt">View profile</a>
+            {% if request.user.is_authenticated and player and player != tournament.organizer %}<form method="post" action="{% url 'conversation_start' tournament.organizer.gamer_tag %}" class="inline-action" data-async-mutation>{% csrf_token %}<input type="hidden" name="context_url" value="{% url 'tournament_detail' tournament.slug %}"><input type="hidden" name="context_label" value="{{ tournament.name }}"><button class="button alt" type="submit">Contact organizer</button></form>{% endif %}
         </div>
     </section>
 </main>
