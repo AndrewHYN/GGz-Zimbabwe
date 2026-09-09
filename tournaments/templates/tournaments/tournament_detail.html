@@ -28,12 +28,12 @@
                         {% elif invitation and invitation.status == "Pending" %}
                             <div class="invitation-actions"><span class="status-badge">Invited</span><form method="post" action="{% url 'tournament_invitation_action' invitation.id 'accept' %}" class="inline-action">{% csrf_token %}<button class="button" type="submit">Accept invitation</button></form><form method="post" action="{% url 'tournament_invitation_action' invitation.id 'decline' %}" class="inline-action">{% csrf_token %}<button class="button alt" type="submit">Decline</button></form></div>
                         {% elif not registration %}
-                            <form method="post" action="{% url 'tournament_register' tournament.slug %}" class="inline-action">
+                            <form method="post" action="{% url 'tournament_register' tournament.slug %}" class="inline-action" data-async-mutation>
                                 {% csrf_token %}
                                 <button class="button" type="submit">Join tournament</button>
                             </form>
                         {% elif registration.status == "Registered" %}
-                            <form method="post" action="{% url 'tournament_leave' tournament.slug %}" class="inline-action">
+                            <form method="post" action="{% url 'tournament_leave' tournament.slug %}" class="inline-action" data-async-mutation>
                                 {% csrf_token %}
                                 <button class="button alt" type="submit">Leave tournament</button>
                             </form>

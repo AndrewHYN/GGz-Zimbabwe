@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Case, F, IntegerField, Q, Value, When
-from django.http import HttpResponseForbidden
+from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.text import slugify
@@ -319,6 +319,8 @@ def tournament_register(request, slug):
 				registration.save(update_fields=("status",))
 		notify(tournament.organizer, player, "tournament", f"{team.name} registered for {tournament.name}", f"/tournaments/{tournament.slug}/manage/")
 		messages.success(request, "Your team joined the tournament.")
+		if request.headers.get("x-requested-with") == "XMLHttpRequest":
+			return JsonResponse({"ok": True, "message": "Your team joined the tournament.", "registered": True})
 		return redirect("tournament_detail", slug=slug)
 
 	if tournament.participant_count >= tournament.max_participants:
@@ -329,6 +331,8 @@ def tournament_register(request, slug):
 		registration.save(update_fields=("status",))
 	notify(tournament.organizer, player, "tournament", f"{player.gamer_tag} registered for {tournament.name}", f"/tournaments/{tournament.slug}/manage/")
 	messages.success(request, "You joined the tournament.")
+	if request.headers.get("x-requested-with") == "XMLHttpRequest":
+		return JsonResponse({"ok": True, "message": "You joined the tournament.", "registered": True, "count": tournament.participant_count})
 	return redirect("tournament_detail", slug=slug)
 
 
@@ -339,6 +343,8 @@ def tournament_leave(request, slug):
 	tournament = get_object_or_404(Tournament, slug=slug)
 	TournamentRegistration.objects.filter(tournament=tournament, player__user=request.user, status__in=("Registered", "Waitlisted")).update(status="Withdrawn")
 	messages.success(request, "You left the tournament.")
+	if request.headers.get("x-requested-with") == "XMLHttpRequest":
+		return JsonResponse({"ok": True, "message": "You left the tournament.", "registered": False, "count": tournament.participant_count})
 	return redirect("tournament_detail", slug=slug)
 
 

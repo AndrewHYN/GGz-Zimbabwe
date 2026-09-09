@@ -239,6 +239,31 @@
     headers: { 'X-Requested-With': 'XMLHttpRequest' },
   }).then((response) => response.ok ? response.json() : Promise.reject(new Error('Request failed')));
 
+  document.querySelectorAll('[data-async-mutation]').forEach((form) => {
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const button = form.querySelector('button[type="submit"]');
+      const original = button?.textContent || '';
+      if (button) { button.disabled = true; button.textContent = 'Saving...'; }
+      socialJson(form).then((result) => {
+        if (!result.ok) throw new Error(result.error || 'Could not save this action.');
+        if (button) button.textContent = result.attending === false || result.registered === false ? 'Removed' : 'Saved';
+        const status = document.createElement('span');
+        status.className = 'async-status';
+        status.setAttribute('role', 'status');
+        status.textContent = result.message || 'Saved';
+        form.append(status);
+      }).catch((error) => {
+        if (button) { button.disabled = false; button.textContent = original; }
+        const status = form.querySelector('.async-status') || document.createElement('span');
+        status.className = 'async-status';
+        status.setAttribute('role', 'alert');
+        status.textContent = error.message || 'Could not save this action.';
+        if (!status.parentNode) form.append(status);
+      });
+    });
+  });
+
   const updateMessageCount = (count) => document.querySelectorAll('[data-message-count]').forEach((badge) => {
     badge.textContent = count || '';
     badge.hidden = !count;
