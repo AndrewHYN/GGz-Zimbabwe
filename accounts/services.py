@@ -10,7 +10,16 @@ from django.utils import timezone
 
 from games.models import Game
 
-from .models import ExternalFeedItem
+from django.db.models import Q
+
+from .models import Block, ConversationParticipant, ExternalFeedItem, Friendship, Follow, Message, MessageRequest
+
+
+def can_message(sender, recipient):
+    if sender == recipient or Block.objects.filter(Q(blocker=sender, blocked=recipient) | Q(blocker=recipient, blocked=sender)).exists():
+        return False
+    first, second = sorted((sender.id, recipient.id))
+    return Friendship.objects.filter(profile_one_id=first, profile_two_id=second).exists() or Follow.objects.filter(follower=sender, following=recipient).exists() or MessageRequest.objects.filter(Q(sender=sender, recipient=recipient) | Q(sender=recipient, recipient=sender), status="Accepted").exists()
 
 PUBLIC_GAMING_SOURCES = [
     {

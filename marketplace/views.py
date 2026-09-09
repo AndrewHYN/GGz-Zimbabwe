@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
 from accounts.models import Block, Conversation, ConversationParticipant, GamerProfile, MessageRequest, Notification, Report, notify
+from accounts.services import can_message
 from games.models import Game
 
 from .forms import ListingForm, ListingImageForm
@@ -134,7 +135,7 @@ def contact_seller(request, listing_id):
 	if Block.objects.filter(Q(blocker=viewer, blocked=listing.seller) | Q(blocker=listing.seller, blocked=viewer)).exists():
 		return HttpResponseForbidden("You cannot contact this seller.")
 	conversation = Conversation.objects.filter(participants=viewer).filter(participants=listing.seller).first()
-	if conversation:
+	if conversation and can_message(viewer, listing.seller):
 		notify(listing.seller, viewer, "marketplace", f"Someone contacted you about {listing.title}", f"/marketplace/listing/{listing.id}/")
 		if request.headers.get("x-requested-with") == "XMLHttpRequest":
 			return JsonResponse({"ok": True, "message": "Opening your conversation.", "url": reverse("conversation_detail", args=(conversation.id,))})

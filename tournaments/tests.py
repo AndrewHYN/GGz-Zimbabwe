@@ -27,6 +27,13 @@ class TournamentTests(TestCase):
 		self.assertContains(self.client.get(reverse("tournament_list")), "GGz Cup")
 		self.assertContains(self.client.get(reverse("tournament_detail", args=[self.tournament.slug])), "OrganizerZW")
 
+	def test_tournament_detail_exposes_contextual_contact_for_players(self):
+		self.client.login(username="player", password="pass-12345")
+		response = self.client.get(reverse("tournament_detail", args=[self.tournament.slug]))
+		self.assertContains(response, "Contact organizer")
+		contact_url = reverse("conversation_start", args=(self.organizer.gamer_tag,))
+		self.assertContains(response, f'action="{contact_url}"')
+
 	def test_tournament_banner_save_writes_to_configured_storage(self):
 		self.tournament.banner = SimpleUploadedFile("banner.jpg", b"banner-data")
 		self.tournament.save(update_fields=("banner",))

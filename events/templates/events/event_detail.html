@@ -23,6 +23,9 @@
                             <a class="button alt" href="{% url 'event_edit' event.id %}">Edit event</a>
                             <a class="button" href="{% url 'event_promotion_request' event.id %}">Request promotion</a>
                         {% else %}
+                            <form method="post" action="{% url 'conversation_start' event.organizer.gamer_tag %}" class="inline-action" data-async-mutation>
+                                {% csrf_token %}<input type="hidden" name="context_url" value="{% url 'event_detail' event.id %}"><input type="hidden" name="context_label" value="{{ event.name }}"><button class="button alt" type="submit">Contact organizer</button>
+                            </form>
                             {% if not event.rsvps|length or user not in event.rsvps.values_list %}
                                 <form method="post" action="{% url 'event_rsvp' event.id %}" class="inline-action" data-async-mutation>
                                     {% csrf_token %}

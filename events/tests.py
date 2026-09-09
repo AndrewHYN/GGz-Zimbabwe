@@ -57,6 +57,13 @@ class EventManagementTests(TestCase):
 		self.assertEqual(response.status_code, 200)
 		self.assertContains(response, "Request promotion")
 
+	def test_event_detail_exposes_contextual_contact_for_other_players(self):
+		self.client.login(username="other", password="pass")
+		response = self.client.get(reverse("event_detail", args=(self.event.id,)))
+		self.assertContains(response, "Contact organizer")
+		contact_url = reverse("conversation_start", args=(self.profile.gamer_tag,))
+		self.assertContains(response, f'action="{contact_url}"')
+
 	def test_event_list_supports_search_and_game_filtering(self):
 		game = self.event.game
 		Event.objects.create(organizer=self.profile, game=game, name="Harare LAN Night", description="Local play", start_date=timezone.now() + timedelta(days=2), status="Upcoming")

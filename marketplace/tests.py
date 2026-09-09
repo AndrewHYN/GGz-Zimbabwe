@@ -3,7 +3,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 
-from accounts.models import Block, GamerProfile, MessageRequest, Report
+from accounts.models import Block, Conversation, ConversationParticipant, GamerProfile, MessageRequest, Report
 from games.models import Game
 
 from .models import Listing, SavedListing
@@ -66,6 +66,18 @@ class MarketplaceTests(TestCase):
 		request_row = MessageRequest.objects.get(sender=self.buyer, recipient=self.seller)
 		self.assertEqual(request_row.context_label, self.listing.title)
 		self.assertEqual(request_row.context_url, reverse("listing_detail", args=(self.listing.id,)))
+
+	def test_contact_seller_does_not_reopen_old_conversation_without_permission(self):
+		conversation = Conversation.objects.create()
+		ConversationParticipant.objects.bulk_create([
+			ConversationParticipant(conversation=conversation, profile=self.buyer),
+			ConversationParticipant(conversation=conversation, profile=self.seller),
+		])
+		self.client.login(username="buyer", password="pass-12345")
+		response = self.client.post(reverse("contact_seller", args=(self.listing.id,)), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertTrue(response.json()["ok"])
+		self.assertTrue(response.json()["url"].endswith(f"/profiles/{self.seller.gamer_tag}/"))
+		self.assertTrue(MessageRequest.objects.filter(sender=self.buyer, recipient=self.seller, status="Pending").exists())
 
 	def test_listing_image_save_writes_to_configured_storage(self):
 		from .models import ListingImage

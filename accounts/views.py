@@ -56,7 +56,7 @@ from .models import (
 	Venue,
 	notify,
 )
-from .services import refresh_public_gaming_feed
+from .services import can_message, refresh_public_gaming_feed
 from hello_world.storage import log_s3_client_error
 
 logger = logging.getLogger(__name__)
@@ -271,13 +271,6 @@ def csrf_failure(request, reason=""):
 	if _is_json_request(request):
 		return _json_error("Your session or security token expired. Refresh the page and try again.", 403)
 	return render(request, "403.html", status=403)
-
-
-def _can_message(sender, recipient):
-	if sender == recipient or Block.objects.filter(Q(blocker=sender, blocked=recipient) | Q(blocker=recipient, blocked=sender)).exists():
-		return False
-	first, second = sorted((sender.id, recipient.id))
-	return Friendship.objects.filter(profile_one_id=first, profile_two_id=second).exists() or Follow.objects.filter(follower=sender, following=recipient).exists() or MessageRequest.objects.filter(Q(sender=sender, recipient=recipient) | Q(sender=recipient, recipient=sender), status="Accepted").exists()
 
 
 def _distance_km(lat1, lon1, lat2, lon2):
@@ -1761,7 +1754,7 @@ def conversation_detail(request, conversation_id):
 		body = request.POST.get("body", "").strip()
 		client_id = (request.POST.get("client_id") or "").strip()[:64] or None
 		other = conversation.participants.exclude(id=profile.id).first()
-		if body and other and _can_message(profile, other):
+		if body and other and can_message(profile, other):
 			message = Message.objects.filter(conversation=conversation, sender=profile, client_id=client_id).first() if client_id else None
 			created = message is None
 			if message is None:
@@ -1804,7 +1797,7 @@ def conversation_send(request, conversation_id):
 		return JsonResponse({"error": "You cannot message this player."}, status=403)
 	body = request.POST.get("body", "").strip()
 	client_id = (request.POST.get("client_id") or "").strip()[:64] or None
-	if not body or len(body) > 2000 or not _can_message(profile, other):
+	if not body or len(body) > 2000 or not can_message(profile, other):
 		return JsonResponse({"error": "That message could not be sent."}, status=400)
 	message = Message.objects.filter(conversation=conversation, sender=profile, client_id=client_id).first() if client_id else None
 	created = message is None
@@ -1891,12 +1884,18 @@ def conversation_start(request, gamer_tag):
 		return HttpResponseForbidden("Invalid conversation action.")
 	if Block.objects.filter(Q(blocker=profile, blocked=other) | Q(blocker=other, blocked=profile)).exists():
 		return HttpResponseForbidden("You cannot contact this player.")
-	if not _can_message(profile, other):
+	context_url = (request.POST.get("context_url") or request.GET.get("context_url") or "").strip()
+	context_label = (request.POST.get("context_label") or request.GET.get("context_label") or "").strip()[:160]
+	if not context_url.startswith("/") or context_url.startswith("//"):
+		context_url = ""
+	if not can_message(profile, other):
 		if request.method == "POST":
-			request_row, created = MessageRequest.objects.get_or_create(sender=profile, recipient=other, defaults={"status": "Pending"})
+			request_row, created = MessageRequest.objects.get_or_create(sender=profile, recipient=other, defaults={"status": "Pending", "context_url": context_url, "context_label": context_label})
 			if not created and request_row.status != "Accepted":
 				request_row.status = "Pending"
-				request_row.save(update_fields=("status",))
+				request_row.context_url = context_url or request_row.context_url
+				request_row.context_label = context_label or request_row.context_label
+				request_row.save(update_fields=("status", "context_url", "context_label"))
 			_notify(other, profile, "message_request", f"{profile.gamer_tag} sent you a message request", f"/profiles/{profile.gamer_tag}/")
 			if request.headers.get("x-requested-with") == "XMLHttpRequest":
 				return JsonResponse({"ok": True, "requested": True, "message": "Message request sent."})

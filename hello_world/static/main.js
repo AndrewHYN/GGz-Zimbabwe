@@ -233,6 +233,7 @@
             if (label) label.textContent = result.following ? 'Following' : 'Follow';
             else button.innerHTML = result.following ? '<span aria-hidden="true">✓</span> Following' : '<span aria-hidden="true">+</span> Follow';
             button.setAttribute('aria-pressed', String(result.following));
+            document.querySelectorAll('[data-followers-count]').forEach((count) => { count.textContent = result.follower_count; });
           }
           if (button) { button.disabled = false; button.classList.remove('is-loading'); }
         })
