@@ -37,6 +37,23 @@ class HealthAndConfigTests(TestCase):
 		self.assertContains(response, "GGz")
 		self.assertNotContains(response, "GGs")
 
+	def test_ai_companion_endpoint_is_available_and_responds(self):
+		response = self.client.get(reverse("ai_companion"))
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "GGz Companion")
+		response = self.client.post(reverse("ai_companion"), {"message": "Help me find a tournament"})
+		self.assertEqual(response.status_code, 200)
+		self.assertIn("tournament", response.json()["response"].lower())
+
+	def test_admin_dashboard_requires_staff_access(self):
+		response = self.client.get(reverse("admin_dashboard"))
+		self.assertEqual(response.status_code, 302)
+		self.user = User.objects.create_user(username="staffuser", email="staff@example.com", password="strong-password-123", is_staff=True)
+		self.client.login(username="staffuser", password="strong-password-123")
+		response = self.client.get(reverse("admin_dashboard"))
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "GGz Admin")
+
 	@patch("accounts.services.urlopen")
 	def test_external_feed_uses_short_runtime_safe_timeout(self, mocked_urlopen):
 		from accounts.services import fetch_public_feed

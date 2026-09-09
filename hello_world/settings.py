@@ -244,6 +244,13 @@ APPLE_CLIENT_SECRET = config("APPLE_CLIENT_SECRET", default="")
 APPLE_REDIRECT_URI = config("APPLE_REDIRECT_URI", default="")
 TURNSTILE_SITE_KEY = config("TURNSTILE_SITE_KEY", default="")
 TURNSTILE_SECRET_KEY = config("TURNSTILE_SECRET_KEY", default="")
+AI_COMPANION_PROVIDER = config("AI_COMPANION_PROVIDER", default="mock")
+AI_COMPANION_API_KEY = config("AI_COMPANION_API_KEY", default="")
+AI_COMPANION_MODEL = config("AI_COMPANION_MODEL", default="gpt-4o-mini")
+AI_COMPANION_BASE_URL = config("AI_COMPANION_BASE_URL", default="")
+VAPID_PUBLIC_KEY = config("VAPID_PUBLIC_KEY", default="")
+VAPID_PRIVATE_KEY = config("VAPID_PRIVATE_KEY", default="")
+VAPID_SUBJECT = config("VAPID_SUBJECT", default="mailto:hello@ggz.local")
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.0/topics/i18n/

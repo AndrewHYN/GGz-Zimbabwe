@@ -2,6 +2,7 @@ db.sqlite3
 backups/
 __pycache__/
 staticfiles/
+hello_world/media/**/demo-*_*.png
 .env
 .env.*
 !.env.example

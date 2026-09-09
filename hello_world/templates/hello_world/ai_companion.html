@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}GGz Companion | GGz{% endblock %}
+
+{% block content %}
+<main class="page-shell companion-shell">
+    <section class="panel-surface companion-hero">
+        <div>
+            <p class="eyebrow">GGz Companion</p>
+            <h1>Have your next move mapped out.</h1>
+            <p class="lede">Ask for tournaments, nearby events, community tips, or help understanding what matters most on GGz.</p>
+        </div>
+        <div class="companion-summary">
+            <div>
+                <strong>{{ profile_count }}</strong>
+                <span>players</span>
+            </div>
+            <div>
+                <strong>{{ game_count }}</strong>
+                <span>games</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="panel-surface companion-panel">
+        <div class="companion-chat" aria-live="polite">
+            <div class="assistant-bubble assistant-bubble-system">
+                <span class="assistant-badge">GGz Companion</span>
+                <p>I’m ready to help you find the right match, event, or community move. Ask me anything about GGz.</p>
+            </div>
+            <div id="companion-response" class="assistant-bubble assistant-bubble-meta">
+                <p>Tip: ask for a tournament, a game recommendation, or a local scene update.</p>
+            </div>
+        </div>
+
+        <form id="companion-form" class="companion-form" method="post" action="{% url 'ai_companion' %}">
+            {% csrf_token %}
+            <label class="sr-only" for="companion-message">Ask GGz Companion</label>
+            <textarea id="companion-message" name="message" rows="3" placeholder="Ask GGz Companion about tournaments, events, games, or community..."></textarea>
+            <div class="companion-actions">
+                <button type="submit" class="button button-primary">Ask GGz Companion</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="panel-surface companion-grid">
+        <article class="info-card">
+            <p class="eyebrow small-eyebrow">Suggested next</p>
+            <h3>Find a tournament</h3>
+            <p>Look for your ideal bracket, skill level, and local venue in one move.</p>
+        </article>
+        <article class="info-card">
+            <p class="eyebrow small-eyebrow">Community</p>
+            <h3>Build your scene</h3>
+            <p>Connect with players and teams that match your play style and location.</p>
+        </article>
+        <article class="info-card">
+            <p class="eyebrow small-eyebrow">Live</p>
+            <h3>Track upcoming events</h3>
+            <p>Follow tournaments and events that are about to open registration.</p>
+        </article>
+    </section>
+</main>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('companion-form');
+    const textarea = document.getElementById('companion-message');
+    const responseBox = document.getElementById('companion-response');
+    if (!form || !textarea || !responseBox) return;
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      const message = textarea.value.trim();
+      if (!message) {
+        responseBox.innerHTML = '<p>Please ask a question so GGz Companion can help.</p>';
+        textarea.focus();
+        return;
+      }
+
+      const button = form.querySelector('button[type="submit"]');
+      const originalText = button.textContent;
+      button.disabled = true;
+      button.textContent = 'Thinking...';
+
+      fetch(form.action, {
+        method: 'POST',
+        body: new FormData(form),
+        credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      })
+        .then((response) => response.json())
+        .then((result) => {
+          if (!result.ok) {
+            throw new Error(result.error || 'Unable to get a response.');
+          }
+          responseBox.innerHTML = '<p>' + (result.response || 'I can help you with that.') + '</p>';
+          textarea.value = '';
+        })
+        .catch((error) => {
+          responseBox.innerHTML = '<p>' + (error.message || 'A quick assist is unavailable right now.') + '</p>';
+        })
+        .finally(() => {
+          button.disabled = false;
+          button.textContent = originalText;
+          textarea.focus();
+        });
+    });
+  });
+</script>
+{% endblock %}

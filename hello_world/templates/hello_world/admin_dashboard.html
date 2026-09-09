@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}GGz Admin | Platform Overview{% endblock %}
+
+{% block content %}
+<main class="page-shell admin-shell">
+    <section class="page-header panel-surface">
+        <div>
+            <p class="eyebrow">GGz Admin</p>
+            <h1>Platform overview</h1>
+        </div>
+        <a class="button button-secondary" href="{% url 'admin:index' %}">Open Django admin</a>
+    </section>
+
+    <section class="stats-grid">
+        <article class="stat-card panel-surface">
+            <span>Players</span>
+            <strong>{{ users }}</strong>
+        </article>
+        <article class="stat-card panel-surface">
+            <span>Posts</span>
+            <strong>{{ posts }}</strong>
+        </article>
+        <article class="stat-card panel-surface">
+            <span>Games</span>
+            <strong>{{ games }}</strong>
+        </article>
+        <article class="stat-card panel-surface">
+            <span>Active events</span>
+            <strong>{{ active_events }}</strong>
+        </article>
+        <article class="stat-card panel-surface">
+            <span>Open tournaments</span>
+            <strong>{{ active_tournaments }}</strong>
+        </article>
+        <article class="stat-card panel-surface">
+            <span>Live listings</span>
+            <strong>{{ live_listings }}</strong>
+        </article>
+    </section>
+
+    <section class="admin-panels">
+        <article class="panel-surface admin-panel">
+            <div class="panel-header">
+                <h2>Recent community posts</h2>
+            </div>
+            {% for post in recent_posts %}
+                <div class="admin-list-item">
+                    <div>
+                        <strong>{{ post.author.gamer_tag }}</strong>
+                        <small>{{ post.created_at|date:"M d, Y" }}</small>
+                    </div>
+                    <p>{{ post.body|truncatewords:18 }}</p>
+                </div>
+            {% empty %}
+                <p class="muted">No posts yet.</p>
+            {% endfor %}
+        </article>
+
+        <article class="panel-surface admin-panel">
+            <div class="panel-header">
+                <h2>Newest profiles</h2>
+            </div>
+            {% for profile in recent_profiles %}
+                <div class="admin-list-item">
+                    <div>
+                        <strong>{{ profile.gamer_tag }}</strong>
+                        <small>{{ profile.user.email|default:"Unverified" }}</small>
+                    </div>
+                    <span>{{ profile.region|default:"Zimbabwe" }}</span>
+                </div>
+            {% empty %}
+                <p class="muted">No profiles yet.</p>
+            {% endfor %}
+        </article>
+    </section>
+</main>
+{% endblock %}
