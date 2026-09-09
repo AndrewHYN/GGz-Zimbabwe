@@ -71,6 +71,14 @@ class HealthAndConfigTests(TestCase):
 		self.assertEqual(response.status_code, 200)
 		self.assertContains(response, "GGz Admin")
 
+	def test_platform_owner_command_promotes_existing_hyndrrx_without_password_output(self):
+		owner = User.objects.create_user(username="Hyndrrx", email="owner@example.com", password="strong-password-123")
+		with patch.dict(os.environ, {"DJANGO_PLATFORM_OWNER_USERNAME": "Hyndrrx", "DJANGO_SUPERUSER_USERNAME": "", "DJANGO_SUPERUSER_EMAIL": "", "DJANGO_SUPERUSER_PASSWORD": ""}, clear=False):
+			call_command("create_admin", verbosity=0)
+		owner.refresh_from_db()
+		self.assertTrue(owner.is_staff)
+		self.assertTrue(owner.is_superuser)
+
 	@patch("accounts.services.urlopen")
 	def test_external_feed_uses_short_runtime_safe_timeout(self, mocked_urlopen):
 		from accounts.services import fetch_public_feed
@@ -307,6 +315,32 @@ class GamerProfileWorkflowTests(TestCase):
 			self.assertTrue(self.profile.avatar.storage.exists(self.profile.avatar.name))
 		finally:
 			self.profile.avatar.delete(save=False)
+
+	def test_profile_avatar_and_cover_uploads_validate_and_persist(self):
+		avatar_data = BytesIO()
+		Image.new("RGB", (24, 24), "#f59e0b").save(avatar_data, format="PNG")
+		cover_data = BytesIO()
+		Image.new("RGB", (120, 40), "#8b5cf6").save(cover_data, format="PNG")
+		self.client.login(username="tendai", password="strong-password-123")
+		response = self.client.post(
+			reverse("profile_edit", args=[self.profile.gamer_tag]),
+			{"gamer_tag": self.profile.gamer_tag, "rank": self.profile.rank, "availability": self.profile.availability, "avatar": SimpleUploadedFile("avatar.png", avatar_data.getvalue(), content_type="image/png"), "cover": SimpleUploadedFile("cover.png", cover_data.getvalue(), content_type="image/png")},
+		)
+		self.assertRedirects(response, reverse("profile_detail", args=[self.profile.gamer_tag]))
+		self.profile.refresh_from_db()
+		self.assertTrue(self.profile.avatar.name.startswith("avatars/"))
+		self.assertTrue(self.profile.cover.name.startswith("covers/"))
+		self.profile.avatar.delete(save=False)
+		self.profile.cover.delete(save=False)
+
+	def test_profile_cover_rejects_non_image_upload(self):
+		form = GamerProfileForm(
+			data={"gamer_tag": self.profile.gamer_tag},
+			files={"cover": SimpleUploadedFile("cover.txt", b"not-an-image", content_type="text/plain")},
+			instance=self.profile,
+		)
+		self.assertFalse(form.is_valid())
+		self.assertTrue(any("valid image" in error.lower() for error in form.errors["cover"]))
 
 	def test_discovery_filters_by_location_and_platform(self):
 		response = self.client.get(
@@ -562,6 +596,12 @@ class GamerProfileWorkflowTests(TestCase):
 		self.assertEqual(response.status_code, 200)
 		self.assertContains(response, "TendaiZW")
 		self.assertContains(response, "Accept")
+
+	def test_profile_contact_creates_request_when_direct_message_is_not_allowed(self):
+		self.client.login(username="tendai", password="strong-password-123")
+		response = self.client.post(reverse("conversation_start", args=["RudoZW"]), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertEqual(response.status_code, 200)
+		self.assertTrue(MessageRequest.objects.filter(sender=self.profile, recipient__gamer_tag="RudoZW", status="Pending").exists())
 
 	def test_message_requests_dashboard_is_not_captured_by_profile_action_route(self):
 		self.client.login(username="tendai", password="strong-password-123")
@@ -1279,7 +1319,8 @@ class NotificationAndMessagingTests(TestCase):
 		self.client.login(username="sender", password="pass")
 		start_url = reverse("conversation_start", args=(self.recipient.gamer_tag,))
 		self.assertEqual(self.client.get(start_url).status_code, 403)
-		self.assertEqual(self.client.post(start_url).status_code, 403)
+		self.assertEqual(self.client.post(start_url).status_code, 302)
+		self.assertTrue(MessageRequest.objects.filter(sender=self.sender, recipient=self.recipient, status="Pending").exists())
 		self.client.post(reverse("message_request_action", args=(self.recipient.gamer_tag, "send")))
 		self.assertEqual(MessageRequest.objects.count(), 1)
 		self.client.post(reverse("message_request_action", args=(self.recipient.gamer_tag, "send")))

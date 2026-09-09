@@ -1,5 +1,42 @@
 from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
+from django.contrib.auth.models import User
+from django.core.exceptions import PermissionDenied
 from .models import Block, Comment, Conversation, ConversationParticipant, ExternalFeedItem, Follow, FriendRequest, Friendship, GamerProfile, Message, Notification, Post, PostLike, PostSave, Report, RespectTransaction, Venue
+
+
+def _set_admin_role(modeladmin, request, queryset, is_staff, description):
+    if not request.user.is_superuser:
+        raise PermissionDenied("Only the platform owner can change administrator roles.")
+    queryset.update(is_staff=is_staff, is_superuser=False)
+
+
+@admin.action(description="Promote selected users to GGz staff")
+def promote_staff(modeladmin, request, queryset):
+    _set_admin_role(modeladmin, request, queryset, True, "")
+
+
+@admin.action(description="Revoke selected users' GGz staff access")
+def revoke_staff(modeladmin, request, queryset):
+    _set_admin_role(modeladmin, request, queryset, False, "")
+
+
+class GGzUserAdmin(DjangoUserAdmin):
+    actions = (promote_staff, revoke_staff)
+
+    def get_actions(self, request):
+        return super().get_actions(request) if request.user.is_superuser else {}
+
+    def get_fieldsets(self, request, obj=None):
+        fieldsets = super().get_fieldsets(request, obj)
+        if request.user.is_superuser:
+            return fieldsets
+        hidden = {"is_staff", "is_superuser", "groups", "user_permissions"}
+        return [(name, {**options, "fields": tuple(field for field in options.get("fields", ()) if field not in hidden)}) for name, options in fieldsets]
+
+
+admin.site.unregister(User)
+admin.site.register(User, GGzUserAdmin)
 
 
 @admin.register(Venue)

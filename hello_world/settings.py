@@ -67,7 +67,7 @@ if DEPLOYED and "ggz-zimbabwe.onrender.com" not in ALLOWED_HOSTS:
 if DEPLOYED and "https://ggz-zimbabwe.onrender.com" not in CSRF_TRUSTED_ORIGINS:
     CSRF_TRUSTED_ORIGINS.append("https://ggz-zimbabwe.onrender.com")
 
-for deployed_host_variable in ("VERCEL_URL", "VERCEL_BRANCH_URL", "RENDER_EXTERNAL_HOSTNAME"):
+for deployed_host_variable in ("VERCEL_URL", "VERCEL_BRANCH_URL", "VERCEL_PROJECT_PRODUCTION_URL", "RENDER_EXTERNAL_HOSTNAME"):
     deployed_host = os.environ.get(deployed_host_variable, "").strip()
     if deployed_host and deployed_host not in ALLOWED_HOSTS:
         ALLOWED_HOSTS.append(deployed_host)
@@ -75,6 +75,9 @@ for deployed_host_variable in ("VERCEL_URL", "VERCEL_BRANCH_URL", "RENDER_EXTERN
         deployed_origin = f"https://{deployed_host}"
         if deployed_origin not in CSRF_TRUSTED_ORIGINS:
             CSRF_TRUSTED_ORIGINS.append(deployed_origin)
+
+if DEPLOYED and os.environ.get("VERCEL") and ".vercel.app" not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(".vercel.app")
 
 # Application definition
 

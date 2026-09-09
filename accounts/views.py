@@ -1043,7 +1043,7 @@ def presence_stream(request, gamer_tag):
 		return JsonResponse({"error": "Presence unavailable."}, status=404)
 	def events():
 		last_payload = None
-		for _ in range(20):
+		for _ in range(8):
 			payload = _presence_payload(profile, viewer, refresh=True)
 			if payload != last_payload:
 				yield f"data: {json.dumps(payload)}\n\n"
@@ -1889,8 +1889,19 @@ def conversation_start(request, gamer_tag):
 	other = get_object_or_404(GamerProfile, gamer_tag=gamer_tag)
 	if request.method not in {"GET", "POST"}:
 		return HttpResponseForbidden("Invalid conversation action.")
+	if Block.objects.filter(Q(blocker=profile, blocked=other) | Q(blocker=other, blocked=profile)).exists():
+		return HttpResponseForbidden("You cannot contact this player.")
 	if not _can_message(profile, other):
-		return HttpResponseForbidden("You cannot message this gamer.")
+		if request.method == "POST":
+			request_row, created = MessageRequest.objects.get_or_create(sender=profile, recipient=other, defaults={"status": "Pending"})
+			if not created and request_row.status != "Accepted":
+				request_row.status = "Pending"
+				request_row.save(update_fields=("status",))
+			_notify(other, profile, "message_request", f"{profile.gamer_tag} sent you a message request", f"/profiles/{profile.gamer_tag}/")
+			if request.headers.get("x-requested-with") == "XMLHttpRequest":
+				return JsonResponse({"ok": True, "requested": True, "message": "Message request sent."})
+			return redirect("message_requests")
+		return HttpResponseForbidden("You need permission or an accepted message request to contact this gamer.")
 	conversation = Conversation.objects.filter(participants=profile).filter(participants=other).first()
 	if not conversation:
 		conversation = Conversation.objects.create()
@@ -1990,7 +2001,7 @@ def profile_edit(request, gamer_tag):
 		try:
 			updated_profile = form.save()
 		except (BotoCoreError, ClientError, OSError) as exception:
-			_media_storage_error(form, exception, "avatar")
+			_media_storage_error(form, exception, "cover" if request.FILES.get("cover") and not request.FILES.get("avatar") else "avatar")
 			return render(request, "accounts/profile_edit.html", {"form": form, "profile": profile})
 		return redirect("profile_detail", gamer_tag=updated_profile.gamer_tag)
 

@@ -139,7 +139,7 @@ def contact_seller(request, listing_id):
 		if request.headers.get("x-requested-with") == "XMLHttpRequest":
 			return JsonResponse({"ok": True, "message": "Opening your conversation.", "url": reverse("conversation_detail", args=(conversation.id,))})
 		return redirect("conversation_detail", conversation_id=conversation.id)
-	MessageRequest.objects.update_or_create(sender=viewer, recipient=listing.seller, defaults={"status": "Pending"})
+	MessageRequest.objects.update_or_create(sender=viewer, recipient=listing.seller, defaults={"status": "Pending", "context_url": reverse("listing_detail", args=(listing.id,)), "context_label": listing.title})
 	notify(listing.seller, viewer, "marketplace", f"{viewer.gamer_tag} wants to discuss {listing.title}", f"/marketplace/listing/{listing.id}/")
 	if request.headers.get("x-requested-with") == "XMLHttpRequest":
 		return JsonResponse({"ok": True, "message": "Message request sent.", "url": reverse("profile_detail", args=(listing.seller.gamer_tag,))})

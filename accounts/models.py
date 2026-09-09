@@ -552,6 +552,8 @@ class MessageRequest(models.Model):
     sender = models.ForeignKey(GamerProfile, on_delete=models.CASCADE, related_name="message_requests_sent")
     recipient = models.ForeignKey(GamerProfile, on_delete=models.CASCADE, related_name="message_requests_received")
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="Pending")
+    context_url = models.CharField(max_length=255, blank=True)
+    context_label = models.CharField(max_length=160, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

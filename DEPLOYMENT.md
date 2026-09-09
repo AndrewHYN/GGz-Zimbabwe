@@ -78,7 +78,7 @@ The current Vercel Django documentation is the source of truth for supported Pyt
 
 The Vercel build runs `python manage.py migrate --noinput` through `scripts/vercel-build.sh` before `collectstatic`. The script requires `DATABASE_URL`, refuses SQLite, and accepts only PostgreSQL URLs. Do not put imports, admin creation, or destructive database commands in a Vercel build or startup hook. Vercel preview URLs must be added to `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS` only when those previews are intended to accept authenticated form submissions. Render remains supported by `render.yaml`; its persistent disk is separate from the Vercel deployment model.
 
-Messaging, presence, and notifications retain SSE as the primary delivery path and expose authenticated JSON snapshot modes for reconnect and serverless fallback. Chat history is cursor-paginated, messages carry client idempotency keys, and typing state is transient and permission-checked. The browser pauses fallback polling in hidden tabs and resumes on visibility changes; this avoids requiring a long-lived WebSocket service on the current WSGI/Vercel deployment.
+Messaging, presence, and notifications retain SSE as the primary delivery path and expose authenticated JSON snapshot modes for reconnect and serverless fallback. Chat history is cursor-paginated, messages carry client idempotency keys, and typing state is transient and permission-checked. Presence streams are short-lived and visibility-aware; the browser closes them in hidden tabs and reconnects when visible. This avoids wasteful long-lived workers on the current WSGI/Vercel deployment.
 
 ## Rollback and smoke test
 

@@ -27,7 +27,7 @@
                             {% endif %}
                             <div>
                                 <strong>{{ request_item.sender.gamer_tag }}</strong>
-                                <small>{{ request_item.created_at|timesince }} ago</small>
+                                <small>{{ request_item.created_at|timesince }} ago{% if request_item.context_label %} · <a href="{{ request_item.context_url }}">{{ request_item.context_label }}</a>{% endif %}</small>
                             </div>
                         </div>
                         <div class="request-status">
@@ -68,7 +68,7 @@
                             {% endif %}
                             <div>
                                 <strong>{{ request_item.recipient.gamer_tag }}</strong>
-                                <small>{{ request_item.created_at|timesince }} ago</small>
+                                <small>{{ request_item.created_at|timesince }} ago{% if request_item.context_label %} · <a href="{{ request_item.context_url }}">{{ request_item.context_label }}</a>{% endif %}</small>
                             </div>
                         </div>
                         <div class="request-status"><span class="status-tag status-{{ request_item.status|lower }}">{{ request_item.status }}</span></div>

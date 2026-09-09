@@ -3,7 +3,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 
-from accounts.models import Block, GamerProfile, Report
+from accounts.models import Block, GamerProfile, MessageRequest, Report
 from games.models import Game
 
 from .models import Listing, SavedListing
@@ -58,6 +58,14 @@ class MarketplaceTests(TestCase):
 		self.client.login(username="buyer", password="pass-12345")
 		response = self.client.post(reverse("contact_seller", args=(self.listing.id,)))
 		self.assertEqual(response.status_code, 403)
+
+	def test_contact_seller_creates_contextual_message_request(self):
+		self.client.login(username="buyer", password="pass-12345")
+		response = self.client.post(reverse("contact_seller", args=(self.listing.id,)))
+		self.assertRedirects(response, reverse("profile_detail", args=(self.seller.gamer_tag,)))
+		request_row = MessageRequest.objects.get(sender=self.buyer, recipient=self.seller)
+		self.assertEqual(request_row.context_label, self.listing.title)
+		self.assertEqual(request_row.context_url, reverse("listing_detail", args=(self.listing.id,)))
 
 	def test_listing_image_save_writes_to_configured_storage(self):
 		from .models import ListingImage

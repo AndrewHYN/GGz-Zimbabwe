@@ -176,10 +176,19 @@
       if (detailElement) detailElement.textContent = payload.detail || '';
       statusElement.setAttribute('aria-label', `${payload.label || 'Offline'} — ${payload.detail || 'Not active recently'}`);
     };
-    const stream = new EventSource(presencePage.dataset.presenceStreamUrl);
-    stream.onmessage = (event) => {
-      try { updatePresence(JSON.parse(event.data)); } catch (error) { /* Ignore malformed transient events. */ }
+    let stream = null;
+    const connectPresence = () => {
+      if (document.visibilityState === 'hidden' || stream) return;
+      stream = new EventSource(presencePage.dataset.presenceStreamUrl);
+      stream.onmessage = (event) => {
+        try { updatePresence(JSON.parse(event.data)); } catch (error) { /* Ignore malformed transient events. */ }
+      };
+      stream.onerror = () => { stream?.close(); stream = null; };
     };
+    const disconnectPresence = () => { stream?.close(); stream = null; };
+    connectPresence();
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') disconnectPresence(); else connectPresence(); });
+    window.addEventListener('pagehide', disconnectPresence, { once: true });
     if (presencePage.dataset.presenceOwner === 'true') {
       const heartbeatUrl = presencePage.dataset.presenceHeartbeatUrl;
       let lastHeartbeat = 0;

@@ -8,6 +8,7 @@ from django.contrib.auth.models import User
 from django.core.files.uploadedfile import UploadedFile
 from django.core.validators import EmailValidator
 from django.forms import ValidationError
+from PIL import Image, UnidentifiedImageError
 
 from .models import Comment, GamerProfile, Post
 
@@ -43,16 +44,33 @@ class GamerProfileForm(forms.ModelForm):
         }
 
     def clean_avatar(self):
-        avatar = self.cleaned_data.get("avatar")
-        if isinstance(avatar, UploadedFile) and avatar.size > settings.MAX_UPLOAD_SIZE:
+        return self._clean_image("avatar")
+
+    def clean_cover(self):
+        return self._clean_image("cover")
+
+    def _clean_image(self, field_name):
+        image = self.cleaned_data.get(field_name)
+        if not isinstance(image, UploadedFile):
+            return image
+        if image.size > settings.MAX_UPLOAD_SIZE:
             raise forms.ValidationError("Images must be 4 MB or smaller.")
-        return avatar
+        try:
+            with Image.open(image) as opened:
+                opened.verify()
+            image.seek(0)
+        except (UnidentifiedImageError, OSError):
+            raise forms.ValidationError("Upload a valid image file.")
+        return image
 
     def save(self, commit=True):
         old_avatar_name = self.instance.avatar.name if self.instance.avatar else None
+        old_cover_name = self.instance.cover.name if self.instance.cover else None
         profile = super().save(commit=commit)
         if commit and old_avatar_name and profile.avatar.name != old_avatar_name:
             profile.avatar.storage.delete(old_avatar_name)
+        if commit and old_cover_name and profile.cover.name != old_cover_name:
+            profile.cover.storage.delete(old_cover_name)
         return profile
 
 
