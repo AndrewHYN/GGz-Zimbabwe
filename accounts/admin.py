@@ -117,4 +117,6 @@ class ConversationParticipantAdmin(admin.ModelAdmin):
 @admin.register(Message)
 class MessageAdmin(admin.ModelAdmin):
     list_display = ("conversation", "sender", "created_at")
-    search_fields = ("sender__gamer_tag", "body")
+    search_fields = ("sender__gamer_tag",)
+    readonly_fields = ("conversation", "sender", "body", "created_at", "delivered_at", "read_at")
+    list_select_related = ("conversation", "sender")
