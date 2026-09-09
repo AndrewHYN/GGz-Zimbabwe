@@ -1,0 +1,67 @@
+/* GGz stability layer: loaded after main.css. */
+.ggz-ambient-media { z-index: 0 !important; pointer-events: none !important; }
+.site-nav { position: sticky; z-index: 1000 !important; }
+.site-nav .nav-container,
+.site-nav .nav-menu,
+.site-nav .nav-tools,
+.site-nav .nav-dropdown,
+.site-nav .nav-profile { position: relative; z-index: 1001; }
+.site-nav .nav-dropdown-panel,
+.site-nav .nav-profile-panel { z-index: 1100 !important; }
+.site-shell,
+.site-footer { position: relative; z-index: 2; }
+
+.ggz-home .hero-shell { isolation: isolate; overflow: hidden; }
+.ggz-home .hero-shell::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background:
+        radial-gradient(circle at 76% 18%, rgba(139,92,246,.28), transparent 38%),
+        linear-gradient(90deg, rgba(10,14,17,.10), rgba(10,14,17,0) 45%, rgba(10,14,17,.34));
+}
+.ggz-hero-media {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    display: grid;
+    grid-template-columns: 1.4fr 1fr .82fr;
+    gap: .55rem;
+    overflow: hidden;
+    opacity: .50;
+    pointer-events: none;
+}
+.ggz-hero-media::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background:
+        linear-gradient(90deg, rgba(83,48,158,.34), rgba(83,48,158,.05) 42%, rgba(7,9,13,.26)),
+        linear-gradient(180deg, rgba(10,12,18,.02), rgba(10,12,18,.62));
+}
+.ggz-hero-media img {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    object-fit: cover;
+    filter: saturate(.92) contrast(1.05);
+    transform: scale(1.03);
+}
+.ggz-home .hero-copy,
+.ggz-home .hero-panel { position: relative; z-index: 3; }
+.ggz-home .hero-copy { text-shadow: 0 1px 18px rgba(0,0,0,.28); }
+.ggz-home .hero-panel {
+    background: rgba(10,14,20,.74);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+@media (max-width: 800px) {
+    .ggz-hero-media { grid-template-columns: 1fr .82fr; opacity: .36; }
+    .ggz-hero-media img:nth-child(3) { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .ggz-hero-media img { transform: none; }
+}

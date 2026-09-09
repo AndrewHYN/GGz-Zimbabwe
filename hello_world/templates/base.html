@@ -10,6 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'main.css' %}">
+    <link rel="stylesheet" href="{% static 'ggz_stability.css' %}">
 </head>
 <body class="ggz-page{% block body_class %}{% endblock %}{% if ambient_enabled %} ggz-page--ambient{% endif %}" data-csrf-token="{{ csrf_token }}">
     {% if ambient_enabled %}<div class="ggz-ambient-media" aria-hidden="true">
@@ -155,5 +156,6 @@
     </footer>
 
     <script src="{% static 'main.js' %}" defer></script>
+    <script src="{% static 'ggz_stability.js' %}" defer></script>
 </body>
 </html>

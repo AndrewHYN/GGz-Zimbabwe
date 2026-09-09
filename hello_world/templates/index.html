@@ -6,6 +6,13 @@
 {% block content %}
 <main class="ggz-home">
     <section class="hero-shell">
+        {% if ambient_media %}
+            <div class="ggz-hero-media" aria-hidden="true">
+                {% for media_url in ambient_media %}
+                    <img src="{{ media_url }}" alt=""{% if not forloop.first %} loading="lazy"{% endif %} referrerpolicy="no-referrer">
+                {% endfor %}
+            </div>
+        {% endif %}
         <div class="hero-copy">
             <p class="eyebrow">Gaming ecosystem</p>
             {% if request.user.is_authenticated and user_profile %}
