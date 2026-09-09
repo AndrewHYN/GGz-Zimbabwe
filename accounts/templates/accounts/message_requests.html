@@ -35,8 +35,8 @@
                         </div>
                         <div class="request-actions">
                             {% if request_item.status == 'Pending' %}
-                                <form method="post" action="{% url 'message_request_action' request_item.sender.gamer_tag 'accept' %}">{% csrf_token %}<button class="button" type="submit">Accept</button></form>
-                                <form method="post" action="{% url 'message_request_action' request_item.sender.gamer_tag 'decline' %}">{% csrf_token %}<button class="button alt" type="submit">Decline</button></form>
+                                <form method="post" action="{% url 'message_request_action' request_item.sender.gamer_tag 'accept' %}" data-async-mutation>{% csrf_token %}<button class="button" type="submit">Accept</button></form>
+                                <form method="post" action="{% url 'message_request_action' request_item.sender.gamer_tag 'decline' %}" data-async-mutation>{% csrf_token %}<button class="button alt" type="submit">Decline</button></form>
                             {% else %}
                                 <a class="button alt" href="{% url 'profile_detail' request_item.sender.gamer_tag %}">View profile</a>
                             {% endif %}
@@ -74,7 +74,7 @@
                         <div class="request-status"><span class="status-tag status-{{ request_item.status|lower }}">{{ request_item.status }}</span></div>
                         <div class="request-actions">
                             {% if request_item.status == 'Pending' %}
-                                <form method="post" action="{% url 'message_request_action' request_item.recipient.gamer_tag 'delete' %}">{% csrf_token %}<button class="text-button" type="submit">Cancel</button></form>
+                                <form method="post" action="{% url 'message_request_action' request_item.recipient.gamer_tag 'delete' %}" data-async-mutation>{% csrf_token %}<button class="text-button" type="submit">Cancel</button></form>
                             {% else %}
                                 <a class="button alt" href="{% url 'profile_detail' request_item.recipient.gamer_tag %}">Open profile</a>
                             {% endif %}

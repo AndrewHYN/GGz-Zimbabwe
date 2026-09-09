@@ -247,12 +247,16 @@
       if (button) { button.disabled = true; button.textContent = 'Saving...'; }
       socialJson(form).then((result) => {
         if (!result.ok) throw new Error(result.error || 'Could not save this action.');
-        if (button) button.textContent = result.attending === false || result.registered === false ? 'Removed' : 'Saved';
-        const status = document.createElement('span');
+        if (button) {
+          if (typeof result.saved === 'boolean') button.textContent = result.saved ? 'Unsave listing' : 'Save listing';
+          else button.textContent = result.status || (result.attending === false || result.registered === false ? 'Removed' : 'Saved');
+        }
+        const status = form.querySelector('.async-status') || document.createElement('span');
         status.className = 'async-status';
         status.setAttribute('role', 'status');
         status.textContent = result.message || 'Saved';
-        form.append(status);
+        if (!status.parentNode) form.append(status);
+        if (result.url) window.location.href = result.url;
       }).catch((error) => {
         if (button) { button.disabled = false; button.textContent = original; }
         const status = form.querySelector('.async-status') || document.createElement('span');

@@ -1921,6 +1921,8 @@ def message_request_action(request, gamer_tag, action):
 	elif action == "delete":
 		request_row = get_object_or_404(MessageRequest, Q(sender=profile, recipient=other) | Q(sender=other, recipient=profile))
 		request_row.delete()
+		if request.headers.get("x-requested-with") == "XMLHttpRequest":
+			return JsonResponse({"ok": True, "message": "Message request cancelled.", "status": "Deleted"})
 		return redirect("profile_detail", gamer_tag=other.gamer_tag)
 	else:
 		request_row = get_object_or_404(MessageRequest, sender=other, recipient=profile)
@@ -1931,8 +1933,12 @@ def message_request_action(request, gamer_tag, action):
 			request_row.status = "Declined"
 		else:
 			request_row.delete()
+			if request.headers.get("x-requested-with") == "XMLHttpRequest":
+				return JsonResponse({"ok": True, "message": "Message request removed.", "status": "Deleted"})
 			return redirect("profile_detail", gamer_tag=other.gamer_tag)
 		request_row.save(update_fields=("status",))
+	if request.headers.get("x-requested-with") == "XMLHttpRequest":
+		return JsonResponse({"ok": True, "message": f"Message request {request_row.status.lower()}.", "status": request_row.status})
 	return redirect("profile_detail", gamer_tag=other.gamer_tag)
 
 

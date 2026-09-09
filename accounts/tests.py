@@ -1283,6 +1283,16 @@ class NotificationAndMessagingTests(TestCase):
 		self.client.login(username="sender", password="pass")
 		self.assertEqual(self.client.post(start_url).status_code, 403)
 
+	def test_message_request_actions_return_async_json_contracts(self):
+		self.client.login(username="sender", password="pass")
+		response = self.client.post(reverse("message_request_action", args=(self.recipient.gamer_tag, "send")), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.json()["status"], "Pending")
+		self.client.login(username="recipient", password="pass")
+		response = self.client.post(reverse("message_request_action", args=(self.sender.gamer_tag, "accept")), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.json()["status"], "Accepted")
+
 	def test_blocked_users_cannot_follow_in_either_direction(self):
 		Block.objects.create(blocker=self.recipient, blocked=self.sender)
 		self.client.login(username="sender", password="pass")

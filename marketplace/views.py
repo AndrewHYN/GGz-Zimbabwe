@@ -2,8 +2,9 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Q
-from django.http import HttpResponseForbidden
+from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 
 from accounts.models import Block, Conversation, ConversationParticipant, GamerProfile, MessageRequest, Notification, Report, notify
 from games.models import Game
@@ -88,6 +89,8 @@ def listing_status(request, listing_id, status):
 	listing.status = status
 	listing.save(update_fields=("status", "updated_at"))
 	messages.success(request, f"Listing marked {status.lower()}.")
+	if request.headers.get("x-requested-with") == "XMLHttpRequest":
+		return JsonResponse({"ok": True, "message": f"Listing marked {status.lower()}.", "status": status})
 	return redirect("listing_detail", listing_id=listing.id)
 
 
@@ -100,6 +103,8 @@ def listing_save(request, listing_id):
 	saved, created = SavedListing.objects.get_or_create(user=viewer, listing=listing)
 	if not created:
 		saved.delete()
+	if request.headers.get("x-requested-with") == "XMLHttpRequest":
+		return JsonResponse({"ok": True, "saved": created, "message": "Listing saved." if created else "Listing removed from saved items."})
 	return redirect("listing_detail", listing_id=listing.id)
 
 
@@ -111,6 +116,8 @@ def listing_report(request, listing_id):
 		Report.objects.get_or_create(reporter=viewer, reported_listing_id=listing.id)
 		notify(listing.seller, viewer, "marketplace", f"{viewer.gamer_tag} reported your listing", f"/marketplace/listing/{listing.id}/")
 		messages.success(request, "Thanks. The listing has been reported.")
+		if request.headers.get("x-requested-with") == "XMLHttpRequest":
+			return JsonResponse({"ok": True, "message": "Thanks. The listing has been reported."})
 	return redirect("listing_detail", listing_id=listing.id)
 
 
@@ -120,6 +127,8 @@ def contact_seller(request, listing_id):
 	if request.method != "POST":
 		return HttpResponseForbidden("This action requires POST.")
 	if listing.seller.user_id == request.user.id:
+		if request.headers.get("x-requested-with") == "XMLHttpRequest":
+			return JsonResponse({"ok": False, "error": "You cannot contact your own listing."}, status=400)
 		return redirect("listing_detail", listing_id=listing.id)
 	viewer = get_object_or_404(GamerProfile, user=request.user)
 	if Block.objects.filter(Q(blocker=viewer, blocked=listing.seller) | Q(blocker=listing.seller, blocked=viewer)).exists():
@@ -127,9 +136,13 @@ def contact_seller(request, listing_id):
 	conversation = Conversation.objects.filter(participants=viewer).filter(participants=listing.seller).first()
 	if conversation:
 		notify(listing.seller, viewer, "marketplace", f"Someone contacted you about {listing.title}", f"/marketplace/listing/{listing.id}/")
+		if request.headers.get("x-requested-with") == "XMLHttpRequest":
+			return JsonResponse({"ok": True, "message": "Opening your conversation.", "url": reverse("conversation_detail", args=(conversation.id,))})
 		return redirect("conversation_detail", conversation_id=conversation.id)
 	MessageRequest.objects.update_or_create(sender=viewer, recipient=listing.seller, defaults={"status": "Pending"})
 	notify(listing.seller, viewer, "marketplace", f"{viewer.gamer_tag} wants to discuss {listing.title}", f"/marketplace/listing/{listing.id}/")
+	if request.headers.get("x-requested-with") == "XMLHttpRequest":
+		return JsonResponse({"ok": True, "message": "Message request sent.", "url": reverse("profile_detail", args=(listing.seller.gamer_tag,))})
 	return redirect("profile_detail", gamer_tag=listing.seller.gamer_tag)
 
 

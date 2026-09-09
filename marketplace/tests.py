@@ -41,6 +41,18 @@ class MarketplaceTests(TestCase):
 		self.client.post(reverse("listing_report", args=[self.listing.id]))
 		self.assertTrue(Report.objects.filter(reported_listing_id=self.listing.id).exists())
 
+	def test_marketplace_mutations_return_async_json_contracts(self):
+		self.client.login(username="buyer", password="pass-12345")
+		save_response = self.client.post(reverse("listing_save", args=[self.listing.id]), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertEqual(save_response.status_code, 200)
+		self.assertTrue(save_response.json()["saved"])
+		self.assertTrue(SavedListing.objects.filter(user=self.buyer, listing=self.listing).exists())
+		self.client.logout()
+		self.client.login(username="seller", password="pass-12345")
+		status_response = self.client.post(reverse("listing_status", args=[self.listing.id, "Reserved"]), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertEqual(status_response.status_code, 200)
+		self.assertEqual(status_response.json()["status"], "Reserved")
+
 	def test_blocked_buyer_cannot_contact_seller(self):
 		Block.objects.create(blocker=self.buyer, blocked=self.seller)
 		self.client.login(username="buyer", password="pass-12345")
