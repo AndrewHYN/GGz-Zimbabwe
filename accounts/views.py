@@ -1633,6 +1633,16 @@ def notifications_read_all(request):
 @login_required
 def notification_stream(request):
 	profile = get_object_or_404(GamerProfile, user=request.user)
+	latest = profile.notifications.select_related("actor").first()
+	payload = {
+		"unread_count": profile.notifications.filter(is_read=False).count(),
+		"unread_message_count": _unread_message_count(profile),
+		"latest_id": latest.id if latest else None,
+		"latest_message": latest.message if latest else "",
+		"latest_target": latest.target_url if latest else "",
+	}
+	if request.GET.get("format") == "json":
+		return JsonResponse(payload)
 	def events():
 		last_signature = None
 		for _ in range(60):
@@ -1686,6 +1696,8 @@ def _conversation_snapshot(profile):
 @login_required
 def conversation_inbox_stream(request):
 	profile = get_object_or_404(GamerProfile, user=request.user)
+	if request.GET.get("format") == "json":
+		return JsonResponse(_conversation_snapshot(profile))
 	def events():
 		last_payload = None
 		for _ in range(60):
@@ -1795,6 +1807,19 @@ def conversation_stream(request, conversation_id):
 	other = conversation.participants.exclude(id=profile.id).first()
 	if not other or Block.objects.filter(Q(blocker=profile, blocked=other) | Q(blocker=other, blocked=profile)).exists():
 		return JsonResponse({"error": "Conversation unavailable."}, status=404)
+	if request.GET.get("format") == "json":
+		try:
+			after_id = max(0, int(request.GET.get("after", 0) or 0))
+		except (TypeError, ValueError):
+			return JsonResponse({"error": "Invalid message cursor."}, status=400)
+		messages = conversation.messages.select_related("sender").filter(id__gt=after_id).order_by("id")
+		payloads = []
+		for message in messages:
+			if message.sender_id != profile.id and message.delivered_at is None:
+				message.delivered_at = timezone.now()
+				message.save(update_fields=("delivered_at",))
+			payloads.append(_message_payload(message, profile))
+		return JsonResponse({"messages": payloads, "unread_message_count": _unread_message_count(profile)})
 	def events():
 		last_payloads = {}
 		for _ in range(60):

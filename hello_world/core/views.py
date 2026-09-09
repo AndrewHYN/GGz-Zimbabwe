@@ -1,10 +1,12 @@
+from datetime import timedelta
+
 from django.conf import settings
 from django.contrib.admin.views.decorators import staff_member_required
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
 
-from accounts.models import Block, GamerProfile, Post
+from accounts.models import Block, GamerProfile, Message, Notification, Post, Report
 from games.models import Game
 from marketplace.models import Listing
 from tournaments.models import Tournament
@@ -12,6 +14,8 @@ from teams.models import Team
 from events.models import Event
 from django.db.models import Q
 from django.core.paginator import Paginator
+
+from .companion import answer as companion_answer
 
 
 def health_check(request):
@@ -38,14 +42,18 @@ def _companion_fallback_reply(message, user=None):
 
 def ai_companion(request):
     if request.method == "POST":
+        request_times = [value for value in request.session.get("companion_request_times", []) if timezone.now().timestamp() - value < 60]
+        if len(request_times) >= 20:
+            return JsonResponse({"ok": False, "error": "GGz Companion is taking a short breather. Try again in a moment."}, status=429)
+        request_times.append(timezone.now().timestamp())
+        request.session["companion_request_times"] = request_times
         message = (request.POST.get("message") or "").strip()
         if not message:
             return JsonResponse({"ok": False, "error": "Please enter a message for GGz Companion."}, status=400)
-        reply = _companion_fallback_reply(message, request.user)
+        companion = companion_answer(message, request.user)
         return JsonResponse({
             "ok": True,
-            "response": reply,
-            "provider": getattr(settings, "AI_COMPANION_PROVIDER", "mock"),
+            **companion,
             "timestamp": timezone.now().isoformat(),
         })
     context = {
@@ -61,11 +69,15 @@ def ai_companion(request):
 def admin_dashboard(request):
     metrics = {
         "users": GamerProfile.objects.count(),
+        "active_users": GamerProfile.objects.filter(presence__last_activity__gte=timezone.now() - timedelta(minutes=15)).count(),
         "posts": Post.objects.count(),
+        "messages": Message.objects.count(),
         "games": Game.objects.count(),
         "active_events": Event.objects.filter(status__in=("Upcoming", "Live")).count(),
         "active_tournaments": Tournament.objects.filter(status__in=("Registration Open", "Live", "Registration Closed")).count(),
         "live_listings": Listing.objects.filter(status__in=("Available", "Reserved")).count(),
+        "unread_notifications": Notification.objects.filter(is_read=False).count(),
+        "pending_reports": Report.objects.count(),
         "recent_posts": Post.objects.select_related("author__user").order_by("-created_at")[:6],
         "recent_profiles": GamerProfile.objects.select_related("user").order_by("-created_at")[:6],
     }

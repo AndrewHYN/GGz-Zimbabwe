@@ -106,10 +106,12 @@
         </div>
     </nav>
 
-    <div class="site-shell">
+    <div class="site-shell page-enter">
         {% if messages %}<div class="flash-stack global-flashes" aria-live="polite">{% for message in messages %}<div class="flash flash-{{ message.tags }}">{{ message }}</div>{% endfor %}</div>{% endif %}
         {% block content %}{% endblock %}
     </div>
+
+    <a class="companion-fab" href="{% url 'ai_companion' %}" aria-label="Open GGz Companion" title="Open GGz Companion">✦ <span>Companion</span></a>
 
     <footer class="site-footer">
         <div class="footer-inner">

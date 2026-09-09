@@ -22,6 +22,10 @@
             <strong>{{ posts }}</strong>
         </article>
         <article class="stat-card panel-surface">
+            <span>Active now</span>
+            <strong>{{ active_users }}</strong>
+        </article>
+        <article class="stat-card panel-surface">
             <span>Games</span>
             <strong>{{ games }}</strong>
         </article>
@@ -36,6 +40,18 @@
         <article class="stat-card panel-surface">
             <span>Live listings</span>
             <strong>{{ live_listings }}</strong>
+        </article>
+        <article class="stat-card panel-surface">
+            <span>Messages</span>
+            <strong>{{ messages }}</strong>
+        </article>
+        <article class="stat-card panel-surface">
+            <span>Pending reports</span>
+            <strong>{{ pending_reports }}</strong>
+        </article>
+        <article class="stat-card panel-surface">
+            <span>Unread notices</span>
+            <strong>{{ unread_notifications }}</strong>
         </article>
     </section>
 
@@ -67,7 +83,7 @@
                         <strong>{{ profile.gamer_tag }}</strong>
                         <small>{{ profile.user.email|default:"Unverified" }}</small>
                     </div>
-                    <span>{{ profile.region|default:"Zimbabwe" }}</span>
+                    <span>{{ profile.city|default:"Zimbabwe" }}</span>
                 </div>
             {% empty %}
                 <p class="muted">No profiles yet.</p>

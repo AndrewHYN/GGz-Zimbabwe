@@ -45,6 +45,12 @@ class HealthAndConfigTests(TestCase):
 		self.assertEqual(response.status_code, 200)
 		self.assertIn("tournament", response.json()["response"].lower())
 
+	def test_ai_companion_uses_read_only_public_game_tool(self):
+		Game.objects.create(name="GGz Test Arena", genre="Fighting")
+		response = self.client.post(reverse("ai_companion"), {"message": "Recommend a fighting game"})
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.json()["results"]["games"][0]["name"], "GGz Test Arena")
+
 	def test_admin_dashboard_requires_staff_access(self):
 		response = self.client.get(reverse("admin_dashboard"))
 		self.assertEqual(response.status_code, 302)
@@ -1340,6 +1346,25 @@ class NotificationAndMessagingTests(TestCase):
 		self.client.login(username="recipient", password="pass")
 		self.assertEqual(self.client.get(reverse("conversation_stream", args=(conversation.id,))).status_code, 404)
 		self.assertEqual(self.client.get(reverse("conversation_inbox_stream")).status_code, 200)
+
+	def test_authenticated_json_snapshots_support_reconnect_resync(self):
+		conversation = Conversation.objects.create()
+		ConversationParticipant.objects.bulk_create([
+			ConversationParticipant(conversation=conversation, profile=self.sender),
+			ConversationParticipant(conversation=conversation, profile=self.recipient),
+		])
+		message = Message.objects.create(conversation=conversation, sender=self.sender, body="Snapshot hello")
+		self.client.login(username="recipient", password="pass")
+		notification = Notification.objects.create(recipient=self.recipient, actor=self.sender, notification_type="message", message="New message")
+		notification_payload = self.client.get(reverse("notification_stream"), {"format": "json"})
+		self.assertEqual(notification_payload.status_code, 200)
+		self.assertEqual(notification_payload.json()["latest_id"], notification.id)
+		inbox_payload = self.client.get(reverse("conversation_inbox_stream"), {"format": "json"})
+		self.assertEqual(inbox_payload.status_code, 200)
+		message_payload = self.client.get(reverse("conversation_stream", args=(conversation.id,)), {"format": "json", "after": 0})
+		self.assertEqual(message_payload.status_code, 200)
+		self.assertEqual(message_payload.json()["messages"][0]["body"], message.body)
+		self.assertEqual(self.client.get(reverse("conversation_stream", args=(conversation.id,)), {"format": "json", "after": "bad"}).status_code, 400)
 
 	def test_blocked_profile_hides_social_actions_and_posts(self):
 		post = Post.objects.create(author=self.recipient, body="Private post")

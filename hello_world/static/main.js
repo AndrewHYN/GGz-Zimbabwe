@@ -262,13 +262,44 @@
   const notificationPage = document.querySelector('[data-social-stream-url]');
   if (notificationPage) {
     const notificationStream = new EventSource(notificationPage.dataset.socialStreamUrl);
+    const permissionButton = notificationPage.querySelector('[data-browser-notification-opt-in]');
+    let latestNotificationId = null;
+    let notificationPoll = null;
+    if (permissionButton && 'Notification' in window && Notification.permission === 'default') {
+      permissionButton.hidden = false;
+      permissionButton.addEventListener('click', async () => {
+        const permission = await Notification.requestPermission();
+        permissionButton.textContent = permission === 'granted' ? 'Browser updates on' : 'Updates not enabled';
+        permissionButton.disabled = true;
+      });
+    }
     const applyNotificationCount = (count) => document.querySelectorAll('[data-notification-count]').forEach((badge) => { badge.textContent = count > 0 ? count : ''; badge.hidden = count <= 0; });
-    notificationStream.onopen = () => { /* The first event reconciles counts from the server. */ };
+    const applyNotificationPayload = (payload) => {
+      applyNotificationCount(Number(payload.unread_count) || 0);
+      updateMessageCount(payload.unread_message_count);
+      if (latestNotificationId !== null && payload.latest_id && payload.latest_id !== latestNotificationId && 'Notification' in window && Notification.permission === 'granted' && document.visibilityState === 'hidden') {
+        new Notification('GGz activity', { body: payload.latest_message || 'You have a new GGz notification.' });
+      }
+      latestNotificationId = payload.latest_id || latestNotificationId;
+    };
+    const stopNotificationPoll = () => { if (notificationPoll) window.clearInterval(notificationPoll); notificationPoll = null; };
+    const startNotificationPoll = () => {
+      if (notificationPoll) return;
+      notificationPoll = window.setInterval(() => {
+        if (document.visibilityState === 'hidden') return;
+        fetch(`${notificationPage.dataset.socialStreamUrl}?format=json`, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+          .then((response) => response.ok ? response.json() : Promise.reject(new Error('snapshot failed')))
+          .then(applyNotificationPayload)
+          .catch(() => {});
+      }, 15000);
+    };
+    notificationStream.onopen = () => { stopNotificationPoll(); notificationPage.classList.remove('is-reconnecting'); };
+    notificationStream.onerror = () => { notificationPage.classList.add('is-reconnecting'); startNotificationPoll(); };
     notificationStream.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-        applyNotificationCount(Number(payload.unread_count) || 0);
-        updateMessageCount(payload.unread_message_count);
+        notificationPage.classList.remove('is-reconnecting');
+        applyNotificationPayload(payload);
       } catch (error) { /* Ignore transient malformed events. */ }
     };
   }
@@ -312,6 +343,8 @@
     const input = chatPage.querySelector('[data-message-input]');
     const status = chatPage.querySelector('[data-message-status]');
     const empty = chatPage.querySelector('[data-chat-empty]');
+    const newMessagePrompt = chatPage.querySelector('[data-new-message-prompt]');
+    let pendingMessages = 0;
     const nearBottom = () => list.scrollHeight - list.scrollTop - list.clientHeight < 120;
     const scrollLatest = () => { list.scrollTop = list.scrollHeight; };
     const appendMessage = (message, pending = false) => {
@@ -352,7 +385,8 @@
         const shouldScroll = nearBottom();
         const article = appendMessage(message);
         if (message.mine && article) article.dataset.messageState = message.state;
-        if (shouldScroll) scrollLatest();
+        if (shouldScroll) { scrollLatest(); pendingMessages = 0; if (newMessagePrompt) newMessagePrompt.hidden = true; }
+        else if (!message.mine) { pendingMessages += 1; if (newMessagePrompt) { newMessagePrompt.hidden = false; const count = newMessagePrompt.querySelector('[data-new-message-count]'); if (count) count.textContent = pendingMessages; } }
         if (!message.mine && shouldScroll) markRead();
       } catch (error) { /* Ignore malformed transient events. */ }
     };
@@ -380,6 +414,7 @@
       sendMessage();
     });
     input.addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); form.requestSubmit(); } });
+    newMessagePrompt?.querySelector('button')?.addEventListener('click', () => { scrollLatest(); pendingMessages = 0; newMessagePrompt.hidden = true; markRead(); });
   }
 
   async function readJsonResponse(response) {

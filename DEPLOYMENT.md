@@ -13,6 +13,8 @@ Production must set:
 - `DATABASE_URL`: PostgreSQL connection URL.
 - `GOOGLE_MAPS_API_KEY`: a browser key restricted by HTTP referrer and the required Maps APIs.
 - `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_EMAIL`, and `DJANGO_SUPERUSER_PASSWORD` when creating the initial admin explicitly.
+- `AI_COMPANION_PROVIDER`, `AI_COMPANION_MODEL`, and `AI_COMPANION_BASE_URL`; set `AI_COMPANION_API_KEY` only for a configured server-side OpenAI-compatible provider.
+- `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` are reserved for future background Web Push. The current implementation uses user-initiated foreground browser notifications and does not require private VAPID material.
 
 For local development, leave `DATABASE_URL` unset and use the SQLite defaults. Set `ALLOWED_HOSTS=localhost,127.0.0.1` and `CSRF_TRUSTED_ORIGINS=http://localhost:8000,http://127.0.0.1:8000`. Set `USE_X_FORWARDED_PROTO=True` only when a trusted TLS-terminating proxy forwards `X-Forwarded-Proto` (Vercel and Render do); leave it false for direct local HTTP.
 
@@ -75,6 +77,8 @@ Vercel’s filesystem is ephemeral for deployed functions. This repository has n
 The current Vercel Django documentation is the source of truth for supported Python runtime, project structure, build output, function timeout, filesystem, and environment variables: <https://vercel.com/docs/frameworks/backend/django>. The repository's `vercel.json` keeps Vercel's detected Django runtime and explicitly runs `scripts/vercel-build.sh`; the WSGI callable remains `hello_world.wsgi:application`.
 
 The Vercel build runs `python manage.py migrate --noinput` through `scripts/vercel-build.sh` before `collectstatic`. The script requires `DATABASE_URL`, refuses SQLite, and accepts only PostgreSQL URLs. Do not put imports, admin creation, or destructive database commands in a Vercel build or startup hook. Vercel preview URLs must be added to `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS` only when those previews are intended to accept authenticated form submissions. Render remains supported by `render.yaml`; its persistent disk is separate from the Vercel deployment model.
+
+Messaging, presence, and notifications retain SSE as the primary delivery path and expose authenticated JSON snapshot modes for reconnect and serverless fallback. The browser pauses fallback polling in hidden tabs and resumes on visibility changes; this avoids requiring a long-lived WebSocket service on the current WSGI/Vercel deployment.
 
 ## Rollback and smoke test
 

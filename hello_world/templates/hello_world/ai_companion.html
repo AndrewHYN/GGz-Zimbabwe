@@ -30,6 +30,7 @@
             </div>
             <div id="companion-response" class="assistant-bubble assistant-bubble-meta">
                 <p>Tip: ask for a tournament, a game recommendation, or a local scene update.</p>
+              <div class="companion-results" data-companion-results></div>
             </div>
         </div>
 
@@ -73,7 +74,10 @@
       event.preventDefault();
       const message = textarea.value.trim();
       if (!message) {
-        responseBox.innerHTML = '<p>Please ask a question so GGz Companion can help.</p>';
+        responseBox.replaceChildren();
+        const notice = document.createElement('p');
+        notice.textContent = 'Please ask a question so GGz Companion can help.';
+        responseBox.append(notice);
         textarea.focus();
         return;
       }
@@ -94,11 +98,29 @@
           if (!result.ok) {
             throw new Error(result.error || 'Unable to get a response.');
           }
-          responseBox.innerHTML = '<p>' + (result.response || 'I can help you with that.') + '</p>';
+          responseBox.replaceChildren();
+          const reply = document.createElement('p');
+          reply.textContent = result.response || 'I can help you with that.';
+          responseBox.append(reply);
+          const results = document.createElement('div');
+          results.className = 'companion-results';
+          Object.entries(result.results || {}).forEach(([kind, items]) => {
+            items.forEach((item) => {
+              const link = document.createElement('a');
+              link.className = 'companion-result';
+              link.href = item.url;
+              link.textContent = item.name || item.title || item.gamer_tag;
+              results.append(link);
+            });
+          });
+          responseBox.append(results);
           textarea.value = '';
         })
         .catch((error) => {
-          responseBox.innerHTML = '<p>' + (error.message || 'A quick assist is unavailable right now.') + '</p>';
+          responseBox.replaceChildren();
+          const failure = document.createElement('p');
+          failure.textContent = error.message || 'A quick assist is unavailable right now.';
+          responseBox.append(failure);
         })
         .finally(() => {
           button.disabled = false;
