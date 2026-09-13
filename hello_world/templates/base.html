@@ -55,6 +55,15 @@
                 </div>
 
                 <a href="{% url 'listing_list' %}" class="nav-link">Marketplace</a>
+
+                <form action="{% url 'global_search' %}" method="get" role="search" class="nav-search nav-search-mobile">
+                    <label class="nav-search-field" for="nav-mobile-search-input">
+                        <span class="sr-only">Search GGz</span>
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10.5 3a7.5 7.5 0 0 1 5.9 12.8l4.4 4.4 1.4-1.4-4.4-4.4A7.5 7.5 0 1 1 10.5 3Zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z"/></svg>
+                        <input id="nav-mobile-search-input" type="text" name="q" placeholder="Search GGz..." aria-label="Search GGz" />
+                    </label>
+                    <button type="submit" aria-label="Search GGz">Search</button>
+                </form>
             </div>
 
             <div class="nav-tools">

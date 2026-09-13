@@ -108,6 +108,27 @@ class TeamInvitationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Invite player")
         self.assertContains(response, "Transfer ownership")
+        self.assertContains(response, "Edit team details")
+
+    def test_team_edit_sets_game_and_only_managers_can_access(self):
+        game = Game.objects.create(name="Rocket League")
+        member = GamerProfile.objects.create(user=User.objects.create_user(username="editmember", password="pass"), gamer_tag="EditMember")
+        TeamMembership.objects.create(team=self.team, player=member, role="Member")
+
+        self.client.login(username="editmember", password="pass")
+        self.assertEqual(self.client.get(reverse("team_edit", args=(self.team.slug,))).status_code, 403)
+
+        self.client.login(username="owner", password="pass")
+        response = self.client.post(
+            reverse("team_edit", args=(self.team.slug,)),
+            {"name": "Renamed Squad", "tag": "RQ", "description": "Tight team.", "game": game.id},
+        )
+        self.assertRedirects(response, reverse("team_detail", args=("renamed-squad",)))
+        self.team.refresh_from_db()
+        self.assertEqual(self.team.name, "Renamed Squad")
+        self.assertEqual(self.team.slug, "renamed-squad")
+        self.assertEqual(self.team.game, game)
+        self.assertContains(self.client.get(reverse("team_detail", args=(self.team.slug,))), "Rocket League")
 
     def test_team_detail_shows_competitive_stats_and_tournament_history(self):
         game = Game.objects.create(name="Apex Legends")

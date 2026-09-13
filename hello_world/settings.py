@@ -323,6 +323,20 @@ if USE_S3_MEDIA_STORAGE:
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
 
+# --- Google Maps / GGz Radar configuration ----------------------------------
+#
+# The Radar and geo-discovery pages render a Google Maps embed. Set the
+# provider API key before launch; without it the pages render a graceful
+# "map unavailable" message instead of the interactive map.
+#
+# Required env vars for a production deployment:
+#   GOOGLE_MAPS_API_KEY    Google Maps JavaScript API key (browser-restricted).
+#   GOOGLE_MAPS_MAP_ID     Optional Maps Platform map ID.
+#   GOOGLE_MAPS_PROVIDER   "google" (default) or "openstreetmap".
+#
+# The GGZ_MAP_* variables are backward-compatible aliases for older
+# deployments and are mirrored below, so code can read either spelling.
+# Default coordinates centre the map on Harare, Zimbabwe.
 GOOGLE_MAPS_PROVIDER = config("GOOGLE_MAPS_PROVIDER", default=config("GGZ_MAP_PROVIDER", default="google"))
 GOOGLE_MAPS_API_KEY = config("GOOGLE_MAPS_API_KEY", default=config("GGZ_MAP_API_KEY", default=""))
 GOOGLE_MAPS_MAP_ID = config("GOOGLE_MAPS_MAP_ID", default=config("GGZ_MAP_ID", default=""))

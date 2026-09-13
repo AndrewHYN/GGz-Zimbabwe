@@ -18,6 +18,7 @@ from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm, Pa
 from django.contrib.auth.models import User
 from django.contrib.auth.tokens import default_token_generator
 from django.core.paginator import Paginator
+from django.core.cache import cache
 from django.db.models import Case, Count, Exists, F, IntegerField, OuterRef, Q, Subquery, Value, When
 from django.http import FileResponse, HttpResponseForbidden, JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -107,6 +108,17 @@ def _json_http_request(url, payload=None, headers=None, method="POST"):
 		return json.loads(content) if content else {}
 
 
+def _rate_limit_exceeded(request, key, limit, window=60):
+	identifier = getattr(getattr(request, "user", None), "pk", None) or request.META.get("REMOTE_ADDR", "unknown")
+	bucket = int(time.time()) // window
+	cache_key = f"rl:{key}:{identifier}:{bucket}"
+	count = cache.get(cache_key, 0)
+	if count >= limit:
+		return True
+	cache.set(cache_key, count + 1, timeout=window + 5)
+	return False
+
+
 def google_oauth_exchange(code):
 	if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
 		return {"error": "Google OAuth is not configured."}
@@ -150,6 +162,15 @@ def _decode_jwt_claims(token):
 		return {}
 
 
+def google_verify_id_token(id_token):
+	if not id_token:
+		raise ValueError("Google identity token missing")
+	claims = _json_http_request(f"https://oauth2.googleapis.com/tokeninfo?id_token={id_token}", method="GET")
+	if claims.get("aud") != settings.GOOGLE_CLIENT_ID or not claims.get("sub"):
+		raise ValueError("Google identity token is invalid")
+	return claims
+
+
 def google_oauth_userinfo(access_token):
 	request = Request(
 		"https://openidconnect.googleapis.com/v1/userinfo",
@@ -160,7 +181,7 @@ def google_oauth_userinfo(access_token):
 		return json.loads(response.read().decode("utf-8"))
 
 
-def apple_oauth_userinfo(id_token):
+def apple_oauth_userinfo(id_token, expected_nonce=None):
 	if not id_token or not settings.APPLE_CLIENT_ID:
 		raise ValueError("Apple identity validation is unavailable.")
 	with urlopen("https://appleid.apple.com/auth/keys", timeout=20) as response:
@@ -177,10 +198,13 @@ def apple_oauth_userinfo(id_token):
 		audience=settings.APPLE_CLIENT_ID,
 		issuer="https://appleid.apple.com",
 	)
+	if expected_nonce and claims.get("nonce") != expected_nonce:
+		raise ValueError("Apple identity token nonce was rejected.")
 	return {
 		"sub": claims.get("sub"),
 		"email": claims.get("email", ""),
 		"name": claims.get("email", "").split("@", 1)[0],
+		"email_verified": claims.get("email_verified") in (True, "true"),
 	}
 
 
@@ -208,6 +232,8 @@ def _resolve_or_create_provider_user(provider, claims, request):
 		if email:
 			existing = User.objects.filter(email__iexact=email).first()
 			if existing:
+				if not claims.get("email_verified"):
+					raise ValueError("Provider email must be verified to connect an existing GGz account.")
 				SocialIdentity.objects.create(user=existing, provider=provider, provider_user_id=provider_user_id, email=email, display_name=display_name)
 				return existing
 		base_username = re.sub(r"[^A-Za-z0-9_.-]", "", display_name)[:20] or "ggzplayer"
@@ -236,14 +262,14 @@ class GGZAuthenticationForm(AuthenticationForm):
 
 def _safe_redirect_url(request, fallback_url="/"):
 	"""Allow only internal relative redirects to reduce open redirect exposure."""
-	next_url = request.POST.get("next") or request.GET.get("next") or fallback_url
+	next_url = (request.POST.get("next") or request.GET.get("next") or fallback_url or "/").strip()
 	if not next_url:
-		return fallback_url
-	if next_url.startswith("/") and not next_url.startswith("//"):
+		return fallback_url or "/"
+	if next_url.startswith("/") and not next_url.startswith("//") and "\\" not in next_url:
 		return next_url
 	parsed = urlsplit(next_url)
-	if parsed.scheme or parsed.netloc:
-		return fallback_url
+	if parsed.scheme or parsed.netloc or "\\" in next_url:
+		return fallback_url or "/"
 	return next_url
 
 
@@ -560,7 +586,7 @@ def map_page(request):
 
 
 def radar_location_detail(request, location_id):
-	location = get_object_or_404(OrganizationLocation.objects.select_related("organization").prefetch_related("games", "ratings", "reviews__author__user", "reviews__author__user__user"), pk=location_id)
+	location = get_object_or_404(OrganizationLocation.objects.select_related("organization").prefetch_related("games", "ratings", "reviews__author__user"), pk=location_id)
 	if not location.public_visible:
 		return HttpResponseForbidden("This Radar location is not public.")
 	upcoming_events = Event.objects.filter(organization=location.organization, status__in=("Published", "Upcoming", "Live")).select_related("game")[:5]
@@ -648,6 +674,8 @@ def radar_location_review_create(request, location_id):
 
 @login_required
 def radar_location_review_delete(request, location_id, review_id):
+	if request.method != "POST":
+		return HttpResponseForbidden("This action requires POST.")
 	location = get_object_or_404(OrganizationLocation, pk=location_id)
 	review = get_object_or_404(OrganizationLocationReview.objects.select_related("author__user"), pk=review_id, location=location)
 	if review.author.user_id != request.user.id and not request.user.is_staff:
@@ -661,7 +689,19 @@ def geo_discovery(request):
 	query = request.GET.get("q", "").strip()
 	lat = request.GET.get("lat", "").strip()
 	lng = request.GET.get("lng", "").strip()
-	radius_km = float(request.GET.get("radius", "50") or 50)
+	try:
+		radius_km = float(request.GET.get("radius", "50") or 50)
+	except (TypeError, ValueError):
+		radius_km = 50.0
+	lat_value = None
+	lng_value = None
+	if lat and lng:
+		try:
+			lat_value = float(lat)
+			lng_value = float(lng)
+		except (TypeError, ValueError):
+			lat_value = None
+			lng_value = None
 	platform = request.GET.get("platform", "").strip()
 	rank = request.GET.get("rank", "").strip()
 	availability = request.GET.get("availability", "").strip()
@@ -694,9 +734,7 @@ def geo_discovery(request):
 		blocked_profile_ids = {value for pair in blocked_ids for value in pair}
 		profiles = profiles.exclude(id=viewer.id).exclude(id__in=blocked_profile_ids)
 
-	if lat and lng:
-		lat_value = float(lat)
-		lng_value = float(lng)
+	if lat_value is not None and lng_value is not None:
 		filtered_profiles = []
 		for profile in profiles:
 			if profile.latitude is None or profile.longitude is None:
@@ -717,9 +755,7 @@ def geo_discovery(request):
 		venues = venues.filter(Q(name__icontains=query) | Q(city__icontains=query) | Q(province__icontains=query) | Q(address__icontains=query) | Q(description__icontains=query))
 	if category:
 		venues = venues.filter(category=category)
-	if lat and lng:
-		lat_value = float(lat)
-		lng_value = float(lng)
+	if lat_value is not None and lng_value is not None:
 		filtered_venues = []
 		for venue in venues:
 			if venue.latitude is None or venue.longitude is None:
@@ -740,9 +776,7 @@ def geo_discovery(request):
 	events = Event.objects.select_related("game", "organizer__user", "venue").filter(status__in=("Upcoming", "Live"))
 	if query:
 		events = events.filter(Q(name__icontains=query) | Q(location__icontains=query) | Q(venue__name__icontains=query) | Q(venue__city__icontains=query))
-	if lat and lng:
-		lat_value = float(lat)
-		lng_value = float(lng)
+	if lat_value is not None and lng_value is not None:
 		filtered_events = []
 		for event in events:
 			if event.mode == "online":
@@ -768,9 +802,7 @@ def geo_discovery(request):
 		tournaments = tournaments.filter(mode=tournament_mode)
 	if game_id:
 		tournaments = tournaments.filter(game_id=game_id)
-	if lat and lng:
-		lat_value = float(lat)
-		lng_value = float(lng)
+	if lat_value is not None and lng_value is not None:
 		filtered_tournaments = []
 		for tournament in tournaments:
 			if tournament.mode == "online":
@@ -792,14 +824,14 @@ def geo_discovery(request):
 	page = Paginator(profiles, 12)
 	page_obj = page.get_page(request.GET.get("page"))
 	map_embed_url = ""
-	if lat and lng:
-		map_embed_url = f"https://www.openstreetmap.org/export/embed.html?bbox={float(lng)-0.05}%2C{float(lat)-0.05}%2C{float(lng)+0.05}%2C{float(lat)+0.05}&layer=mapnik&marker={float(lat)}%2C{float(lng)}"
+	if lat_value is not None and lng_value is not None:
+		map_embed_url = f"https://www.openstreetmap.org/export/embed.html?bbox={lng_value-0.05}%2C{lat_value-0.05}%2C{lng_value+0.05}%2C{lat_value+0.05}&layer=mapnik&marker={lat_value}%2C{lng_value}"
 
 	context = {
 		"page": page_obj,
 		"query": query,
-		"lat": lat,
-		"lng": lng,
+		"lat": lat_value,
+		"lng": lng_value,
 		"radius": radius_km,
 		"nearby_events": nearby_events,
 		"nearby_tournaments": nearby_tournaments,
@@ -1238,6 +1270,8 @@ def connection_action(request, gamer_tag, action):
 		return redirect(f"{settings.LOGIN_URL}?next={request.path}")
 	if request.method != "POST":
 		return _json_error("This action requires POST.", 405) if _is_json_request(request) else HttpResponseForbidden("This action requires POST.")
+	if _rate_limit_exceeded(request, "connection", 40):
+		return _json_error("Too many actions. Please slow down.", 429) if _is_json_request(request) else HttpResponseForbidden("Too many actions. Please try again shortly.")
 	target = GamerProfile.objects.filter(gamer_tag=gamer_tag).first()
 	viewer = GamerProfile.objects.filter(user=request.user).first()
 	if target is None:
@@ -1592,6 +1626,8 @@ def post_download(request, post_id):
 def post_report(request, post_id):
 	if request.method != "POST":
 		return HttpResponseForbidden("This action requires POST.")
+	if _rate_limit_exceeded(request, "report", 5):
+		return HttpResponseForbidden("Too many reports. Please try again shortly.")
 	post = get_object_or_404(_visible_posts(getattr(request.user, "gamer_profile", None)), id=post_id)
 	reporter = get_object_or_404(GamerProfile, user=request.user)
 	Report.objects.get_or_create(reporter=reporter, post=post)
@@ -1726,26 +1762,39 @@ def notification_stream(request):
 	return StreamingHttpResponse(events(), content_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
+def _blocked_profile_ids(profile):
+	pairs = Block.objects.filter(Q(blocker=profile) | Q(blocked=profile)).values_list("blocker_id", "blocked_id")
+	ids = {value for pair in pairs for value in pair}
+	ids.discard(profile.id)
+	return ids
+
+
 @login_required
 def conversation_list(request):
 	profile = get_object_or_404(GamerProfile, user=request.user)
-	conversations = Conversation.objects.filter(participants=profile).prefetch_related("participants", "messages", "participant_links")
+	blocked_ids = _blocked_profile_ids(profile)
+	conversations = list(Conversation.objects.filter(participants=profile).prefetch_related("participants", "messages", "participant_links"))
+	visible_conversations = []
 	for conversation in conversations:
-		conversation.other = conversation.participants.exclude(id=profile.id).first()
-		conversation.other_presence = _presence_snapshot(conversation.other, profile) if conversation.other else {"status": "offline", "label": "Offline", "detail": ""}
+		conversation.other = next((participant for participant in conversation.participants.all() if participant.id != profile.id), None)
+		if not conversation.other or conversation.other.id in blocked_ids:
+			continue
+		conversation.other_presence = _presence_snapshot(conversation.other, profile)
 		participant = conversation.participant_links.get(profile=profile)
 		visible_messages = conversation.messages.filter(created_at__gt=participant.cleared_at) if participant.cleared_at else conversation.messages.all()
 		conversation.last_message = visible_messages.last()
 		unread_messages = visible_messages.exclude(sender=profile)
 		conversation.unread_count = unread_messages.filter(created_at__gt=participant.last_read_at).count() if participant.last_read_at else unread_messages.count()
-	return render(request, "accounts/conversation_list.html", {"conversations": conversations, "profile": profile, "unread_message_count": _unread_message_count(profile), "pending_message_request_count": MessageRequest.objects.filter(recipient=profile, status="Pending").count(), "inbox_stream_url": reverse("conversation_inbox_stream")})
+		visible_conversations.append(conversation)
+	return render(request, "accounts/conversation_list.html", {"conversations": visible_conversations, "profile": profile, "unread_message_count": _unread_message_count(profile), "pending_message_request_count": MessageRequest.objects.filter(recipient=profile, status="Pending").count(), "inbox_stream_url": reverse("conversation_inbox_stream")})
 
 
 def _conversation_snapshot(profile):
 	items = []
+	blocked_ids = _blocked_profile_ids(profile)
 	for conversation in Conversation.objects.filter(participants=profile).prefetch_related("participants", "messages", "participant_links"):
 		other = conversation.participants.exclude(id=profile.id).first()
-		if not other:
+		if not other or other.id in blocked_ids:
 			continue
 		participant = conversation.participant_links.get(profile=profile)
 		visible = conversation.messages.filter(created_at__gt=participant.cleared_at) if participant.cleared_at else conversation.messages.all()
@@ -1777,8 +1826,9 @@ def conversation_inbox_stream(request):
 @login_required
 def message_requests(request):
 	profile = get_object_or_404(GamerProfile, user=request.user)
-	incoming = MessageRequest.objects.filter(recipient=profile).select_related("sender__user", "recipient__user").order_by("-created_at")
-	outgoing = MessageRequest.objects.filter(sender=profile).select_related("recipient__user").order_by("-created_at")
+	blocked_ids = _blocked_profile_ids(profile)
+	incoming = MessageRequest.objects.filter(recipient=profile).exclude(sender_id__in=blocked_ids).select_related("sender__user", "recipient__user").order_by("-created_at")
+	outgoing = MessageRequest.objects.filter(sender=profile).exclude(recipient_id__in=blocked_ids).select_related("recipient__user").order_by("-created_at")
 	pending_message_request_count = incoming.filter(status="Pending").count()
 	return render(
 		request,
@@ -2079,19 +2129,23 @@ def profile_edit(request, gamer_tag):
 
 def signup(request):
 	form = SignupForm(request.POST or None)
+	if request.method == "POST" and _rate_limit_exceeded(request, "signup", 20, 600):
+		messages.error(request, "Too many accounts created from this location. Please wait and try again.")
+		return redirect("signup")
 	if request.method == "POST" and form.is_valid():
 		user = form.save()
 		login(request, user)
 		messages.success(request, "Welcome to GGz. Your account is ready.")
-		next_url = request.POST.get("next")
-		if next_url and _safe_redirect_url(request, reverse("profile_detail", args=[user.gamer_profile.gamer_tag])) == reverse("profile_detail", args=[user.gamer_profile.gamer_tag]):
-			next_url = reverse("profile_detail", args=[user.gamer_profile.gamer_tag])
-		return redirect(next_url or reverse("profile_detail", args=[user.gamer_profile.gamer_tag]))
+		profile_url = reverse("profile_detail", args=[user.gamer_profile.gamer_tag])
+		return redirect(_safe_redirect_url(request, profile_url))
 	return render(request, "accounts/signup.html", {"form": form, "next": _safe_redirect_url(request, "/"), **_auth_provider_context()})
 
 
 def ggz_login(request):
 	form = GGZAuthenticationForm(request, data=request.POST or None)
+	if request.method == "POST" and _rate_limit_exceeded(request, "login", 20):
+		messages.error(request, "Too many sign-in attempts. Please wait a minute and try again.")
+		return redirect("login")
 	if request.method == "POST":
 		if form.is_valid():
 			user = form.get_user()
@@ -2145,11 +2199,10 @@ def google_login_callback(request):
 		if "error" in token_response or not token_response.get("access_token"):
 			raise ValueError(token_response.get("error", "Google access token missing"))
 		userinfo = google_oauth_userinfo(token_response["access_token"])
-		claims = _decode_jwt_claims(token_response.get("id_token", ""))
-		if claims:
-			userinfo.setdefault("sub", claims.get("sub"))
-			userinfo.setdefault("email", claims.get("email", ""))
-			userinfo.setdefault("name", claims.get("name") or claims.get("email", "").split("@", 1)[0])
+		claims = google_verify_id_token(token_response.get("id_token", ""))
+		for key in ("sub", "email", "email_verified", "name"):
+			if claims.get(key) is not None:
+				userinfo[key] = claims[key]
 		user = _resolve_or_create_provider_user("google", userinfo, request)
 		login(request, user)
 		request.session.cycle_key()
@@ -2196,7 +2249,7 @@ def apple_login_callback(request):
 		token_response = apple_oauth_exchange(code)
 		if "error" in token_response or not token_response.get("id_token"):
 			raise ValueError(token_response.get("error", "Apple identity token missing"))
-		userinfo = apple_oauth_userinfo(token_response["id_token"])
+		userinfo = apple_oauth_userinfo(token_response["id_token"], request.session.get("oauth_nonce_apple"))
 		user = _resolve_or_create_provider_user("apple", userinfo, request)
 		login(request, user)
 		request.session.cycle_key()

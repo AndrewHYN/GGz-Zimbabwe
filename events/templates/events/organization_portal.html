@@ -22,7 +22,7 @@
         <p>{{ organization.description|truncatewords:22|default:"Gaming community and local operator." }}</p>
         <p class="muted">{{ organization.locations.count }} location{{ organization.locations.count|pluralize }} · {{ organization.verification_status }}</p>
         <div class="row-actions">
-          <a class="button" href="{% url 'organization_portal_dashboard' organization.slug %}">Manage</a>
+          <a class="button" href="{% url 'organization_dashboard' organization.slug %}">Manage</a>
           <a class="button alt" href="{% url 'organization_public_profile' organization.slug %}">Public profile</a>
         </div>
       </div>

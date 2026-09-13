@@ -27,6 +27,24 @@ def staff_required(view_func):
 	return _wrapped
 
 
+def _organization_manager(user, organization):
+	if not user.is_authenticated:
+		return False
+	if user.is_staff:
+		return True
+	profile = getattr(user, "gamer_profile", None)
+	return bool(profile and organization.owner_id == profile.id)
+
+
+def _event_manager(user, event):
+	if not user.is_authenticated:
+		return False
+	if user.is_staff:
+		return True
+	profile = getattr(user, "gamer_profile", None)
+	return bool(profile and event.organizer_id == profile.id)
+
+
 def event_list(request):
 	events = Event.objects.filter(status__in=("Published", "Upcoming", "Live")).select_related("organizer", "game").prefetch_related("rsvps")
 	if request.GET.get("q"):
@@ -42,7 +60,7 @@ def event_list(request):
 	return render(request, "events/event_list.html", {"page": page, "game_choices": Game.objects.order_by("name"), "event_status_choices": Event.STATUS_CHOICES})
 
 
-@staff_required
+@login_required
 def event_my(request):
 	profile = get_object_or_404(GamerProfile, user=request.user)
 	events = Event.objects.filter(organizer=profile).select_related("game").prefetch_related("rsvps")
@@ -104,9 +122,11 @@ def event_publish(request, event_id):
 	return redirect("event_detail", event_id=event.id)
 
 
-@staff_required
+@login_required
 def organization_dashboard(request, slug):
 	organization = get_object_or_404(Organization.objects.select_related("owner__user").prefetch_related("events", "promotion_requests", "locations"), slug=slug)
+	if not _organization_manager(request.user, organization):
+		return HttpResponseForbidden("You are not authorized to manage this organization.")
 	return render(request, "events/organization_dashboard.html", {
 		"organization": organization,
 		"events": organization.events.all(),
@@ -152,15 +172,17 @@ def organization_list(request):
 	return render(request, "events/organization_list.html", {"organizations": organizations, "query": query})
 
 
-@staff_required
+@login_required
 def organization_location_create(request, slug):
 	organization = get_object_or_404(Organization.objects.select_related("owner__user"), slug=slug)
+	if not _organization_manager(request.user, organization):
+		return HttpResponseForbidden("You are not authorized to manage this organization.")
 	form = OrganizationLocationForm(request.POST or None)
 	if request.method == "POST" and form.is_valid():
 		location = form.save(commit=False, organization=organization)
 		location.save()
 		messages.success(request, "Your gaming location was added to GGz Radar.")
-		return redirect("organization_portal_dashboard", slug=organization.slug)
+		return redirect("organization_dashboard", slug=organization.slug)
 	return render(request, "events/organization_location_form.html", {
 		"form": form,
 		"organization": organization,
@@ -173,15 +195,17 @@ def organization_location_create(request, slug):
 	})
 
 
-@staff_required
+@login_required
 def organization_location_edit(request, slug, location_id):
 	organization = get_object_or_404(Organization, slug=slug)
+	if not _organization_manager(request.user, organization):
+		return HttpResponseForbidden("You are not authorized to manage this organization.")
 	location = get_object_or_404(OrganizationLocation, pk=location_id, organization=organization)
 	form = OrganizationLocationForm(request.POST or None, instance=location)
 	if request.method == "POST" and form.is_valid():
 		form.save()
 		messages.success(request, "Your Radar location was updated.")
-		return redirect("organization_portal_dashboard", slug=organization.slug)
+		return redirect("organization_dashboard", slug=organization.slug)
 	return render(request, "events/organization_location_form.html", {
 		"form": form,
 		"organization": organization,
@@ -195,9 +219,11 @@ def organization_location_edit(request, slug, location_id):
 	})
 
 
-@staff_required
+@login_required
 def organization_location_visibility(request, slug, location_id, action):
 	organization = get_object_or_404(Organization, slug=slug)
+	if not _organization_manager(request.user, organization):
+		return HttpResponseForbidden("You are not authorized to manage this organization.")
 	if request.method != "POST":
 		return HttpResponseForbidden("This action requires POST.")
 	location = get_object_or_404(OrganizationLocation, pk=location_id, organization=organization)
@@ -223,7 +249,7 @@ def organization_location_visibility(request, slug, location_id, action):
 		messages.success(request, "Your location was removed from public Radar discovery.")
 	else:
 		return HttpResponseForbidden("Invalid location action.")
-	return redirect("organization_portal_dashboard", slug=organization.slug)
+	return redirect("organization_dashboard", slug=organization.slug)
 
 
 @staff_required
@@ -239,18 +265,20 @@ def organization_create(request):
 				organization.slug = f"{organization.slug}-{Organization.objects.count() + 1}"
 		organization.save()
 		messages.success(request, "Your organization was created.")
-		return redirect("organization_portal_dashboard", slug=organization.slug)
+		return redirect("organization_dashboard", slug=organization.slug)
 	return render(request, "events/organization_form.html", {"form": form, "title": "Create organization"})
 
 
-@staff_required
+@login_required
 def organization_edit(request, slug):
 	organization = get_object_or_404(Organization, slug=slug)
+	if not _organization_manager(request.user, organization):
+		return HttpResponseForbidden("You are not authorized to manage this organization.")
 	form = OrganizationForm(request.POST or None, request.FILES or None, instance=organization)
 	if request.method == "POST" and form.is_valid():
 		form.save()
 		messages.success(request, "Your organization profile was updated.")
-		return redirect("organization_portal_dashboard", slug=organization.slug)
+		return redirect("organization_dashboard", slug=organization.slug)
 	return render(request, "events/organization_form.html", {"form": form, "organization": organization, "title": "Edit organization profile"})
 
 
@@ -266,9 +294,11 @@ def event_create(request):
 	return render(request, "events/event_form.html", {"form": form, "title": "Create event"})
 
 
-@staff_required
+@login_required
 def event_edit(request, event_id):
 	event = get_object_or_404(Event, id=event_id)
+	if not _event_manager(request.user, event):
+		return HttpResponseForbidden("You are not authorized to manage this event.")
 	form = EventForm(request.POST or None, request.FILES or None, instance=event)
 	if request.method == "POST" and form.is_valid():
 		form.save()
@@ -277,19 +307,24 @@ def event_edit(request, event_id):
 	return render(request, "events/event_form.html", {"form": form, "title": "Edit event", "event": event})
 
 
-@staff_required
+@login_required
 def event_cancel(request, event_id):
 	event = get_object_or_404(Event, id=event_id)
-	if request.method == "POST":
-		event.status = "Cancelled"
-		event.save(update_fields=("status",))
-		messages.success(request, "Your event was cancelled.")
+	if not _event_manager(request.user, event):
+		return HttpResponseForbidden("You are not authorized to manage this event.")
+	if request.method != "POST":
+		return HttpResponseForbidden("This action requires POST.")
+	event.status = "Cancelled"
+	event.save(update_fields=("status",))
+	messages.success(request, "Your event was cancelled.")
 	return redirect("event_detail", event_id=event.id)
 
 
-@staff_required
+@login_required
 def event_delete(request, event_id):
 	event = get_object_or_404(Event, id=event_id)
+	if not _event_manager(request.user, event):
+		return HttpResponseForbidden("You are not authorized to manage this event.")
 	if request.method != "POST":
 		return HttpResponseForbidden("This action requires POST.")
 	event.delete()

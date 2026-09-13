@@ -10,5 +10,6 @@ urlpatterns = [
     path("<slug:slug>/leave/", views.team_leave, name="team_leave"),
     path("<slug:slug>/remove-member/<int:member_id>/", views.team_remove_member, name="team_remove_member"),
     path("<slug:slug>/transfer-ownership/", views.team_transfer_ownership, name="team_transfer_ownership"),
+    path("<slug:slug>/edit/", views.team_edit, name="team_edit"),
     path("<slug:slug>/", views.team_detail, name="team_detail"),
 ]

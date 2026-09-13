@@ -273,10 +273,16 @@
                     <label>
                         <span>{{ challenge_form.opponent.label }}</span>
                         {{ challenge_form.opponent }}
+                        {% if challenge_form.opponent.errors %}
+                            <span class="form-error-message">{{ challenge_form.opponent.errors }}</span>
+                        {% endif %}
                     </label>
                     <label>
                         <span>{{ challenge_form.game.label }}</span>
                         {{ challenge_form.game }}
+                        {% if challenge_form.game.errors %}
+                            <span class="form-error-message">{{ challenge_form.game.errors }}</span>
+                        {% endif %}
                     </label>
                     <label>
                         <span>{{ challenge_form.scheduled_at.label }}</span>

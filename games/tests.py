@@ -6,7 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from accounts.models import GamerProfile, Notification, Post
+from accounts.models import Block, GamerProfile, Notification, Post
 from accounts.forms import GamerProfileForm
 from django.contrib.auth.models import User
 from tournaments.models import Challenge, Tournament, TournamentMatch
@@ -527,6 +527,30 @@ class GameHubTests(TestCase):
 
 		self.assertEqual(response.status_code, 302)
 		self.assertTrue(Challenge.objects.filter(challenger=player, opponent=opponent, game=game).exists())
+
+	def test_game_challenge_rejects_blocked_player(self):
+		game = Game.objects.create(name="Street Fighter 6", genre="Fighting")
+		player_user = User.objects.create_user(username="blockchallenger", password="pass")
+		player = GamerProfile.objects.create(user=player_user, gamer_tag="BlockChallengerZW")
+		opponent = GamerProfile.objects.create(user=User.objects.create_user(username="blocktarget"), gamer_tag="BlockTargetZW")
+		game.players.add(player, opponent)
+		Block.objects.create(blocker=player, blocked=opponent)
+		self.client.force_login(player_user)
+
+		response = self.client.post(reverse("game_challenge_create", args=[game.id]), {"opponent": opponent.id})
+
+		self.assertEqual(response.status_code, 302)
+		self.assertFalse(Challenge.objects.exists())
+
+	def test_game_challenge_requires_post(self):
+		game = Game.objects.create(name="Fortnite", genre="Battle Royale")
+		player_user = User.objects.create_user(username="challengepost", password="pass")
+		player = GamerProfile.objects.create(user=player_user, gamer_tag="ChallengePostZW")
+		game.players.add(player)
+		self.client.force_login(player_user)
+		response = self.client.get(reverse("game_challenge_create", args=[game.id]))
+		self.assertEqual(response.status_code, 403)
+		self.assertFalse(Challenge.objects.exists())
 
 	def test_game_detail_surfaces_related_tournaments_and_events(self):
 		organizer_user = User.objects.create_user(username="organizer3", password="pass")

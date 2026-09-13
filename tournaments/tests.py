@@ -76,6 +76,7 @@ class TournamentTests(TestCase):
 		self.assertEqual(TournamentRegistration.objects.filter(tournament=tournament).count(), 2)
 		self.assertTrue(TournamentRegistration.objects.filter(tournament=tournament, player=self.organizer).exists())
 		self.assertTrue(TournamentRegistration.objects.filter(tournament=tournament, player=teammate).exists())
+		self.assertEqual(set(TournamentRegistration.objects.filter(tournament=tournament).values_list("team_id", flat=True)), {team.id})
 
 	def test_cancelled_tournament_cannot_be_joined(self):
 		self.tournament.status = "Cancelled"
@@ -215,6 +216,15 @@ class TournamentTests(TestCase):
 		response = self.client.post(reverse("tournament_toggle_registration", args=[self.tournament.slug]))
 		self.assertEqual(response.status_code, 404)
 
+	def test_cancelled_tournament_cannot_reopen_registration(self):
+		self.tournament.status = "Cancelled"
+		self.tournament.save(update_fields=("status",))
+		self.client.login(username="organizer", password="pass-12345")
+		response = self.client.post(reverse("tournament_toggle_registration", args=[self.tournament.slug]))
+		self.assertEqual(response.status_code, 403)
+		self.tournament.refresh_from_db()
+		self.assertEqual(self.tournament.status, "Cancelled")
+
 	def test_organizer_can_delete_tournament_but_other_users_cannot(self):
 		self.client.login(username="organizer", password="pass-12345")
 		response = self.client.post(reverse("tournament_delete", args=[self.tournament.slug]))
@@ -248,6 +258,13 @@ class TournamentTests(TestCase):
 		self.client.login(username="organizer", password="pass-12345")
 		response = self.client.post(reverse("challenge_create", args=[self.tournament.slug]), {"opponent": self.organizer.id, "game": self.game.id, "tournament": self.tournament.id})
 		self.assertEqual(response.status_code, 200)
+		self.assertFalse(Challenge.objects.exists())
+
+	def test_blocked_player_cannot_send_challenge(self):
+		Block.objects.create(blocker=self.organizer, blocked=self.player)
+		self.client.login(username="player", password="pass-12345")
+		response = self.client.post(reverse("challenge_create", args=[self.tournament.slug]), {"opponent": self.organizer.id, "game": self.game.id, "tournament": self.tournament.id})
+		self.assertContains(response, "You cannot challenge this player.")
 		self.assertFalse(Challenge.objects.exists())
 
 	def test_match_result_requires_participant_or_organizer(self):

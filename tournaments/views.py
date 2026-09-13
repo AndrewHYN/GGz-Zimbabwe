@@ -9,6 +9,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from accounts.models import Block, Follow, GamerProfile, Notification, Friendship, notify
+from accounts.views import _rate_limit_exceeded
 
 from .forms import ChallengeForm, MatchCreateForm, MatchResultForm, MatchScheduleForm, TournamentForm
 from .models import Challenge, Tournament, TournamentInvitation, TournamentMatch, TournamentRegistration
@@ -92,16 +93,22 @@ def tournament_invite(request, slug):
 	selected_ids = {int(value) for value in request.POST.getlist("player_ids") if value.isdigit()}
 	eligible_ids = set(_invite_candidates(tournament, organizer).filter(id__in=selected_ids).values_list("id", flat=True))
 	created = 0
-	for player_id in eligible_ids:
-		invitation, was_created = TournamentInvitation.objects.get_or_create(tournament=tournament, player_id=player_id, defaults={"status": "Pending"})
-		if not was_created and invitation.status == "Declined":
-			invitation.status = "Pending"
-			invitation.responded_at = None
-			invitation.save(update_fields=("status", "responded_at"))
-		if was_created or invitation.status == "Pending":
-			created += 1
-			player = GamerProfile.objects.get(id=player_id)
-			notify(player, organizer, "tournament_invitation", f"{organizer.gamer_tag} invited you to {tournament.name}", f"/tournaments/{tournament.slug}/")
+	with transaction.atomic():
+		tournament = Tournament.objects.select_for_update().get(pk=tournament.pk)
+		if tournament.status != "Registration Open" or timezone.now() > tournament.registration_deadline:
+			return HttpResponseForbidden("Invitations are closed.")
+		if tournament.participant_count >= tournament.max_participants:
+			return HttpResponseForbidden("This tournament is full.")
+		for player_id in eligible_ids:
+			invitation, was_created = TournamentInvitation.objects.get_or_create(tournament=tournament, player_id=player_id, defaults={"status": "Pending"})
+			if not was_created and invitation.status == "Declined":
+				invitation.status = "Pending"
+				invitation.responded_at = None
+				invitation.save(update_fields=("status", "responded_at"))
+			if was_created or invitation.status == "Pending":
+				created += 1
+				player = GamerProfile.objects.get(id=player_id)
+				notify(player, organizer, "tournament_invitation", f"{organizer.gamer_tag} invited you to {tournament.name}", f"/tournaments/{tournament.slug}/")
 	messages.success(request, f"Sent {created} tournament invitation{'s' if created != 1 else ''}.")
 	return redirect("tournament_manage", slug=tournament.slug)
 
@@ -123,17 +130,21 @@ def tournament_invitation_action(request, invitation_id, action):
 		return HttpResponseForbidden("This invitation is no longer valid.")
 	if not player.games.filter(id=tournament.game_id).exists():
 		return HttpResponseForbidden("You are not eligible for this tournament's game.")
-	if tournament.participant_count >= tournament.max_participants:
-		return HttpResponseForbidden("This tournament is full.")
-	registration, created = TournamentRegistration.objects.get_or_create(tournament=tournament, player=player, defaults={"status": "Registered"})
-	if not created and registration.status not in ("Withdrawn", "Waitlisted"):
-		return HttpResponseForbidden("You are already participating in this tournament.")
-	if not created:
-		registration.status = "Registered"
-		registration.save(update_fields=("status",))
-	invitation.status = "Accepted"
-	invitation.responded_at = timezone.now()
-	invitation.save(update_fields=("status", "responded_at"))
+	with transaction.atomic():
+		tournament = Tournament.objects.select_for_update().get(pk=tournament.pk)
+		if tournament.status != "Registration Open" or timezone.now() > tournament.registration_deadline:
+			return HttpResponseForbidden("This invitation is no longer valid.")
+		if tournament.participant_count >= tournament.max_participants:
+			return HttpResponseForbidden("This tournament is full.")
+		registration, created = TournamentRegistration.objects.get_or_create(tournament=tournament, player=player, defaults={"status": "Registered"})
+		if not created and registration.status not in ("Withdrawn", "Waitlisted"):
+			return HttpResponseForbidden("You are already participating in this tournament.")
+		if not created:
+			registration.status = "Registered"
+			registration.save(update_fields=("status",))
+		invitation.status = "Accepted"
+		invitation.responded_at = timezone.now()
+		invitation.save(update_fields=("status", "responded_at"))
 	notify(tournament.organizer, player, "tournament_invitation", f"{player.gamer_tag} accepted the invitation to {tournament.name}", f"/tournaments/{tournament.slug}/manage/")
 	messages.success(request, f"You joined {tournament.name}.")
 	return redirect("tournament_detail", slug=tournament.slug)
@@ -179,9 +190,11 @@ def tournament_toggle_registration(request, slug):
 	if tournament.status == "Registration Open":
 		tournament.status = "Registration Closed"
 		message = "Registration closed."
-	else:
+	elif tournament.status in ("Draft", "Registration Closed"):
 		tournament.status = "Registration Open"
 		message = "Registration opened."
+	else:
+		return HttpResponseForbidden("This tournament cannot reopen registration in its current state.")
 	tournament.save(update_fields=("status",))
 	messages.success(request, message)
 	return redirect("tournament_manage", slug=tournament.slug)
@@ -296,8 +309,8 @@ def tournament_register(request, slug):
 	player = get_object_or_404(GamerProfile, user=request.user)
 	if request.method != "POST":
 		return HttpResponseForbidden("This action requires POST.")
-	if tournament.status != "Registration Open" or timezone.now() > tournament.registration_deadline:
-		return HttpResponseForbidden("Registration is closed.")
+	if _rate_limit_exceeded(request, "tournament_register", 20):
+		return HttpResponseForbidden("Too many registration attempts. Please slow down.")
 
 	team_id = request.POST.get("team_id")
 	if team_id:
@@ -309,26 +322,38 @@ def tournament_register(request, slug):
 		members = list(TeamMembership.objects.filter(team=team).select_related("player"))
 		if not members:
 			return HttpResponseForbidden("This team has no members to register.")
-		new_count = TournamentRegistration.objects.filter(tournament=tournament, status="Registered").count() + len(members)
-		if new_count > tournament.max_participants:
-			return HttpResponseForbidden("This team would exceed the tournament participant limit.")
-		for membership in members:
-			registration, _ = TournamentRegistration.objects.get_or_create(tournament=tournament, player=membership.player, defaults={"status": "Registered"})
-			if registration.status in ("Withdrawn", "Waitlisted"):
-				registration.status = "Registered"
-				registration.save(update_fields=("status",))
+		with transaction.atomic():
+			tournament = Tournament.objects.select_for_update().get(pk=tournament.pk)
+			if tournament.status != "Registration Open" or timezone.now() > tournament.registration_deadline:
+				return HttpResponseForbidden("Registration is closed.")
+			if tournament.participant_count + len(members) > tournament.max_participants:
+				return HttpResponseForbidden("This team would exceed the tournament participant limit.")
+			for membership in members:
+				registration, _ = TournamentRegistration.objects.get_or_create(
+					tournament=tournament,
+					player=membership.player,
+					defaults={"status": "Registered", "team": team},
+				)
+				if registration.team_id != team.id or registration.status in ("Withdrawn", "Waitlisted"):
+					registration.team = team
+					registration.status = "Registered"
+					registration.save(update_fields=("team", "status"))
 		notify(tournament.organizer, player, "tournament", f"{team.name} registered for {tournament.name}", f"/tournaments/{tournament.slug}/manage/")
 		messages.success(request, "Your team joined the tournament.")
 		if request.headers.get("x-requested-with") == "XMLHttpRequest":
 			return JsonResponse({"ok": True, "message": "Your team joined the tournament.", "registered": True})
 		return redirect("tournament_detail", slug=slug)
 
-	if tournament.participant_count >= tournament.max_participants:
-		return HttpResponseForbidden("This tournament is full.")
-	registration, _ = TournamentRegistration.objects.get_or_create(tournament=tournament, player=player, defaults={"status": "Registered"})
-	if registration.status in ("Withdrawn", "Waitlisted"):
-		registration.status = "Registered"
-		registration.save(update_fields=("status",))
+	with transaction.atomic():
+		tournament = Tournament.objects.select_for_update().get(pk=tournament.pk)
+		if tournament.status != "Registration Open" or timezone.now() > tournament.registration_deadline:
+			return HttpResponseForbidden("Registration is closed.")
+		if tournament.participant_count >= tournament.max_participants:
+			return HttpResponseForbidden("This tournament is full.")
+		registration, _ = TournamentRegistration.objects.get_or_create(tournament=tournament, player=player, defaults={"status": "Registered"})
+		if registration.status in ("Withdrawn", "Waitlisted"):
+			registration.status = "Registered"
+			registration.save(update_fields=("status",))
 	notify(tournament.organizer, player, "tournament", f"{player.gamer_tag} registered for {tournament.name}", f"/tournaments/{tournament.slug}/manage/")
 	messages.success(request, "You joined the tournament.")
 	if request.headers.get("x-requested-with") == "XMLHttpRequest":
@@ -351,6 +376,9 @@ def tournament_leave(request, slug):
 @login_required
 def challenge_create(request, slug):
 	tournament = get_object_or_404(Tournament, slug=slug)
+	if _rate_limit_exceeded(request, "challenge", 20):
+		messages.error(request, "Too many challenges sent. Please slow down.")
+		return redirect("tournament_detail", slug=tournament.slug)
 	form = ChallengeForm(request.POST or None)
 	if form.is_valid():
 		challenge = form.save(commit=False)
@@ -360,12 +388,14 @@ def challenge_create(request, slug):
 			form.add_error("game", "Challenges must use this tournament's game.")
 		if challenge.opponent == challenge.challenger:
 			form.add_error("opponent", "You cannot challenge yourself.")
+		if Block.objects.filter(Q(blocker=challenge.challenger, blocked=challenge.opponent) | Q(blocker=challenge.opponent, blocked=challenge.challenger)).exists():
+			form.add_error("opponent", "You cannot challenge this player.")
 		if not form.errors:
 			challenge.save()
 			notify(challenge.opponent, challenge.challenger, "challenge", f"{challenge.challenger.gamer_tag} challenged you", f"/tournaments/{tournament.slug}/")
 			messages.success(request, "Challenge sent.")
 			return redirect("tournament_detail", slug=tournament.slug)
-	return render(request, "tournaments/tournament_detail.html", {"tournament": tournament, "challenge_form": form})
+	return render(request, "tournaments/tournament_detail.html", {"tournament": tournament, "challenge_form": form, "player": get_object_or_404(GamerProfile, user=request.user)})
 
 
 @login_required

@@ -7705,3 +7705,17 @@ a:hover { color: #a5b4fc; }
         animation: none;
     }
 }
+
+/* Mobile menu search: shown inside the collapsible nav menu on small screens. */
+.nav-search-mobile {
+    display: none;
+    width: 100%;
+    max-width: none;
+    margin-top: 0.4rem;
+}
+
+@media (max-width: 900px) {
+    .nav-search-mobile {
+        display: flex;
+    }
+}

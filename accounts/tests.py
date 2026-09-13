@@ -20,10 +20,10 @@ from PIL import Image
 
 from games.models import Game
 
-from .models import Block, Conversation, ConversationParticipant, ExternalFeedItem, Follow, FriendRequest, Friendship, GamerPresence, GamerProfile, Message, MessageRequest, Notification, Post, PostLike, PushSubscription, RespectTransaction, Venue, notify
+from .models import Block, Conversation, ConversationParticipant, ExternalFeedItem, Follow, FriendRequest, Friendship, GamerPresence, GamerProfile, Message, MessageRequest, Notification, Post, PostLike, PushSubscription, Report, RespectTransaction, Venue, notify
 from .forms import GamerProfileForm
 from .services import _parse_rss_feed, refresh_public_gaming_feed
-from events.models import Event, Organization, OrganizationLocation
+from events.models import Event, Organization, OrganizationLocation, OrganizationLocationReview
 from teams.models import Team, TeamInvitation
 
 
@@ -193,6 +193,40 @@ class AuthSecurityWorkflowTests(TestCase):
 		self.assertContains(response, "We couldn’t sign you in")
 		self.assertNotIn("inactive", response.content.decode("utf-8").lower())
 
+	def test_signup_ignores_external_next_redirect_targets(self):
+		for attempt, next_url in enumerate(
+			["https://evil.example.com/phish", "//evil.example.com", "/\\evil.example.com"]
+		):
+			response = self.client.post(
+				reverse("signup"),
+				{
+					"username": f"safenext{attempt}",
+					"email": f"safenext{attempt}@example.com",
+					"gamer_tag": f"SafeNext{attempt}ZW",
+					"password1": "strong-password-123",
+					"password2": "strong-password-123",
+					"next": next_url,
+				},
+			)
+			self.assertRedirects(response, f"/profiles/SafeNext{attempt}ZW/")
+
+	def test_login_is_rate_limited_for_anonymous_attempts(self):
+		with patch("accounts.views.time.time", return_value=1740000000.0):
+			for _ in range(20):
+				response = self.client.post(
+					reverse("login"),
+					{"username": "nonexistent", "password": "wrong"},
+					REMOTE_ADDR="203.0.113.10",
+				)
+				self.assertEqual(response.status_code, 200)
+			response = self.client.post(
+				reverse("login"),
+				{"username": "existinguser", "password": "strong-password-123"},
+				REMOTE_ADDR="203.0.113.10",
+			)
+			self.assertRedirects(response, reverse("login"))
+			self.assertNotIn("_auth_user_id", self.client.session)
+
 	def test_password_reset_flow_is_safe_and_tokenized(self):
 		mail.outbox.clear()
 		response = self.client.post(reverse("password_reset"), {"email": "existing@example.com"})
@@ -252,7 +286,8 @@ class ProviderIdentityAuthTests(TestCase):
 		session["oauth_state_google"] = state
 		session.save()
 		with patch("accounts.views.google_oauth_exchange", return_value={"access_token": "google-access-token"}), \
-			patch("accounts.views.google_oauth_userinfo", return_value={"sub": "google-123", "email": "googleuser@example.com", "name": "Google User"}):
+			patch("accounts.views.google_oauth_userinfo", return_value={"sub": "google-123", "email": "googleuser@example.com", "name": "Google User"}), \
+			patch("accounts.views.google_verify_id_token", return_value={"sub": "google-123", "email": "googleuser@example.com", "name": "Google User", "email_verified": True}):
 			response = self.client.get(reverse("google_login_callback"), {"code": "auth-code", "state": state})
 		self.assertEqual(response.status_code, 302)
 		self.assertTrue(User.objects.filter(email="googleuser@example.com").exists())
@@ -266,10 +301,58 @@ class ProviderIdentityAuthTests(TestCase):
 		session["oauth_state_apple"] = state
 		session.save()
 		with patch("accounts.views.apple_oauth_exchange", return_value={"id_token": "apple-token"}), \
-			patch("accounts.views.apple_oauth_userinfo", return_value={"sub": "apple-456", "email": "apple@example.com", "name": "Apple User"}):
+			patch("accounts.views.apple_oauth_userinfo", return_value={"sub": "apple-456", "email": "apple@example.com", "name": "Apple User", "email_verified": True}):
 			response = self.client.get(reverse("apple_login_callback"), {"code": "auth-code", "state": state})
 		self.assertEqual(response.status_code, 302)
 		self.assertTrue(user.social_identities.filter(provider="apple").exists())
+
+	def test_google_verified_email_links_existing_account(self):
+		user = User.objects.create_user(username="gverified", email="gverified@example.com", password="strong-password-123")
+		GamerProfile.objects.create(user=user, gamer_tag="GVerifiedZW")
+		state = "google-state-verified"
+		session = self.client.session
+		session["oauth_state_google"] = state
+		session.save()
+		with patch("accounts.views.google_oauth_exchange", return_value={"access_token": "t"}), \
+			patch("accounts.views.google_oauth_userinfo", return_value={"email": "gverified@example.com"}), \
+			patch("accounts.views.google_verify_id_token", return_value={"sub": "g-verified", "email": "gverified@example.com", "email_verified": True}):
+			response = self.client.get(reverse("google_login_callback"), {"code": "c", "state": state})
+		self.assertEqual(response.status_code, 302)
+		self.assertTrue(user.social_identities.filter(provider="google", provider_user_id="g-verified").exists())
+
+	def test_google_unverified_email_does_not_link_existing_account(self):
+		user = User.objects.create_user(username="gunverified", email="gunverified@example.com", password="strong-password-123")
+		GamerProfile.objects.create(user=user, gamer_tag="GUnverifiedZW")
+		state = "google-state-unverified"
+		session = self.client.session
+		session["oauth_state_google"] = state
+		session.save()
+		with patch("accounts.views.google_oauth_exchange", return_value={"access_token": "t"}), \
+			patch("accounts.views.google_oauth_userinfo", return_value={"email": "gunverified@example.com"}), \
+			patch("accounts.views.google_verify_id_token", return_value={"sub": "g-unverified", "email": "gunverified@example.com", "email_verified": False}):
+			response = self.client.get(reverse("google_login_callback"), {"code": "c", "state": state})
+		self.assertEqual(response.status_code, 302)
+		self.assertFalse(user.social_identities.filter(provider="google").exists())
+
+	def test_apple_callback_passes_nonce_to_userinfo(self):
+		user = User.objects.create_user(username="applenonce", email="applenonce@example.com", password="strong-password-123")
+		GamerProfile.objects.create(user=user, gamer_tag="AppleNonceZW")
+		state = "apple-state-nonce"
+		session = self.client.session
+		session["oauth_state_apple"] = state
+		session["oauth_nonce_apple"] = "expected-nonce-123"
+		session.save()
+		with patch("accounts.views.apple_oauth_exchange", return_value={"id_token": "apple-token"}), \
+			patch("accounts.views.apple_oauth_userinfo", return_value={"sub": "apple-nonce", "email": "applenonce@example.com", "email_verified": True}) as mock_info:
+			response = self.client.get(reverse("apple_login_callback"), {"code": "auth-code", "state": state})
+		self.assertEqual(response.status_code, 302)
+		mock_info.assert_called_once_with("apple-token", "expected-nonce-123")
+
+	def test_google_verify_id_token_rejects_wrong_audience(self):
+		from accounts.views import google_verify_id_token
+		with patch("accounts.views._json_http_request", return_value={"aud": "some-other-client", "sub": "x"}):
+			with self.assertRaises(ValueError):
+				google_verify_id_token("garbage-token")
 
 	def test_security_page_shows_connected_provider_status_and_blocks_final_unlink(self):
 		user = User.objects.create_user(username="providerlink", email="providerlink@example.com", password="strong-password-123")
@@ -655,7 +738,7 @@ class GamerProfileWorkflowTests(TestCase):
 
 	def test_message_requests_dashboard_is_not_captured_by_profile_action_route(self):
 		self.client.login(username="tendai", password="strong-password-123")
-		response = self.client.get("/profiles/messages/requests/")
+		response = self.client.get(reverse("message_requests"))
 		self.assertEqual(response.status_code, 200)
 		self.assertContains(response, "Message requests")
 
@@ -1008,6 +1091,67 @@ class RadarLocationTests(TestCase):
 		with self.assertRaises(ValidationError):
 			location.reviews.create(author=profile, review_text="   ")
 
+	def test_radar_location_detail_is_public_and_renders_with_reviews(self):
+		profile = GamerProfile.objects.create(
+			user=User.objects.create_user(username="radarview", password="pass"),
+			gamer_tag="RadarViewer",
+		)
+		organization = Organization.objects.create(
+			owner=profile,
+			name="GGz Public Hub",
+			slug="ggz-public-hub",
+			organization_type="Venue",
+			latitude=-17.8252,
+			longitude=31.0335,
+			location_public=True,
+		)
+		location = organization.locations.create(
+			name="Public Hub",
+			location_type="Gaming Hub",
+			city="Harare",
+			country="Zimbabwe",
+			latitude=-17.8252,
+			longitude=31.0335,
+		)
+		location.reviews.create(author=profile, rating=5, review_text="Great venue to play.")
+		response = self.client.get(reverse("radar_location_detail", args=(location.id,)))
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Public Hub")
+		self.assertContains(response, "Great venue to play.")
+
+	def test_radar_review_delete_requires_post_and_blocks_others(self):
+		owner = GamerProfile.objects.create(
+			user=User.objects.create_user(username="radarowner2", password="pass"),
+			gamer_tag="RadarOwner2",
+		)
+		other = GamerProfile.objects.create(
+			user=User.objects.create_user(username="radarother2", password="pass"),
+			gamer_tag="RadarOther2",
+		)
+		organization = Organization.objects.create(
+			owner=owner,
+			name="GGz Delete Hub",
+			slug="ggz-delete-hub",
+			organization_type="Venue",
+			latitude=-17.8252,
+			longitude=31.0335,
+		)
+		location = organization.locations.create(name="Delete Hub", latitude=-17.8252, longitude=31.0335)
+		review = location.reviews.create(author=other, rating=4, review_text="Solid venue.")
+		self.client.login(username="radarother2", password="pass")
+		response = self.client.get(reverse("radar_location_review_delete", args=(location.id, review.id)))
+		self.assertEqual(response.status_code, 403)
+		self.assertTrue(OrganizationLocationReview.objects.filter(id=review.id).exists())
+		response = self.client.post(reverse("radar_location_review_delete", args=(location.id, review.id)))
+		self.assertEqual(response.status_code, 302)
+		self.assertFalse(OrganizationLocationReview.objects.filter(id=review.id).exists())
+
+	def test_geo_discovery_handles_malformed_coordinates_gracefully(self):
+		response = self.client.get(reverse("geo_discovery"), {"lat": "not-a-float", "lng": "31.0335", "radius": "abc", "q": "Harare"})
+		self.assertEqual(response.status_code, 200)
+		response = self.client.get(reverse("geo_discovery"), {"lat": "-17.8252", "lng": "31.0335", "radius": "50"})
+		self.assertEqual(response.status_code, 200)
+
 
 class GamerProfileGameTests(TestCase):
 	def test_profile_games_are_visible_on_game_detail(self):
@@ -1163,6 +1307,17 @@ class SocialPostTests(TestCase):
 		self.assertEqual(
 			self.client.post(reverse("post_delete", args=[post.id])).status_code, 404
 		)
+
+	def test_post_report_is_rate_limited_per_user(self):
+		post = Post.objects.create(author=self.profile, body="Reportable")
+		self.client.login(username="chipo", password="strong-password-123")
+		for _ in range(5):
+			self.assertEqual(
+				self.client.post(reverse("post_report", args=[post.id])).status_code, 302
+			)
+		response = self.client.post(reverse("post_report", args=[post.id]))
+		self.assertEqual(response.status_code, 403)
+		self.assertEqual(Report.objects.filter(post=post).count(), 1)
 
 	def test_like_toggles_without_duplicates(self):
 		post = Post.objects.create(author=self.other_profile, body="Hello GGz")
@@ -1592,6 +1747,27 @@ class NotificationAndMessagingTests(TestCase):
 		self.client.post(reverse("post_detail", args=(post.id,)), {"body": "Not allowed"})
 		self.assertFalse(post.comments.exists())
 
+	def test_blocked_conversation_is_hidden_from_list_and_snapshot(self):
+		conversation = Conversation.objects.create()
+		ConversationParticipant.objects.bulk_create([
+			ConversationParticipant(conversation=conversation, profile=self.sender),
+			ConversationParticipant(conversation=conversation, profile=self.recipient),
+		])
+		Message.objects.create(conversation=conversation, sender=self.sender, body="Blocked greeting")
+		Block.objects.create(blocker=self.recipient, blocked=self.sender)
+		self.client.login(username="recipient", password="pass")
+		response = self.client.get(reverse("conversation_list"))
+		self.assertNotContains(response, "Blocked greeting")
+		snapshot = self.client.get(reverse("conversation_inbox_stream"), {"format": "json"}).json()
+		self.assertEqual(snapshot["items"], [])
+
+	def test_blocked_message_request_is_hidden_from_requests_dashboard(self):
+		MessageRequest.objects.create(sender=self.sender, recipient=self.recipient, status="Pending")
+		Block.objects.create(blocker=self.recipient, blocked=self.sender)
+		self.client.login(username="recipient", password="pass")
+		response = self.client.get(reverse("message_requests"))
+		self.assertNotContains(response, "Sender")
+
 
 class SearchAndRankTests(TestCase):
 	def test_account_dropdown_is_concise_and_uses_single_destinations(self):
@@ -1675,7 +1851,7 @@ class SearchAndRankTests(TestCase):
 		self.assertContains(response, 'aria-expanded="false"')
 		self.assertContains(response, "Community feed")
 		self.assertContains(response, 'id="discover-panel"')
-		self.assertContains(response, 'href="/profiles/discover/"')
+		self.assertContains(response, 'href="/discover/"')
 
 	def test_search_categories_paginate_independently_and_preserve_query(self):
 		for index in range(11):

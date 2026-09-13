@@ -50,6 +50,7 @@ class TournamentRegistration(models.Model):
 	STATUS_CHOICES = [(value, value) for value in ("Registered", "Waitlisted", "Withdrawn", "Disqualified")]
 	tournament = models.ForeignKey(Tournament, on_delete=models.CASCADE, related_name="registrations")
 	player = models.ForeignKey(GamerProfile, on_delete=models.CASCADE, related_name="tournament_registrations")
+	team = models.ForeignKey("teams.Team", on_delete=models.SET_NULL, blank=True, null=True, related_name="tournament_registrations")
 	status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="Registered")
 	joined_at = models.DateTimeField(auto_now_add=True)
 

@@ -3,11 +3,13 @@ from django.db.models import Q, Count, Case, When, IntegerField
 from django.core.paginator import Paginator, EmptyPage
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.http import HttpResponseForbidden
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from marketplace.models import Listing
 from accounts.models import Block, ExternalFeedItem, GamerProfile
+from accounts.views import _rate_limit_exceeded
 from tournaments.models import Challenge, Tournament, TournamentMatch
 from events.models import Event
 
@@ -196,6 +198,9 @@ def game_leaderboard(request, game_id):
 def game_challenge_create(request, game_id):
 	if request.method != "POST":
 		return HttpResponseForbidden("This action requires POST.")
+	if _rate_limit_exceeded(request, "challenge", 20):
+		messages.error(request, "Too many challenges sent. Please slow down.")
+		return redirect("game_detail", game_id=game_id)
 	game = get_object_or_404(Game, id=game_id)
 	profile = get_object_or_404(GamerProfile, user=request.user)
 	opponent_id = request.POST.get("opponent")
@@ -208,6 +213,9 @@ def game_challenge_create(request, game_id):
 	)
 	if opponent == profile:
 		messages.error(request, "You cannot challenge yourself.")
+		return redirect("game_detail", game_id=game.id)
+	if Block.objects.filter(Q(blocker=profile, blocked=opponent) | Q(blocker=opponent, blocked=profile)).exists():
+		messages.error(request, "You cannot challenge this player.")
 		return redirect("game_detail", game_id=game.id)
 	scheduled_at = request.POST.get("scheduled_at") or None
 	if scheduled_at:

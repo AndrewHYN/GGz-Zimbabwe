@@ -112,6 +112,22 @@ def team_create(request):
 
 
 @login_required
+def team_edit(request, slug):
+    team = get_object_or_404(Team, slug=slug)
+    profile = get_object_or_404(GamerProfile, user=request.user)
+    if not _is_team_manager(profile, team):
+        return HttpResponseForbidden("You are not authorized to manage this team.")
+    form = TeamForm(request.POST or None, instance=team)
+    if form.is_valid():
+        team = form.save(commit=False)
+        team.slug = slugify(team.name)
+        team.save()
+        messages.success(request, "Your team was updated.")
+        return redirect("team_detail", slug=team.slug)
+    return render(request, "teams/team_form.html", {"form": form, "team": team, "editing": True})
+
+
+@login_required
 def team_invite(request, slug):
     if request.method != "POST":
         return HttpResponseForbidden("This action requires POST.")

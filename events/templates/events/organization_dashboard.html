@@ -12,12 +12,12 @@
     <div class="organization-portal-actions">
       <a class="button alt" href="{% url 'organization_public_profile' organization.slug %}">View public profile</a>
       <a class="button alt" href="{% url 'map_page' %}">View on Radar</a>
-      <a class="button" href="{% url 'organization_portal_location_create' organization.slug %}">Add location</a>
+      <a class="button" href="{% url 'organization_location_create' organization.slug %}">Add location</a>
     </div>
   </div>
 
   <nav class="organization-portal-nav" aria-label="Organization portal">
-    <a class="is-active" href="{% url 'organization_portal_dashboard' organization.slug %}">Overview</a>
+    <a class="is-active" href="{% url 'organization_dashboard' organization.slug %}">Overview</a>
     <a href="{% url 'organization_edit' organization.slug %}">Profile</a>
     <a href="#locations">Locations</a>
     <a href="#events">Events</a>
