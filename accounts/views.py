@@ -147,57 +147,95 @@ def apple_oauth_exchange(code):
 	)
 
 
-def _decode_jwt_claims(token):
-	if not token:
-		return {}
-	parts = token.split(".")
-	if len(parts) < 2:
-		return {}
-	payload = parts[1]
-	padding = "=" * (-len(payload) % 4)
-	try:
-		decoded = json.loads(__import__("base64").urlsafe_b64decode(payload + padding).decode("utf-8"))
-		return decoded if isinstance(decoded, dict) else {}
-	except Exception:
-		return {}
+GOOGLE_CERTS_URL = "https://www.googleapis.com/oauth2/v3/certs"
+GOOGLE_ISSUERS = {"accounts.google.com", "https://accounts.google.com"}
+
+
+def _google_jwks():
+	keys = cache.get("ggz_google_jwks")
+	if not keys:
+		payload = _json_http_request(GOOGLE_CERTS_URL, method="GET")
+		keys = {key.get("kid"): key for key in payload.get("keys", []) if key.get("kid")}
+		if keys:
+			cache.set("ggz_google_jwks", keys, timeout=60 * 60 * 6)
+	return keys or {}
+
+
+def _google_verification_key(jwks, kid):
+	if jwks:
+		key_data = jwks.get(kid)
+		if key_data:
+			return jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(key_data))
+	return None
 
 
 def google_verify_id_token(id_token):
 	if not id_token:
 		raise ValueError("Google identity token missing")
-	claims = _json_http_request(f"https://oauth2.googleapis.com/tokeninfo?id_token={id_token}", method="GET")
-	if claims.get("aud") != settings.GOOGLE_CLIENT_ID or not claims.get("sub"):
+	try:
+		header = jwt.get_unverified_header(id_token)
+	except jwt.PyJWTError:
+		raise ValueError("Google identity token is malformed")
+	jwks = _google_jwks()
+	public_key = _google_verification_key(jwks, header.get("kid"))
+	if public_key is None:
+		cache.delete("ggz_google_jwks")
+		jwks = _google_jwks()
+		public_key = _google_verification_key(jwks, header.get("kid"))
+	if public_key is None:
+		raise ValueError("Google signing key not found")
+	try:
+		claims = jwt.decode(
+			id_token,
+			key=public_key,
+			algorithms=["RS256"],
+			audience=settings.GOOGLE_CLIENT_ID,
+			options={"require": ["exp", "sub", "iss"]},
+		)
+	except jwt.PyJWTError:
 		raise ValueError("Google identity token is invalid")
+	if not claims.get("sub"):
+		raise ValueError("Google identity token is invalid")
+	if claims.get("iss") not in GOOGLE_ISSUERS:
+		raise ValueError("Google identity token issuer is invalid")
 	return claims
 
 
-def google_oauth_userinfo(access_token):
-	request = Request(
-		"https://openidconnect.googleapis.com/v1/userinfo",
-		headers={"Authorization": f"Bearer {access_token}"},
-		method="GET",
-	)
-	with urlopen(request, timeout=20) as response:
-		return json.loads(response.read().decode("utf-8"))
+def _apple_jwks():
+	keys = cache.get("ggz_apple_jwks")
+	if not keys:
+		key_set = _json_http_request("https://appleid.apple.com/auth/keys", method="GET")
+		keys = {key.get("kid"): key for key in key_set.get("keys", []) if key.get("kid")}
+		if keys:
+			cache.set("ggz_apple_jwks", keys, timeout=60 * 60 * 6)
+	return keys or {}
 
 
 def apple_oauth_userinfo(id_token, expected_nonce=None):
 	if not id_token or not settings.APPLE_CLIENT_ID:
 		raise ValueError("Apple identity validation is unavailable.")
-	with urlopen("https://appleid.apple.com/auth/keys", timeout=20) as response:
-		key_set = json.loads(response.read().decode("utf-8"))
-	header = jwt.get_unverified_header(id_token)
-	key_data = next((key for key in key_set.get("keys", []) if key.get("kid") == header.get("kid")), None)
+	try:
+		header = jwt.get_unverified_header(id_token)
+	except jwt.PyJWTError:
+		raise ValueError("Apple identity token is malformed")
+	key_data = _apple_jwks().get(header.get("kid"))
+	if not key_data:
+		cache.delete("ggz_apple_jwks")
+		key_data = _apple_jwks().get(header.get("kid"))
 	if not key_data:
 		raise ValueError("Apple signing key not found.")
 	public_key = jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(key_data))
-	claims = jwt.decode(
-		id_token,
-		key=public_key,
-		algorithms=["RS256"],
-		audience=settings.APPLE_CLIENT_ID,
-		issuer="https://appleid.apple.com",
-	)
+	try:
+		claims = jwt.decode(
+			id_token,
+			key=public_key,
+			algorithms=["RS256"],
+			audience=settings.APPLE_CLIENT_ID,
+			issuer="https://appleid.apple.com",
+			options={"require": ["exp", "sub"]},
+		)
+	except jwt.PyJWTError:
+		raise ValueError("Apple identity token is invalid")
 	if expected_nonce and claims.get("nonce") != expected_nonce:
 		raise ValueError("Apple identity token nonce was rejected.")
 	return {
@@ -208,43 +246,41 @@ def apple_oauth_userinfo(id_token, expected_nonce=None):
 	}
 
 
+class ProviderLinkingError(ValueError):
+	def __init__(self, message):
+		super().__init__(message)
+		self.message = message
+
+
 def _resolve_or_create_provider_user(provider, claims, request):
 	provider_user_id = str(claims.get("sub") or claims.get("id") or "")
 	email = (claims.get("email") or "").strip()
 	display_name = (claims.get("name") or claims.get("display_name") or email.split("@", 1)[0] or "GGz Player").strip()
 	if not provider_user_id:
-		raise ValueError("Provider identity is missing.")
+		raise ProviderLinkingError("The provider could not confirm your identity.")
 
 	identity = SocialIdentity.objects.filter(provider=provider, provider_user_id=provider_user_id).select_related("user").first()
 	if identity:
+		if request.user.is_authenticated and identity.user_id != request.user.pk:
+			raise ProviderLinkingError("That provider account is already connected to a different GGz account.")
 		return identity.user
 
 	current_user = request.user if request.user.is_authenticated else None
 	if current_user is not None:
 		if SocialIdentity.objects.filter(provider=provider, user=current_user).exists():
-			raise ValueError("This account is already linked to this provider.")
-		if email:
-			existing = User.objects.filter(email__iexact=email).exclude(pk=current_user.pk).first()
-			if existing and not existing == current_user:
-				raise ValueError("That email is already connected to a different GGz account.")
+			raise ProviderLinkingError("This GGz account is already connected to that provider.")
+		if email and User.objects.filter(email__iexact=email).exclude(pk=current_user.pk).exists():
+			raise ProviderLinkingError("That email belongs to a different GGz account. Sign out and sign in to that account to link this provider.")
 		user = current_user
 	else:
-		if email:
-			existing = User.objects.filter(email__iexact=email).first()
-			if existing:
-				if not claims.get("email_verified"):
-					raise ValueError("Provider email must be verified to connect an existing GGz account.")
-				SocialIdentity.objects.create(user=existing, provider=provider, provider_user_id=provider_user_id, email=email, display_name=display_name)
-				return existing
+		if User.objects.filter(email__iexact=email).exists():
+			raise ProviderLinkingError("An account with this email already exists. Sign in with your GGz password, then connect this provider from Security settings.")
 		base_username = re.sub(r"[^A-Za-z0-9_.-]", "", display_name)[:20] or "ggzplayer"
-		base_username = base_username or "ggzplayer"
 		username = base_username
 		suffix = 1
 		while User.objects.filter(username__iexact=username).exists():
 			username = f"{base_username}{suffix}"
 			suffix += 1
-		if not email:
-			raise ValueError("Provider identity did not include an email address.")
 		user = User.objects.create_user(username=username, email=email, password=None)
 		GamerProfile.objects.create(user=user, gamer_tag=(username[:20] or "GGzPlayer") + "ZW")
 
@@ -265,10 +301,14 @@ def _safe_redirect_url(request, fallback_url="/"):
 	next_url = (request.POST.get("next") or request.GET.get("next") or fallback_url or "/").strip()
 	if not next_url:
 		return fallback_url or "/"
-	if next_url.startswith("/") and not next_url.startswith("//") and "\\" not in next_url:
-		return next_url
+	if any(ord(char) < 32 for char in next_url):
+		return fallback_url or "/"
+	if next_url.startswith("/") and not next_url.startswith("//") and not next_url.startswith("///"):
+		lowered = next_url.lower()
+		if "\\" not in lowered and "%5c" not in lowered and "%2f" not in lowered:
+			return next_url
 	parsed = urlsplit(next_url)
-	if parsed.scheme or parsed.netloc or "\\" in next_url:
+	if parsed.scheme or parsed.netloc or "\\" in next_url or "%5c" in next_url.lower() or "%2f" in next_url.lower() or next_url.startswith("//"):
 		return fallback_url or "/"
 	return next_url
 
@@ -2191,23 +2231,32 @@ def google_login_callback(request):
 	if request.GET.get("error"):
 		messages.error(request, "Google sign-in was cancelled or failed.")
 		return redirect("login")
+	if _rate_limit_exceeded(request, "oauth_google", 10, 300):
+		messages.error(request, "Too many sign-in attempts. Please wait a few minutes and try again.")
+		return redirect("login")
 	try:
 		code = request.GET.get("code")
 		if not code:
 			raise ValueError("Google callback code missing")
-		token_response = google_oauth_exchange(code)
-		if "error" in token_response or not token_response.get("access_token"):
-			raise ValueError(token_response.get("error", "Google access token missing"))
-		userinfo = google_oauth_userinfo(token_response["access_token"])
-		claims = google_verify_id_token(token_response.get("id_token", ""))
-		for key in ("sub", "email", "email_verified", "name"):
-			if claims.get(key) is not None:
-				userinfo[key] = claims[key]
-		user = _resolve_or_create_provider_user("google", userinfo, request)
+		id_token = request.GET.get("id_token")
+		if not id_token:
+			token_response = google_oauth_exchange(code)
+			if "error" in token_response or not token_response.get("id_token"):
+				raise ValueError(token_response.get("error", "Google identity token missing"))
+			id_token = token_response["id_token"]
+		claims = google_verify_id_token(id_token)
+		userinfo = {"sub": claims.get("sub"), "email": claims.get("email"), "email_verified": claims.get("email_verified"), "name": claims.get("name")}
+		user = _resolve_or_create_provider_user("google", {k: v for k, v in userinfo.items() if v is not None}, request)
+		next_url = request.session.get("oauth_next", "/")
+		request.session.pop("oauth_state_google", None)
+		request.session.pop("oauth_next", None)
 		login(request, user)
 		request.session.cycle_key()
 		messages.success(request, "You are signed in with Google.")
-		return redirect(_safe_redirect_url(request, request.session.get("oauth_next", "/")))
+		return redirect(_safe_redirect_url(request, next_url))
+	except ProviderLinkingError as error:
+		messages.error(request, error.message)
+		return redirect("login")
 	except Exception:
 		messages.error(request, "Google sign-in could not be completed. Please try again.")
 		return redirect("login")
@@ -2242,6 +2291,9 @@ def apple_login_callback(request):
 	if request.POST.get("error") or request.GET.get("error"):
 		messages.error(request, "Apple sign-in was cancelled or failed.")
 		return redirect("login")
+	if _rate_limit_exceeded(request, "oauth_apple", 10, 300):
+		messages.error(request, "Too many sign-in attempts. Please wait a few minutes and try again.")
+		return redirect("login")
 	try:
 		code = request.POST.get("code") or request.GET.get("code")
 		if not code:
@@ -2251,10 +2303,17 @@ def apple_login_callback(request):
 			raise ValueError(token_response.get("error", "Apple identity token missing"))
 		userinfo = apple_oauth_userinfo(token_response["id_token"], request.session.get("oauth_nonce_apple"))
 		user = _resolve_or_create_provider_user("apple", userinfo, request)
+		next_url = request.session.get("oauth_next", "/")
+		request.session.pop("oauth_state_apple", None)
+		request.session.pop("oauth_nonce_apple", None)
+		request.session.pop("oauth_next", None)
 		login(request, user)
 		request.session.cycle_key()
 		messages.success(request, "You are signed in with Apple.")
-		return redirect(_safe_redirect_url(request, request.session.get("oauth_next", "/")))
+		return redirect(_safe_redirect_url(request, next_url))
+	except ProviderLinkingError as error:
+		messages.error(request, error.message)
+		return redirect("login")
 	except Exception:
 		messages.error(request, "Apple sign-in could not be completed. Please try again.")
 		return redirect("login")
@@ -2280,6 +2339,9 @@ def unlink_provider(request, provider):
 
 
 def ggz_password_reset(request):
+	if request.method == "POST" and _rate_limit_exceeded(request, "password_reset", 5, 600):
+		messages.error(request, "Too many password reset requests from this location. Please wait and try again.")
+		return redirect("password_reset_done")
 	form = PasswordResetForm(request.POST or None)
 	if request.method == "POST" and form.is_valid():
 		form.save(

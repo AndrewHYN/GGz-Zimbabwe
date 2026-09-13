@@ -1,9 +1,16 @@
+import base64
 from io import BytesIO
 import json
 import os
+import time
 from datetime import timedelta
 from unittest.mock import patch
 
+import jwt
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.auth.tokens import default_token_generator
 from django.core.cache import cache
@@ -11,7 +18,7 @@ from django.core import mail
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
-from django.test import Client, TestCase, override_settings
+from django.test import Client, RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
@@ -20,9 +27,10 @@ from PIL import Image
 
 from games.models import Game
 
-from .models import Block, Conversation, ConversationParticipant, ExternalFeedItem, Follow, FriendRequest, Friendship, GamerPresence, GamerProfile, Message, MessageRequest, Notification, Post, PostLike, PushSubscription, Report, RespectTransaction, Venue, notify
+from .models import Block, Conversation, ConversationParticipant, ExternalFeedItem, Follow, FriendRequest, Friendship, GamerPresence, GamerProfile, Message, MessageRequest, Notification, Post, PostLike, PushSubscription, Report, RespectTransaction, SocialIdentity, Venue, notify
 from .forms import GamerProfileForm
 from .services import _parse_rss_feed, refresh_public_gaming_feed
+from .views import _safe_redirect_url, apple_oauth_userinfo, google_verify_id_token
 from events.models import Event, Organization, OrganizationLocation, OrganizationLocationReview
 from teams.models import Team, TeamInvitation
 
@@ -238,6 +246,33 @@ class AuthSecurityWorkflowTests(TestCase):
 		reset_url = reverse("password_reset_confirm", kwargs={"uidb64": uid, "token": token})
 		self.assertIn("reset", reset_url)
 
+	def test_password_reset_is_rate_limited_per_location(self):
+		mail.outbox.clear()
+		with patch("accounts.views.time.time", return_value=1790000000.0):
+			for _ in range(5):
+				response = self.client.post(
+					reverse("password_reset"),
+					{"email": "existing@example.com"},
+					REMOTE_ADDR="198.51.100.20",
+				)
+				self.assertEqual(response.status_code, 302)
+			response = self.client.post(
+				reverse("password_reset"),
+				{"email": "existing@example.com"},
+				REMOTE_ADDR="198.51.100.20",
+				follow=True,
+			)
+			self.assertEqual(response.status_code, 200)
+			self.assertContains(response, "If that account exists")
+			self.assertEqual(len(mail.outbox), 5)
+			response = self.client.post(
+				reverse("password_reset"),
+				{"email": "existing@example.com"},
+				REMOTE_ADDR="198.51.100.21",
+			)
+			self.assertEqual(response.status_code, 302)
+			self.assertEqual(len(mail.outbox), 6)
+
 	def test_logout_invalidates_session(self):
 		self.client.login(username="existinguser", password="strong-password-123")
 		self.assertIn("_auth_user_id", self.client.session)
@@ -247,6 +282,45 @@ class AuthSecurityWorkflowTests(TestCase):
 
 
 class ProviderIdentityAuthTests(TestCase):
+	def setUp(self):
+		cache.clear()
+
+	def _make_rsa_keypair(self, kid="test-kid-1"):
+		private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+		numbers = private_key.public_key().public_numbers()
+		jwk = {
+			"kty": "RSA",
+			"alg": "RS256",
+			"use": "sig",
+			"kid": kid,
+			"n": base64.urlsafe_b64encode(numbers.n.to_bytes((numbers.n.bit_length() + 7) // 8, "big")).rstrip(b"=").decode(),
+			"e": base64.urlsafe_b64encode(numbers.e.to_bytes((numbers.e.bit_length() + 7) // 8, "big")).rstrip(b"=").decode(),
+		}
+		pem = private_key.private_bytes(
+			encoding=serialization.Encoding.PEM,
+			format=serialization.PrivateFormat.PKCS8,
+			encryption_algorithm=serialization.NoEncryption(),
+		)
+		return pem, jwk
+
+	def _sign_id_token(self, pem, kid, payload):
+		return jwt.encode(payload, pem, algorithm="RS256", headers={"kid": kid})
+
+	def _google_claims(self, client_id, **overrides):
+		now = int(time.time())
+		claims = {
+			"iss": "https://accounts.google.com",
+			"aud": client_id,
+			"sub": "google-sub-1",
+			"email": "googleflow@example.com",
+			"email_verified": True,
+			"name": "Google Flow",
+			"iat": now,
+			"exp": now + 3600,
+		}
+		claims.update(overrides)
+		return claims
+
 	def test_fake_provider_codes_never_create_identities(self):
 		for provider, callback_name, state_key in (
 			("google", "google_login_callback", "oauth_state_google"),
@@ -280,20 +354,25 @@ class ProviderIdentityAuthTests(TestCase):
 		self.assertContains(response, "Continue with Google")
 		self.assertNotContains(response, "Continue with Apple")
 
+	@override_settings(GOOGLE_CLIENT_ID="google-client", GOOGLE_CLIENT_SECRET="secret", APPLE_CLIENT_ID="com.example.ggz")
 	def test_google_oauth_flow_creates_and_authenticates_user(self):
+		pem, jwk = self._make_rsa_keypair()
+		token = self._sign_id_token(pem, jwk["kid"], self._google_claims("google-client"))
 		state = "google-state-123"
 		session = self.client.session
 		session["oauth_state_google"] = state
 		session.save()
-		with patch("accounts.views.google_oauth_exchange", return_value={"access_token": "google-access-token"}), \
-			patch("accounts.views.google_oauth_userinfo", return_value={"sub": "google-123", "email": "googleuser@example.com", "name": "Google User"}), \
-			patch("accounts.views.google_verify_id_token", return_value={"sub": "google-123", "email": "googleuser@example.com", "name": "Google User", "email_verified": True}):
+		with patch("accounts.views._google_jwks", return_value={jwk["kid"]: jwk}), \
+			patch("accounts.views.google_oauth_exchange", return_value={"id_token": token}):
 			response = self.client.get(reverse("google_login_callback"), {"code": "auth-code", "state": state})
 		self.assertEqual(response.status_code, 302)
-		self.assertTrue(User.objects.filter(email="googleuser@example.com").exists())
-		self.assertIn("_auth_user_id", self.client.session)
+		user = User.objects.get(email="googleflow@example.com")
+		self.assertFalse(user.has_usable_password())
+		self.assertEqual(user.gamer_profile.gamer_tag, "GoogleFlowZW")
+		self.assertTrue(user.social_identities.filter(provider="google").exists())
+		self.assertEqual(self.client.session["_auth_user_id"], str(user.pk))
 
-	def test_apple_oauth_flow_links_existing_password_account(self):
+	def test_unauthenticated_email_match_does_not_hijack_existing_password_account(self):
 		user = User.objects.create_user(username="appleuser", email="apple@example.com", password="strong-password-123")
 		GamerProfile.objects.create(user=user, gamer_tag="AppleUserZW")
 		state = "apple-state-456"
@@ -301,42 +380,42 @@ class ProviderIdentityAuthTests(TestCase):
 		session["oauth_state_apple"] = state
 		session.save()
 		with patch("accounts.views.apple_oauth_exchange", return_value={"id_token": "apple-token"}), \
-			patch("accounts.views.apple_oauth_userinfo", return_value={"sub": "apple-456", "email": "apple@example.com", "name": "Apple User", "email_verified": True}):
+			patch("accounts.views.apple_oauth_userinfo", return_value={"sub": "apple-456", "email": "apple@example.com", "email_verified": True}):
 			response = self.client.get(reverse("apple_login_callback"), {"code": "auth-code", "state": state})
 		self.assertEqual(response.status_code, 302)
-		self.assertTrue(user.social_identities.filter(provider="apple").exists())
+		self.assertNotIn("_auth_user_id", self.client.session)
+		self.assertFalse(user.social_identities.filter(provider="apple").exists())
 
-	def test_google_verified_email_links_existing_account(self):
+	def test_google_verified_email_match_does_not_auto_link_unauthenticated(self):
 		user = User.objects.create_user(username="gverified", email="gverified@example.com", password="strong-password-123")
 		GamerProfile.objects.create(user=user, gamer_tag="GVerifiedZW")
 		state = "google-state-verified"
 		session = self.client.session
 		session["oauth_state_google"] = state
 		session.save()
-		with patch("accounts.views.google_oauth_exchange", return_value={"access_token": "t"}), \
-			patch("accounts.views.google_oauth_userinfo", return_value={"email": "gverified@example.com"}), \
+		with patch("accounts.views.google_oauth_exchange", return_value={"id_token": "t"}), \
 			patch("accounts.views.google_verify_id_token", return_value={"sub": "g-verified", "email": "gverified@example.com", "email_verified": True}):
 			response = self.client.get(reverse("google_login_callback"), {"code": "c", "state": state})
 		self.assertEqual(response.status_code, 302)
-		self.assertTrue(user.social_identities.filter(provider="google", provider_user_id="g-verified").exists())
+		self.assertNotIn("_auth_user_id", self.client.session)
+		self.assertFalse(user.social_identities.filter(provider="google").exists())
 
-	def test_google_unverified_email_does_not_link_existing_account(self):
-		user = User.objects.create_user(username="gunverified", email="gunverified@example.com", password="strong-password-123")
-		GamerProfile.objects.create(user=user, gamer_tag="GUnverifiedZW")
+	def test_unverified_email_still_creates_fresh_account_without_merge(self):
+		existing = User.objects.create_user(username="gunverified", email="gunverified@example.com", password="strong-password-123")
+		GamerProfile.objects.create(user=existing, gamer_tag="GUnverifiedZW")
 		state = "google-state-unverified"
 		session = self.client.session
 		session["oauth_state_google"] = state
 		session.save()
-		with patch("accounts.views.google_oauth_exchange", return_value={"access_token": "t"}), \
-			patch("accounts.views.google_oauth_userinfo", return_value={"email": "gunverified@example.com"}), \
-			patch("accounts.views.google_verify_id_token", return_value={"sub": "g-unverified", "email": "gunverified@example.com", "email_verified": False}):
+		with patch("accounts.views.google_oauth_exchange", return_value={"id_token": "t"}), \
+			patch("accounts.views.google_verify_id_token", return_value={"sub": "g-other", "email": "gunverified@example.com", "email_verified": False}):
 			response = self.client.get(reverse("google_login_callback"), {"code": "c", "state": state})
 		self.assertEqual(response.status_code, 302)
-		self.assertFalse(user.social_identities.filter(provider="google").exists())
+		self.assertNotIn("_auth_user_id", self.client.session)
+		self.assertFalse(existing.social_identities.filter(provider="google").exists())
 
+	@override_settings(APPLE_CLIENT_ID="com.example.ggz")
 	def test_apple_callback_passes_nonce_to_userinfo(self):
-		user = User.objects.create_user(username="applenonce", email="applenonce@example.com", password="strong-password-123")
-		GamerProfile.objects.create(user=user, gamer_tag="AppleNonceZW")
 		state = "apple-state-nonce"
 		session = self.client.session
 		session["oauth_state_apple"] = state
@@ -347,12 +426,265 @@ class ProviderIdentityAuthTests(TestCase):
 			response = self.client.get(reverse("apple_login_callback"), {"code": "auth-code", "state": state})
 		self.assertEqual(response.status_code, 302)
 		mock_info.assert_called_once_with("apple-token", "expected-nonce-123")
+		user = User.objects.get()
+		self.assertTrue(user.social_identities.filter(provider="apple", provider_user_id="apple-nonce").exists())
 
-	def test_google_verify_id_token_rejects_wrong_audience(self):
-		from accounts.views import google_verify_id_token
-		with patch("accounts.views._json_http_request", return_value={"aud": "some-other-client", "sub": "x"}):
+	@override_settings(GOOGLE_CLIENT_ID="google-client")
+	def test_google_verify_accepts_valid_token(self):
+		pem, jwk = self._make_rsa_keypair()
+		token = self._sign_id_token(pem, jwk["kid"], self._google_claims("google-client"))
+		with patch("accounts.views._google_jwks", return_value={jwk["kid"]: jwk}):
+			claims = google_verify_id_token(token)
+		self.assertEqual(claims["sub"], "google-sub-1")
+		self.assertEqual(claims["email"], "googleflow@example.com")
+
+	@override_settings(GOOGLE_CLIENT_ID="google-client")
+	def test_google_verify_rejects_wrong_audience(self):
+		pem, jwk = self._make_rsa_keypair()
+		token = self._sign_id_token(pem, jwk["kid"], self._google_claims("some-other-client"))
+		with patch("accounts.views._google_jwks", return_value={jwk["kid"]: jwk}):
 			with self.assertRaises(ValueError):
-				google_verify_id_token("garbage-token")
+				google_verify_id_token(token)
+
+	@override_settings(GOOGLE_CLIENT_ID="google-client")
+	def test_google_verify_rejects_wrong_issuer(self):
+		pem, jwk = self._make_rsa_keypair()
+		token = self._sign_id_token(pem, jwk["kid"], self._google_claims("google-client", iss="evil.example.com"))
+		with patch("accounts.views._google_jwks", return_value={jwk["kid"]: jwk}):
+			with self.assertRaises(ValueError):
+				google_verify_id_token(token)
+
+	@override_settings(GOOGLE_CLIENT_ID="google-client")
+	def test_google_verify_rejects_expired_token(self):
+		pem, jwk = self._make_rsa_keypair()
+		token = self._sign_id_token(pem, jwk["kid"], self._google_claims("google-client", exp=int(time.time()) - 3600))
+		with patch("accounts.views._google_jwks", return_value={jwk["kid"]: jwk}):
+			with self.assertRaises(ValueError):
+				google_verify_id_token(token)
+
+	@override_settings(GOOGLE_CLIENT_ID="google-client")
+	def test_google_verify_rejects_forged_signature(self):
+		pem, jwk = self._make_rsa_keypair()
+		forger_pem, forger_jwk = self._make_rsa_keypair()
+		forged = jwt.encode(self._google_claims("google-client"), forger_pem, algorithm="RS256", headers={"kid": jwk["kid"]})
+		with patch("accounts.views._google_jwks", return_value={jwk["kid"]: jwk}):
+			with self.assertRaises(ValueError):
+				google_verify_id_token(forged)
+
+	@override_settings(GOOGLE_CLIENT_ID="google-client")
+	def test_google_verify_rejects_malformed_token(self):
+		with patch("accounts.views._google_jwks", return_value={}):
+			with self.assertRaises(ValueError):
+				google_verify_id_token("not-a-real-token")
+
+	@override_settings(GOOGLE_CLIENT_ID="google-client")
+	def test_google_verify_rejects_unknown_signing_key(self):
+		pem, real_jwk = self._make_rsa_keypair()
+		other_pem, other_jwk = self._make_rsa_keypair()
+		token = self._sign_id_token(other_pem, other_jwk["kid"], self._google_claims("google-client"))
+		with patch("accounts.views._google_jwks", return_value={real_jwk["kid"]: real_jwk}):
+			with self.assertRaises(ValueError):
+				google_verify_id_token(token)
+
+	@override_settings(APPLE_CLIENT_ID="com.example.ggz")
+	def test_apple_verify_accepts_valid_token_with_nonce(self):
+		pem, jwk = self._make_rsa_keypair()
+		token = self._sign_id_token(
+			pem,
+			jwk["kid"],
+			{
+				"iss": "https://appleid.apple.com",
+				"aud": "com.example.ggz",
+				"sub": "apple-123",
+				"email": "apple@example.com",
+				"nonce": "expected-nonce",
+				"iat": int(time.time()) - 60,
+				"exp": int(time.time()) + 3600,
+			},
+		)
+		with patch("accounts.views._apple_jwks", return_value={jwk["kid"]: jwk}):
+			claims = apple_oauth_userinfo(token, "expected-nonce")
+		self.assertEqual(claims["sub"], "apple-123")
+
+	@override_settings(APPLE_CLIENT_ID="com.example.ggz")
+	def test_apple_verify_rejects_bad_nonce(self):
+		pem, jwk = self._make_rsa_keypair()
+		token = self._sign_id_token(
+			pem,
+			jwk["kid"],
+			{
+				"iss": "https://appleid.apple.com",
+				"aud": "com.example.ggz",
+				"sub": "apple-123",
+				"email": "apple@example.com",
+				"nonce": "stale-nonce",
+				"iat": int(time.time()) - 60,
+				"exp": int(time.time()) + 3600,
+			},
+		)
+		with patch("accounts.views._apple_jwks", return_value={jwk["kid"]: jwk}):
+			with self.assertRaises(ValueError):
+				apple_oauth_userinfo(token, "expected-nonce")
+
+	@override_settings(APPLE_CLIENT_ID="com.example.ggz")
+	def test_apple_verify_rejects_expired_token(self):
+		pem, jwk = self._make_rsa_keypair()
+		token = self._sign_id_token(
+			pem,
+			jwk["kid"],
+			{
+				"iss": "https://appleid.apple.com",
+				"aud": "com.example.ggz",
+				"sub": "apple-123",
+				"email": "apple@example.com",
+				"iat": int(time.time()) - 7200,
+				"exp": int(time.time()) - 3600,
+			},
+		)
+		with patch("accounts.views._apple_jwks", return_value={jwk["kid"]: jwk}):
+			with self.assertRaises(ValueError):
+				apple_oauth_userinfo(token, None)
+
+	@override_settings(APPLE_CLIENT_ID="com.example.ggz")
+	def test_apple_verify_rejects_forged_signature(self):
+		pem, jwk = self._make_rsa_keypair()
+		forger_pem, _ = self._make_rsa_keypair()
+		forged = jwt.encode(
+			{
+				"iss": "https://appleid.apple.com",
+				"aud": "com.example.ggz",
+				"sub": "apple-123",
+				"email": "apple@example.com",
+				"iat": int(time.time()) - 60,
+				"exp": int(time.time()) + 3600,
+			},
+			forger_pem,
+			algorithm="RS256",
+			headers={"kid": jwk["kid"]},
+		)
+		with patch("accounts.views._apple_jwks", return_value={jwk["kid"]: jwk}):
+			with self.assertRaises(ValueError):
+				apple_oauth_userinfo(forged, None)
+
+	@override_settings(APPLE_CLIENT_ID="com.example.ggz")
+	def test_apple_verify_rejects_wrong_audience(self):
+		pem, jwk = self._make_rsa_keypair()
+		token = self._sign_id_token(
+			pem,
+			jwk["kid"],
+			{
+				"iss": "https://appleid.apple.com",
+				"aud": "com.someone-else",
+				"sub": "apple-123",
+				"email": "apple@example.com",
+				"iat": int(time.time()) - 60,
+				"exp": int(time.time()) + 3600,
+			},
+		)
+		with patch("accounts.views._apple_jwks", return_value={jwk["kid"]: jwk}):
+			with self.assertRaises(ValueError):
+				apple_oauth_userinfo(token, None)
+
+	@override_settings(APPLE_CLIENT_ID="com.example.ggz")
+	def test_apple_verify_rejects_unknown_signing_key(self):
+		pem, real_jwk = self._make_rsa_keypair()
+		other_pem, other_jwk = self._make_rsa_keypair()
+		token = self._sign_id_token(
+			other_pem,
+			other_jwk["kid"],
+			{
+				"iss": "https://appleid.apple.com",
+				"aud": "com.example.ggz",
+				"sub": "apple-123",
+				"email": "apple@example.com",
+				"iat": int(time.time()) - 60,
+				"exp": int(time.time()) + 3600,
+			},
+		)
+		with patch("accounts.views._apple_jwks", return_value={real_jwk["kid"]: real_jwk}):
+			with self.assertRaises(ValueError):
+				apple_oauth_userinfo(token, None)
+
+	def test_apple_verify_rejects_malformed_token(self):
+		with patch("accounts.views._apple_jwks", return_value={}):
+			with self.assertRaises(ValueError):
+				apple_oauth_userinfo("not-a-jwt", None)
+
+	@override_settings(APPLE_CLIENT_ID="com.example.ggz")
+	def test_apple_verify_rejects_missing_sub(self):
+		pem, jwk = self._make_rsa_keypair("apple-nosub")
+		token = self._sign_id_token(
+			pem,
+			jwk["kid"],
+			{
+				"iss": "https://appleid.apple.com",
+				"aud": "com.example.ggz",
+				"email": "nosub@example.com",
+				"exp": int(time.time()) + 3600,
+			},
+		)
+		with patch("accounts.views._apple_jwks", return_value={jwk["kid"]: jwk}):
+			with self.assertRaises(ValueError):
+				apple_oauth_userinfo(token, None)
+
+	def test_provider_callback_rejects_mismatched_state(self):
+		for route_name in ("google_login_callback", "apple_login_callback"):
+			response = self.client.get(reverse(route_name), {"code": "auth-code", "state": "wrong"})
+			self.assertRedirects(response, reverse("login"))
+			self.assertNotIn("_auth_user_id", self.client.session)
+
+	def test_explicit_link_for_authenticated_user(self):
+		user = User.objects.create_user(username="explicitlink", email="explicitlink@example.com", password="strong-password-123")
+		GamerProfile.objects.create(user=user, gamer_tag="ExplicitLinkZW")
+		self.client.login(username="explicitlink", password="strong-password-123")
+		state = "google-state-explicit"
+		session = self.client.session
+		session["oauth_state_google"] = state
+		session.save()
+		with patch("accounts.views.google_oauth_exchange", return_value={"id_token": "t"}), \
+			patch("accounts.views.google_verify_id_token", return_value={"sub": "g-explicit", "email": "explicitlink@example.com", "email_verified": True}):
+			response = self.client.get(reverse("google_login_callback"), {"code": "c", "state": state})
+		self.assertEqual(response.status_code, 302)
+		self.assertTrue(user.social_identities.filter(provider="google").exists())
+
+	def test_authenticated_user_oauth_identity_for_another_user_is_refused(self):
+		user = User.objects.create_user(username="requestor", email="requestor@example.com", password="strong-password-123")
+		GamerProfile.objects.create(user=user, gamer_tag="RequestorZW")
+		other = User.objects.create_user(username="otherdup", email="otherdup@example.com", password="strong-password-123")
+		GamerProfile.objects.create(user=other, gamer_tag="OtherDupZW")
+		SocialIdentity.objects.create(user=other, provider="google", provider_user_id="google-owned", email="otherdup@example.com")
+		self.client.login(username="requestor", password="strong-password-123")
+		state = "google-state-owned"
+		session = self.client.session
+		session["oauth_state_google"] = state
+		session.save()
+		with patch("accounts.views.google_oauth_exchange", return_value={"id_token": "t"}), \
+			patch("accounts.views.google_verify_id_token", return_value={"sub": "google-owned", "email": "otherdup@example.com", "email_verified": True}):
+			response = self.client.get(reverse("google_login_callback"), {"code": "c", "state": state})
+		self.assertEqual(response.status_code, 302)
+		self.assertEqual(self.client.session["_auth_user_id"], str(user.pk))
+		self.assertFalse(user.social_identities.filter(provider="google").exists())
+
+	def test_oauth_callback_idempotent_for_existing_identity(self):
+		state = "google-state-double"
+		session = self.client.session
+		session["oauth_state_google"] = state
+		session.save()
+		with patch("accounts.views.google_oauth_exchange", return_value={"id_token": "t1"}), \
+			patch("accounts.views.google_verify_id_token", return_value={"sub": "g-same", "email": "same@example.com", "email_verified": True}):
+			response = self.client.get(reverse("google_login_callback"), {"code": "c", "state": state})
+		self.assertEqual(response.status_code, 302)
+		self.assertIn("_auth_user_id", self.client.session)
+		state = "google-state-double-2"
+		session = self.client.session
+		session["oauth_state_google"] = state
+		session.save()
+		with patch("accounts.views.google_oauth_exchange", return_value={"id_token": "t2"}), \
+			patch("accounts.views.google_verify_id_token", return_value={"sub": "g-same", "email": "same@example.com", "email_verified": True}):
+			response = self.client.get(reverse("google_login_callback"), {"code": "c", "state": state})
+		self.assertEqual(response.status_code, 302)
+		self.assertEqual(User.objects.filter(email="same@example.com").count(), 1)
+		self.assertEqual(SocialIdentity.objects.filter(provider="google", provider_user_id="g-same").count(), 1)
 
 	def test_security_page_shows_connected_provider_status_and_blocks_final_unlink(self):
 		user = User.objects.create_user(username="providerlink", email="providerlink@example.com", password="strong-password-123")
@@ -365,14 +697,38 @@ class ProviderIdentityAuthTests(TestCase):
 		self.assertContains(response, "No Google account connected")
 		self.assertContains(response, "No Apple account connected")
 
-	def test_provider_linking_rejects_duplicates(self):
-		user = User.objects.create_user(username="dupuser", email="dupuser@example.com", password="strong-password-123")
-		GamerProfile.objects.create(user=user, gamer_tag="DupUserZW")
-		other = User.objects.create_user(username="otherdup", email="otherdup@example.com", password="strong-password-123")
-		GamerProfile.objects.create(user=other, gamer_tag="OtherDupZW")
-		with patch("accounts.views.google_oauth_userinfo", return_value={"sub": "duplicate-google", "email": "existing@example.com", "name": "Existing User"}):
-			response = self.client.get(reverse("google_login_callback"), {"code": "auth-code", "state": "state"})
+	def test_safe_redirect_rejects_hostile_external_targets(self):
+		for next_url in (
+			"//evil.example.com/phish",
+			"/\\evil.example.com",
+			"https://evil.example.com/x",
+			"http://evil.example.com/x",
+			"javascript:alert(1)",
+			"\x0d\x0aLocation: https://evil.example.com",
+			"%5cevil.example.com",
+			"/%5cevil.example.com",
+			"/%2f%2fevil.example.com",
+		):
+			request = RequestFactory().get(f"/accounts/login/?next={next_url}")
+			self.assertEqual(_safe_redirect_url(request, "/"), "/", msg=repr(next_url))
+
+	def test_safe_redirect_preserves_safe_internal_targets(self):
+		for next_url in ("/", "/accounts/security/", "/profiles/TendaiZW/", "/profiles/TendaiZW/?tab=security"):
+			request = RequestFactory().get(f"/accounts/login/?next={next_url}")
+			self.assertEqual(_safe_redirect_url(request, "/"), next_url, msg=repr(next_url))
+
+	def test_provider_login_cycles_session_key(self):
+		state = "google-state-cycle"
+		session = self.client.session
+		session["oauth_state_google"] = state
+		session.save()
+		before = self.client.session.session_key
+		with patch("accounts.views.google_oauth_exchange", return_value={"id_token": "t"}), \
+			patch("accounts.views.google_verify_id_token", return_value={"sub": "g-cycle", "email": "cycle@example.com", "email_verified": True}):
+			response = self.client.get(reverse("google_login_callback"), {"code": "c", "state": state})
 		self.assertEqual(response.status_code, 302)
+		self.assertIn("_auth_user_id", self.client.session)
+		self.assertNotEqual(before, self.client.session.session_key)
 
 
 class GamerProfileWorkflowTests(TestCase):
