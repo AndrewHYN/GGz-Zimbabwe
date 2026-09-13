@@ -16,9 +16,13 @@
     </header>
 
     <form class="store-search" method="get" action="{% url 'game_list' %}">
-        <label class="sr-only" for="games-search-input">Search games</label>
-        <input id="games-search-input" type="search" name="q" value="{{ query }}" placeholder="Search games, genres, devs..." aria-label="Search games">
-        <select name="genre" aria-label="Filter by genre">
+        <div class="store-search-query">
+            <label class="sr-only" for="games-search-input">Search games</label>
+            <input id="games-search-input" type="search" name="q" value="{{ query }}" placeholder="Search games, genres, devs..." aria-label="Search games">
+            <button class="button button-primary" type="submit">Search</button>
+        </div>
+        <div class="store-search-filters" role="group" aria-label="Filter games">
+            <select name="genre" aria-label="Filter by genre">
             <option value="">All genres</option>
             {% for category in categories %}
                 <option value="{{ category }}" {% if selected_genre == category %}selected{% endif %}>{{ category }}</option>
@@ -44,7 +48,7 @@
             <option value="alpha" {% if selected_sort == "alpha" %}selected{% endif %}>A-Z</option>
             <option value="release" {% if selected_sort == "release" %}selected{% endif %}>Newest release</option>
         </select>
-        <button class="button button-primary" type="submit">Search</button>
+        </div>
     </form>
 
     {% if featured_games %}

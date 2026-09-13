@@ -7762,3 +7762,190 @@ a:hover { color: #a5b4fc; }
     margin: 1.25rem 0 0;
     font-size: 0.78rem;
 }
+
+/* ==========================================================================
+   Milestone 4 — Game pages + navigation/search polish.
+   Appended after the M2/M3 additions so it wins the cascade; scoped selectors
+   deliberately beat ggz_stability.css where its base rules would clash.
+   ========================================================================== */
+
+/* ---- Navigation search: desktop/tablet sizing and pill internals ---- */
+.nav-tools .nav-search {
+    width: min(33vw, 320px);
+    max-width: 360px;
+    min-width: 0;
+    flex: 0 1 auto;
+    flex-shrink: 1;
+}
+
+.nav-search form {
+    min-height: 44px;
+    gap: 0.55rem;
+}
+
+.nav-search button {
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding: 0 0.7rem;
+}
+
+/* Undo ggz_stability.css box styling that lands on the pill's input. */
+.site-nav .nav-search input[type="text"] {
+    min-height: 0;
+    padding: 0.5rem 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.site-nav .nav-search input[type="text"]::placeholder {
+    color: var(--text-tertiary);
+}
+
+.site-nav .nav-search button:focus-visible {
+    outline-offset: 3px;
+}
+
+@media (max-width: 1024px) {
+    .nav-tools .nav-search {
+        width: min(30vw, 240px);
+    }
+}
+
+@media (max-width: 900px) {
+    .nav-tools .nav-search {
+        width: min(42vw, 200px);
+    }
+}
+
+/* ---- Game cards: consistent covers, tidy bodies, aligned actions ---- */
+.store-game-card .cover-link {
+    min-height: 150px;
+}
+
+.featured-games-section .store-game-card .cover-link,
+.popular-games-section .store-game-card .cover-link,
+.free-games-section .store-game-card .cover-link {
+    min-height: 196px;
+}
+
+.store-card-body .card-actions {
+    margin-top: auto;
+    padding-top: 0.3rem;
+}
+
+.store-card-body h3 {
+    overflow-wrap: anywhere;
+}
+
+.game-card-meta {
+    overflow-wrap: anywhere;
+    max-width: 100%;
+}
+
+/* ---- Game detail hero: consistent artwork box + readable copy ---- */
+.game-detail-hero .detail-visual {
+    aspect-ratio: 2 / 3;
+    max-height: 580px;
+}
+
+.game-detail-hero .detail-visual img {
+    object-fit: cover;
+    object-position: center 20%;
+}
+
+.detail-copy h1 {
+    overflow-wrap: anywhere;
+}
+
+.game-detail-page [id] {
+    scroll-margin-top: 6.5rem;
+}
+
+@media (max-width: 960px) {
+    .game-detail-hero .detail-visual {
+        aspect-ratio: auto;
+        min-height: 300px;
+        max-height: 52vh;
+    }
+}
+
+/* ---- Store search: two-row layout (query row + filter row) ---- */
+.store-search-query,
+.store-search-filters {
+    flex: 1 1 100%;
+    gap: 0.85rem;
+    min-width: 0;
+}
+
+.store-search-query {
+    display: flex;
+    align-items: center;
+}
+
+.store-search-query input {
+    flex: 1 1 420px;
+}
+
+.store-search-query .button {
+    flex: 0 0 auto;
+    min-height: 3rem;
+}
+
+.store-search-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+/* Rebuild the select controls cleanly (stability layer flattened the arrows). */
+.ggz-page .store-search-filters select {
+    flex: 1 1 168px;
+    min-width: 140px;
+    padding: 0.8rem 2.2rem 0.8rem 0.9rem;
+    background-color: rgba(13, 18, 23, 0.9);
+    background-image: linear-gradient(45deg, transparent 50%, var(--text-secondary) 50%), linear-gradient(135deg, var(--text-secondary) 50%, transparent 50%);
+    background-repeat: no-repeat;
+    background-position: calc(100% - 1.1rem) calc(50% - 2px), calc(100% - 0.9rem) calc(50% - 2px);
+    background-size: 0.35rem 0.35rem, 0.35rem 0.35rem;
+}
+
+/* Touch targets + tight small-screen spacing */
+.release-control {
+    width: 2.5rem;
+    height: 2.5rem;
+    font-size: 1rem;
+}
+
+@media (max-width: 640px) {
+    .store-search-query {
+        flex-wrap: wrap;
+    }
+
+    .store-search-query input {
+        flex: 1 1 100%;
+    }
+
+    .store-search-query .button {
+        flex: 1 1 100%;
+        width: 100%;
+    }
+
+    .store-search-filters {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .store-section {
+        padding: 1rem;
+    }
+
+    .store-search {
+        padding: 0.85rem;
+    }
+
+    .game-detail-hero {
+        padding: 1rem;
+    }
+}
