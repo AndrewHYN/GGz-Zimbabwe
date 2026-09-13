@@ -400,7 +400,7 @@ a:hover { color: #a5b4fc; }
     background: rgba(15,23,42,0.8);
     color: var(--text-secondary);
     border: 1px solid rgba(255,255,255,0.08);
-    padding: 0.55rem 0.9rem;
+    padding: 0.8rem 0.9rem;
     font-size: 0.78rem;
     font-weight: 600;
     cursor: pointer;
@@ -566,6 +566,30 @@ a:hover { color: #a5b4fc; }
 
 .radar-places-list strong {
     color: var(--text-secondary);
+}
+
+@media (max-width: 480px) {
+    .radar-mini-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .radar-mini-card {
+        min-width: 0;
+    }
+
+    .radar-mini-card h3 {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+    }
+
+    .radar-mini-card p.muted {
+        overflow-wrap: anywhere;
+    }
+
+    .radar-gamer-copy {
+        overflow: hidden;
+    }
 }
 
 .organization-portal-shell {
@@ -2984,6 +3008,7 @@ a:hover { color: #a5b4fc; }
 .detail-main,
 .detail-sidebar {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 1rem;
 }
 
@@ -3024,6 +3049,16 @@ a:hover { color: #a5b4fc; }
     gap: 0.5rem;
     color: var(--text-secondary);
     font-weight: 600;
+}
+
+@media (max-width: 960px) {
+    .challenge-form label {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .challenge-form input,
+    .challenge-form select {
+        width: 100%;
+    }
 }
 
 .leaderboard-list {
@@ -3302,7 +3337,7 @@ a:hover { color: #a5b4fc; }
 @media (max-width: 960px) {
     .detail-layout,
     .game-detail-hero {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
     }
 
 }
@@ -4126,7 +4161,7 @@ a:hover { color: #a5b4fc; }
 @media (max-width: 960px) {
     .profile-layout,
     .profile-hero {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .search-form,
@@ -6219,6 +6254,12 @@ a:hover { color: #a5b4fc; }
     gap: 1rem;
 }
 
+@media (max-width: 1024px) {
+    .feed-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
 .feed-panel,
 .composer-card,
 .post-card {
@@ -6897,6 +6938,18 @@ a:hover { color: #a5b4fc; }
     font-size: 0.8rem;
 }
 
+@media (max-width: 640px) {
+    .footer-inner {
+        grid-template-columns: 1fr;
+        gap: 1.75rem;
+    }
+
+    .footer-links {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+    }
+}
+
 /* Notifications */
 .notification-list {
     display: grid;
@@ -7550,10 +7603,10 @@ a:hover { color: #a5b4fc; }
 
     .tournament-tabs {
         gap: 1rem;
-        margin-left: -1.5rem;
-        margin-right: -1.5rem;
-        padding-left: 1.5rem;
-        padding-right: 1.5rem;
+        margin-left: 0;
+        margin-right: 0;
+        padding-left: 0;
+        padding-right: 0;
     }
 
     .match-players {
@@ -7566,7 +7619,7 @@ a:hover { color: #a5b4fc; }
 }
 
 /* Live gamer identity surfaces. */
-.profile-page { display: grid; gap: 1.25rem; max-width: 1180px; }
+.profile-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; max-width: 1180px; }
 .profile-back { width: fit-content; }
 .profile-identity-shell { overflow: hidden; border: 1px solid var(--border); border-radius: 1.25rem; background: #101820; box-shadow: 0 1.5rem 4rem rgba(0,0,0,.2); }
 .profile-cover { position: relative; height: 15rem; overflow: hidden; background: radial-gradient(circle at 75% 15%, rgba(245,158,11,.35), transparent 35%), linear-gradient(120deg, #202936, #111820 60%, #10252c); }
