@@ -1,11 +1,14 @@
 from django.shortcuts import get_object_or_404, redirect, render
 from django.db.models import Q, Count, Case, When, IntegerField
+from django.db import IntegrityError
 from django.core.paginator import Paginator, EmptyPage
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseForbidden
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+from urllib.parse import urlencode
 
 from marketplace.models import Listing
 from accounts.models import Block, ExternalFeedItem, GamerProfile
@@ -14,6 +17,7 @@ from tournaments.models import Challenge, Tournament, TournamentMatch
 from events.models import Event
 
 from .models import Game, GameReview, GameWishlist
+from .services.igdb import search_games, get_game, get_related_games, import_game
 
 
 def _compute_game_stats(game):
@@ -87,6 +91,7 @@ def game_list(request):
 	sponsored_games = games.filter(sponsored=True)[:6]
 	categories = sorted({game.genre.strip() for game in games.exclude(genre="") if game.genre.strip()})
 	platforms = sorted({game.platform.strip() for game in games.exclude(platform="") if game.platform.strip()})
+	igdb_results = search_games(q, limit=8) if q else []
 	return render(
 		request,
 		"games/game_list.html",
@@ -107,6 +112,7 @@ def game_list(request):
 			"free_only": free_only,
 			"featured_only": featured_only,
 			"viewer_profile": viewer,
+			"igdb_results": igdb_results,
 		},
 	)
 
@@ -138,6 +144,13 @@ def game_detail(request, game_id):
 	user_review = next((review for review in reviews if viewer and review.reviewer_id == viewer.id), None)
 	wishlist_count = GameWishlist.objects.filter(game=game).count()
 	is_wishlisted = bool(viewer and GameWishlist.objects.filter(profile=viewer, game=game).exists())
+	igdb_screenshots = []
+	igdb_related = []
+	if game.igdb_id:
+		external = get_game(game.igdb_id)
+		if external:
+			igdb_screenshots = external.get("screenshots") or []
+		igdb_related = get_related_games(game.igdb_id)
 	challenge_form = None
 	if viewer:
 		from tournaments.forms import ChallengeForm
@@ -170,8 +183,28 @@ def game_detail(request, game_id):
 			"player_count": game.players.count(),
 			"tournament_count": game.tournaments.filter(status__in=("Registration Open", "Registration Closed", "Live")).count(),
 			"event_count": game.events.filter(status__in=("Upcoming", "Published", "Live")).count(),
+			"igdb_screenshots": igdb_screenshots,
+			"igdb_related": igdb_related,
 		},
 	)
+
+
+@login_required
+def game_import(request, igdb_id):
+	if request.method != "POST":
+		return redirect("game_list")
+	try:
+		game = import_game(igdb_id)
+	except IntegrityError:
+		game = Game.objects.filter(igdb_id=igdb_id).first()
+	if game is None:
+		messages.error(request, "We couldn't pull that title from the catalogue right now.")
+		return redirect("game_list")
+	messages.success(request, f"Added {game.name} from the game catalogue.")
+	next_query = (request.POST.get("q") or "").strip()
+	if next_query:
+		return redirect(f"{reverse('game_list')}?{urlencode({'q': next_query})}")
+	return redirect("game_detail", game_id=game.id)
 
 
 def game_leaderboard(request, game_id):

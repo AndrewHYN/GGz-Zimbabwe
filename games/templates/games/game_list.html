@@ -165,9 +165,26 @@
             {% for game in games|slice:":12" %}
                 {% include "games/_library_game_card.html" with game=game %}
             {% empty %}
-                <div class="empty-card">No games match that search yet.</div>
+                <div class="empty-card">No local games match that search yet.</div>
             {% endfor %}
         </div>
     </section>
+
+    {% if query and igdb_results %}
+    <section class="store-section" aria-label="Game catalogue results">
+        <div class="section-header">
+            <div>
+                <p class="eyebrow">The game catalogue</p>
+                <h2>More from the catalogue</h2>
+            </div>
+            <a class="text-link muted" href="https://www.igdb.com" target="_blank" rel="noopener noreferrer">via IGDB</a>
+        </div>
+        <div class="game-card-grid">
+            {% for result in igdb_results %}
+                {% include "games/_igdb_result_card.html" with result=result %}
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
 </main>
 {% endblock %}

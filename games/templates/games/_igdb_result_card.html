@@ -1,0 +1,28 @@
+<article class="store-game-card" data-catalogue-result>
+    <a href="{{ result.igdb_url|default:'https://www.igdb.com' }}" target="_blank" rel="noopener noreferrer" class="cover-link">
+        {% if result.cover_url %}<img src="{{ result.cover_url }}" alt="{{ result.name }} cover art" loading="lazy" referrerpolicy="no-referrer" onerror="this.outerHTML='<div class=cover-fallback>GGz</div>'">{% else %}<div class="cover-fallback">GGz</div>{% endif %}
+    </a>
+    <div class="store-card-body">
+        <div class="card-topline">
+            <span class="tag">{{ result.genres|default:"Catalogue"|truncatechars:24 }}</span>
+            {% if result.release_year %}<span class="pill">{{ result.release_year }}</span>{% endif %}
+        </div>
+        <h3><a href="{{ result.igdb_url|default:'https://www.igdb.com' }}" target="_blank" rel="noopener noreferrer">{{ result.name }}</a></h3>
+        <p class="game-summary">{{ result.summary|default:"A catalogue listing from the IGDB game database."|truncatewords:14 }}</p>
+        <p class="muted game-card-meta">
+            {% if result.platforms %}<span>{{ result.platforms|truncatechars:40 }}</span>{% else %}<span>Catalogue listing</span>{% endif %}
+            {% if result.rating %}<span>IGDB {{ result.rating|floatformat:0 }}%</span>{% endif %}
+        </p>
+        <div class="card-actions">
+            {% if user.is_authenticated %}
+            <form method="post" action="{% url 'game_import' result.igdb_id %}" class="inline-action">
+                {% csrf_token %}
+                <input type="hidden" name="q" value="{{ query }}">
+                <button class="button button-primary compact-button" type="submit">Add to GGz</button>
+            </form>
+            {% else %}
+            <a class="button button-secondary compact-button" href="{% url 'login' %}?next={% url 'game_list' %}?q={{ query|urlencode }}">Log in to add</a>
+            {% endif %}
+        </div>
+    </div>
+</article>

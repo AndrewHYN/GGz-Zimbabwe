@@ -22,6 +22,16 @@ class Game(models.Model):
 	steam_url = models.URLField(blank=True)
 	epic_url = models.URLField(blank=True)
 	trailer_url = models.URLField(blank=True)
+	igdb_id = models.BigIntegerField(blank=True, null=True, unique=True)
+	igdb_slug = models.CharField(max_length=120, blank=True)
+	igdb_url = models.URLField(blank=True)
+	igdb_rating = models.DecimalField(max_digits=4, decimal_places=1, blank=True, null=True)
+	igdb_rating_count = models.PositiveIntegerField(blank=True, null=True)
+	igdb_release_date = models.DateField(blank=True, null=True)
+	igdb_genres = models.CharField(max_length=255, blank=True)
+	igdb_platforms = models.CharField(max_length=255, blank=True)
+	igdb_summary = models.TextField(blank=True)
+	igdb_last_synced = models.DateTimeField(blank=True, null=True)
 
 	def __str__(self):
 		return self.name

@@ -7719,3 +7719,46 @@ a:hover { color: #a5b4fc; }
         display: flex;
     }
 }
+
+/* IGDB catalogue panels (game list results, game detail) */
+.catalogue-panel .catalogue-summary {
+    margin: 0 0 1rem;
+    color: var(--text-secondary);
+    line-height: 1.7;
+    max-width: 72ch;
+}
+
+.catalogue-screens {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 0.75rem;
+    margin: 1rem 0;
+}
+
+.catalogue-shot {
+    margin: 0;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.catalogue-shot img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+}
+
+.catalogue-related {
+    margin-top: 1.25rem;
+}
+
+.catalogue-related .genre-list {
+    margin-top: 0.4rem;
+}
+
+.catalogue-attribution {
+    margin: 1.25rem 0 0;
+    font-size: 0.78rem;
+}

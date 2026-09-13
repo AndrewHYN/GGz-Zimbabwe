@@ -9,7 +9,7 @@
     <section class="game-detail-hero">
         <div class="detail-visual">
             {% if game.cover_art_url %}
-                <img src="{{ game.cover_art_url }}" alt="{{ game.name }} cover art">
+                <img src="{{ game.cover_art_url }}" alt="{{ game.name }} cover art" loading="lazy" referrerpolicy="no-referrer" onerror="this.outerHTML='<div class=detail-fallback>GGz</div>'">
             {% else %}
                 <div class="detail-fallback">GGz</div>
             {% endif %}
@@ -72,6 +72,10 @@
                 {% if game.release_year %}<div class="detail"><dt>Release</dt><dd>{{ game.release_year }}</dd></div>{% endif %}
                 {% if game.player_count %}<div class="detail"><dt>Players</dt><dd>{{ game.player_count }} players</dd></div>{% endif %}
                 <div class="detail"><dt>GGz players</dt><dd>{{ player_count }}</dd></div>
+                {% if game.igdb_rating is not None %}<div class="detail"><dt>Catalogue rating</dt><dd>{{ game.igdb_rating|floatformat:0 }} / 100</dd></div>{% endif %}
+                {% if game.igdb_release_date %}<div class="detail"><dt>Release date</dt><dd>{{ game.igdb_release_date|date:"M j, Y" }}</dd></div>{% endif %}
+                {% if game.igdb_genres %}<div class="detail"><dt>Genres</dt><dd>{{ game.igdb_genres }}</dd></div>{% endif %}
+                {% if game.igdb_platforms %}<div class="detail"><dt>Platforms</dt><dd>{{ game.igdb_platforms }}</dd></div>{% endif %}
                 {% if game.popularity %}<div class="detail"><dt>Popularity</dt><dd>{{ game.popularity }}%</dd></div>{% endif %}
             </dl>
 
@@ -219,6 +223,51 @@
         <p class="muted empty-card">No reviews yet. Be the first to rate this game.</p>
         {% endif %}
     </section>
+
+    {% if game.igdb_id %}
+    <section class="store-section panel-section catalogue-panel" aria-label="Catalogue data for {{ game.name }}">
+        <div class="section-header">
+            <div>
+                <p class="eyebrow">The game catalogue</p>
+                <h2>From the catalogue</h2>
+            </div>
+            <a class="text-link muted" href="{{ game.igdb_url|default:'https://www.igdb.com' }}" target="_blank" rel="noopener noreferrer">View on IGDB</a>
+        </div>
+
+        {% if game.igdb_summary %}
+        <p class="catalogue-summary">{{ game.igdb_summary }}</p>
+        {% endif %}
+
+        {% if igdb_screenshots %}
+        <div class="catalogue-screens">
+            {% for shot in igdb_screenshots %}
+                <figure class="catalogue-shot">
+                    <img src="{{ shot }}" alt="Screenshot of {{ game.name }}" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('.catalogue-shot').remove()">
+                </figure>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if igdb_related %}
+        <div class="catalogue-related">
+            <p class="eyebrow">Similar titles</p>
+            <div class="genre-list">
+                {% for item in igdb_related %}
+                    {% if item.local_id %}
+                        <a class="genre-pill" href="{% url 'game_detail' item.local_id %}">{{ item.name }}</a>
+                    {% elif item.igdb_url %}
+                        <a class="genre-pill" href="{{ item.igdb_url }}" target="_blank" rel="noopener noreferrer">{{ item.name }}</a>
+                    {% else %}
+                        <span class="genre-pill">{{ item.name }}</span>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <p class="muted catalogue-attribution">Images and metadata provided by the IGDB/Twitch API.</p>
+    </section>
+    {% endif %}
 
     <div class="detail-layout">
         <div class="detail-main">

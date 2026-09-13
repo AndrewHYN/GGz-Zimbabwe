@@ -280,6 +280,16 @@ MEDIA_ROOT = Path(config("MEDIA_ROOT", default=str(BASE_DIR / "hello_world" / "m
 MAX_UPLOAD_SIZE = config("MAX_UPLOAD_SIZE", default=4 * 1024 * 1024, cast=int)
 EXTERNAL_FEED_TIMEOUT = config("EXTERNAL_FEED_TIMEOUT", default=3, cast=int)
 
+# IGDB (Twitch) game catalogue integration. The service degrades to local-only
+# mode when credentials are not configured, so these may stay blank in dev.
+IGDB_CLIENT_ID = config("IGDB_CLIENT_ID", default="")
+IGDB_CLIENT_SECRET = config("IGDB_CLIENT_SECRET", default="")
+IGDB_AUTH_URL = config("IGDB_AUTH_URL", default="https://id.twitch.tv/oauth2/token")
+IGDB_BASE_URL = config("IGDB_BASE_URL", default="https://api.igdb.com/v4")
+IGDB_TIMEOUT = config("IGDB_TIMEOUT", default=8, cast=int)
+IGDB_SEARCH_CACHE_SECONDS = config("IGDB_SEARCH_CACHE_SECONDS", default=21600, cast=int)
+IGDB_GAME_CACHE_SECONDS = config("IGDB_GAME_CACHE_SECONDS", default=86400, cast=int)
+
 S3_STORAGE_VARIABLES = (
     "AWS_ACCESS_KEY_ID",
     "AWS_SECRET_ACCESS_KEY",

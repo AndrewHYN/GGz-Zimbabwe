@@ -1,6 +1,6 @@
 <article class="store-game-card">
     <a href="{% url 'game_detail' game.id %}" class="cover-link">
-        {% if game.cover_art_url %}<img src="{{ game.cover_art_url }}" alt="{{ game.name }} cover art">{% else %}<div class="cover-fallback">GGz</div>{% endif %}
+        {% if game.cover_art_url %}<img src="{{ game.cover_art_url }}" alt="{{ game.name }} cover art" loading="lazy" referrerpolicy="no-referrer" onerror="this.outerHTML='<div class=cover-fallback>GGz</div>'">{% else %}<div class="cover-fallback">GGz</div>{% endif %}
     </a>
     <div class="store-card-body">
         <div class="card-topline">
