@@ -214,6 +214,7 @@ class SocialIdentity(models.Model):
     PROVIDER_CHOICES = [
         ("google", "Google"),
         ("apple", "Apple"),
+        ("discord", "Discord"),
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="social_identities")
@@ -221,6 +222,7 @@ class SocialIdentity(models.Model):
     provider_user_id = models.CharField(max_length=255)
     email = models.EmailField(blank=True)
     display_name = models.CharField(max_length=255, blank=True)
+    metadata = models.JSONField(blank=True, default=dict)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

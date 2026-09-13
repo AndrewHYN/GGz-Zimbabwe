@@ -31,6 +31,13 @@ from .models import Block, Conversation, ConversationParticipant, ExternalFeedIt
 from .forms import GamerProfileForm
 from .services import _parse_rss_feed, refresh_public_gaming_feed
 from .views import _safe_redirect_url, apple_oauth_userinfo, google_verify_id_token
+from .discord_service import (
+    DiscordOAuthError,
+    build_authorize_url,
+    build_avatar_url,
+    exchange_code,
+    fetch_current_user,
+)
 from events.models import Event, Organization, OrganizationLocation, OrganizationLocationReview
 from teams.models import Team, TeamInvitation
 
@@ -729,6 +736,262 @@ class ProviderIdentityAuthTests(TestCase):
 		self.assertEqual(response.status_code, 302)
 		self.assertIn("_auth_user_id", self.client.session)
 		self.assertNotEqual(before, self.client.session.session_key)
+
+
+class DiscordConnectTests(TestCase):
+	def setUp(self):
+		cache.clear()
+		self.user = User.objects.create_user(username="discgamer", email="discgamer@example.com", password="strong-password-123")
+		GamerProfile.objects.create(user=self.user, gamer_tag="DiscGamerZW")
+		self.client.login(username="discgamer", password="strong-password-123")
+
+	def _session_state(self, state):
+		session = self.client.session
+		session["oauth_state_discord"] = state
+		session.save()
+
+	@override_settings(DISCORD_CLIENT_ID="discord-client", DISCORD_CLIENT_SECRET="discord-secret", DISCORD_REDIRECT_URI="")
+	def test_connect_start_builds_authorize_url_and_creates_state(self):
+		captured_state = {}
+
+		def fake_authorize_url(state, redirect_uri):
+			captured_state["state"] = state
+			return f"https://discord.com/oauth2/authorize?client_id=discord-client&response_type=code&scope=identify&state={state}&redirect_uri={redirect_uri}"
+
+		with patch("accounts.views.discord_is_configured", return_value=True), \
+			patch("accounts.views.build_authorize_url", side_effect=fake_authorize_url):
+			response = self.client.get(reverse("discord_connect_start"))
+		self.assertEqual(response.status_code, 302)
+		self.assertTrue(response.url.startswith("https://discord.com/oauth2/authorize?"))
+		self.assertIn("client_id=discord-client", response.url)
+		self.assertIn("scope=identify", response.url)
+		state = captured_state["state"]
+		self.assertTrue(len(state) >= 32)
+		self.assertEqual(self.client.session["oauth_state_discord"], state)
+		self.assertTrue(response.url.endswith("/accounts/auth/discord/callback/"))
+
+	def test_connect_start_requires_login(self):
+		self.client.logout()
+		response = self.client.get(reverse("discord_connect_start"))
+		self.assertIn(response.status_code, (301, 302))
+		self.assertIn("/accounts/login/", response.url)
+
+	def test_connect_start_when_unconfigured_shows_message(self):
+		with patch("accounts.views.discord_is_configured", return_value=False):
+			response = self.client.get(reverse("discord_connect_start"))
+		self.assertRedirects(response, reverse("account_security"))
+		self.assertNotIn("oauth_state_discord", self.client.session)
+
+	def test_valid_callback_links_identity_and_claims_metadata(self):
+		self._session_state("valid-state-discord")
+		with patch("accounts.views.exchange_code", return_value={"access_token": "discord-token-1"}), \
+			patch("accounts.views.fetch_current_user", return_value={"id": "987654321", "username": "flow_user", "global_name": "Flow", "avatar": "abc123", "email": ""}), \
+			patch("accounts.views.build_avatar_url", return_value="https://cdn.discordapp.com/avatars/987654321/abc123.webp?size=128"):
+			response = self.client.get(reverse("discord_connect_callback"), {"code": "discord-code", "state": "valid-state-discord"})
+		self.assertRedirects(response, reverse("account_security"))
+		identity = SocialIdentity.objects.get(user=self.user, provider="discord")
+		self.assertEqual(identity.provider_user_id, "987654321")
+		self.assertEqual(identity.display_name, "Flow")
+		self.assertEqual(identity.metadata.get("avatar_url"), "https://cdn.discordapp.com/avatars/987654321/abc123.webp?size=128")
+		self.assertNotIn("oauth_state_discord", self.client.session)
+
+	def test_callback_missing_state_is_rejected(self):
+		with patch("accounts.views.exchange_code", return_value={"access_token": "tok"}), \
+			patch("accounts.views.fetch_current_user", return_value={"id": "1", "username": "u"}):
+			response = self.client.get(reverse("discord_connect_callback"), {"code": "c"})
+		self.assertRedirects(response, reverse("account_security"))
+		self.assertFalse(SocialIdentity.objects.filter(user=self.user, provider="discord").exists())
+
+	def test_callback_invalid_state_is_rejected_and_consumed(self):
+		self._session_state("right-state")
+		with patch("accounts.views.exchange_code", return_value={"access_token": "tok"}), \
+			patch("accounts.views.fetch_current_user", return_value={"id": "2", "username": "u"}):
+			response = self.client.get(reverse("discord_connect_callback"), {"code": "c", "state": "wrong-state"})
+		self.assertRedirects(response, reverse("account_security"))
+		self.assertNotIn("oauth_state_discord", self.client.session)
+		self.assertFalse(SocialIdentity.objects.filter(user=self.user, provider="discord").exists())
+
+	def test_callback_state_consumed_on_first_use_only(self):
+		self._session_state("single-use-state")
+		with patch("accounts.views.exchange_code", return_value={"access_token": "tok1"}), \
+			patch("accounts.views.fetch_current_user", return_value={"id": "3", "username": "u"}), \
+			patch("accounts.views.build_avatar_url", return_value=""):
+			response = self.client.get(reverse("discord_connect_callback"), {"code": "c1", "state": "single-use-state"})
+		self.assertEqual(response.status_code, 302)
+		second = self.client.get(reverse("discord_connect_callback"), {"code": "c2", "state": "single-use-state"})
+		self.assertRedirects(second, reverse("account_security"))
+		self.assertEqual(SocialIdentity.objects.filter(user=self.user, provider="discord").count(), 1)
+
+	def test_callback_cancelled_by_user(self):
+		self._session_state("cancel-state")
+		with patch("accounts.views.exchange_code", return_value={"access_token": "tok"}), \
+			patch("accounts.views.fetch_current_user", return_value={"id": "4", "username": "u"}):
+			response = self.client.get(reverse("discord_connect_callback"), {"code": "c", "state": "cancel-state", "error": "access_denied"})
+		self.assertRedirects(response, reverse("account_security"))
+		self.assertFalse(SocialIdentity.objects.filter(user=self.user, provider="discord").exists())
+
+	def test_callback_token_exchange_failure(self):
+		self._session_state("exchange-fail-state")
+		with patch("accounts.views.exchange_code", side_effect=DiscordOAuthError("bad")):
+			response = self.client.get(reverse("discord_connect_callback"), {"code": "c", "state": "exchange-fail-state"})
+		self.assertRedirects(response, reverse("account_security"))
+		self.assertFalse(SocialIdentity.objects.filter(user=self.user, provider="discord").exists())
+
+	def test_callback_malformed_token_response(self):
+		self._session_state("malformed-state")
+		with patch("accounts.views.exchange_code", return_value={"error": "invalid_grant"}), \
+			patch("accounts.views.fetch_current_user", return_value={"id": "5", "username": "u"}):
+			response = self.client.get(reverse("discord_connect_callback"), {"code": "c", "state": "malformed-state"})
+		self.assertRedirects(response, reverse("account_security"))
+		self.assertFalse(SocialIdentity.objects.filter(user=self.user, provider="discord").exists())
+
+	def test_callback_current_user_fetch_failure(self):
+		self._session_state("user-fail-state")
+		with patch("accounts.views.exchange_code", return_value={"access_token": "tok"}), \
+			patch("accounts.views.fetch_current_user", side_effect=DiscordOAuthError("cannot confirm")):
+			response = self.client.get(reverse("discord_connect_callback"), {"code": "c", "state": "user-fail-state"})
+		self.assertRedirects(response, reverse("account_security"))
+		self.assertFalse(SocialIdentity.objects.filter(user=self.user, provider="discord").exists())
+
+	def test_callback_missing_discord_id_is_rejected(self):
+		self._session_state("no-id-state")
+		with patch("accounts.views.exchange_code", return_value={"access_token": "tok"}), \
+			patch("accounts.views.fetch_current_user", return_value={"username": "no-id"}):
+			response = self.client.get(reverse("discord_connect_callback"), {"code": "c", "state": "no-id-state"})
+		self.assertRedirects(response, reverse("account_security"))
+		self.assertFalse(SocialIdentity.objects.filter(user=self.user, provider="discord").exists())
+
+	def test_callback_requires_login(self):
+		self.client.logout()
+		response = self.client.get(reverse("discord_connect_callback"), {"code": "c", "state": "s"})
+		self.assertIn(response.status_code, (301, 302))
+		self.assertIn("/accounts/login/", response.url)
+
+	def test_identity_already_linked_to_this_ggz_user_is_idempotent(self):
+		self._session_state("linked-same-state")
+		with patch("accounts.views.exchange_code", return_value={"access_token": "tok1"}), \
+			patch("accounts.views.fetch_current_user", return_value={"id": "777", "username": "once", "global_name": "Once"}), \
+			patch("accounts.views.build_avatar_url", return_value=""):
+			response = self.client.get(reverse("discord_connect_callback"), {"code": "c1", "state": "linked-same-state"})
+		self.assertEqual(response.status_code, 302)
+		self._session_state("linked-same-state-2")
+		with patch("accounts.views.exchange_code", return_value={"access_token": "tok2"}), \
+			patch("accounts.views.fetch_current_user", return_value={"id": "777", "username": "once", "global_name": "Once"}), \
+			patch("accounts.views.build_avatar_url", return_value=""):
+			response = self.client.get(reverse("discord_connect_callback"), {"code": "c2", "state": "linked-same-state-2"})
+		self.assertRedirects(response, reverse("account_security"))
+		self.assertEqual(SocialIdentity.objects.filter(user=self.user, provider="discord", provider_user_id="777").count(), 1)
+
+	def test_identity_already_linked_to_another_ggz_user_is_refused(self):
+		other = User.objects.create_user(username="discother", email="discother@example.com", password="strong-password-123")
+		GamerProfile.objects.create(user=other, gamer_tag="DiscOtherZW")
+		SocialIdentity.objects.create(user=other, provider="discord", provider_user_id="555", display_name="Taken")
+		self._session_state("linked-other-state")
+		with patch("accounts.views.exchange_code", return_value={"access_token": "tok"}), \
+			patch("accounts.views.fetch_current_user", return_value={"id": "555", "username": "taken", "global_name": "Taken"}):
+			response = self.client.get(reverse("discord_connect_callback"), {"code": "c", "state": "linked-other-state"})
+		self.assertRedirects(response, reverse("account_security"))
+		self.assertFalse(SocialIdentity.objects.filter(user=self.user, provider="discord").exists())
+		self.assertEqual(SocialIdentity.objects.filter(provider="discord", provider_user_id="555").count(), 1)
+
+	def test_email_of_different_ggz_account_does_not_silently_switch(self):
+		User.objects.create_user(username="discother", email="discother@example.com", password="strong-password-123")
+		self._session_state("cross-email-state")
+		with patch("accounts.views.exchange_code", return_value={"access_token": "tok"}), \
+			patch("accounts.views.fetch_current_user", return_value={"id": "888", "username": "cross", "email": "discother@example.com"}):
+			response = self.client.get(reverse("discord_connect_callback"), {"code": "c", "state": "cross-email-state"})
+		self.assertRedirects(response, reverse("account_security"))
+		self.assertIn("_auth_user_id", self.client.session)
+		self.assertEqual(self.client.session["_auth_user_id"], str(self.user.pk))
+		self.assertFalse(SocialIdentity.objects.filter(user=self.user, provider="discord").exists())
+
+	def test_disconnect_removes_identity(self):
+		SocialIdentity.objects.create(user=self.user, provider="discord", provider_user_id="666", display_name="Old")
+		response = self.client.post(reverse("unlink_provider", kwargs={"provider": "discord"}))
+		self.assertRedirects(response, reverse("account_security"))
+		self.assertFalse(SocialIdentity.objects.filter(user=self.user, provider="discord").exists())
+
+	def test_disconnect_does_not_remove_last_signin_method_without_password(self):
+		no_pw = User.objects.create_user(username="discpwless", email="discpwless@example.com")
+		GamerProfile.objects.create(user=no_pw, gamer_tag="DiscPwlessZW")
+		SocialIdentity.objects.create(user=no_pw, provider="discord", provider_user_id="999", display_name="Only")
+		self.client.force_login(no_pw)
+		response = self.client.post(reverse("unlink_provider", kwargs={"provider": "discord"}))
+		self.assertRedirects(response, reverse("account_security"))
+		self.assertTrue(SocialIdentity.objects.filter(user=no_pw, provider="discord").exists())
+
+	def test_reconnect_after_disconnect(self):
+		SocialIdentity.objects.create(user=self.user, provider="discord", provider_user_id="444", display_name="Old")
+		self.client.post(reverse("unlink_provider", kwargs={"provider": "discord"}))
+		self.assertFalse(SocialIdentity.objects.filter(user=self.user, provider="discord").exists())
+		self._session_state("reconnect-state")
+		with patch("accounts.views.exchange_code", return_value={"access_token": "tok"}), \
+			patch("accounts.views.fetch_current_user", return_value={"id": "444", "username": "new", "global_name": "New"}), \
+			patch("accounts.views.build_avatar_url", return_value=""):
+			response = self.client.get(reverse("discord_connect_callback"), {"code": "c", "state": "reconnect-state"})
+		self.assertRedirects(response, reverse("account_security"))
+		identity = SocialIdentity.objects.get(user=self.user, provider="discord")
+		self.assertEqual(identity.provider_user_id, "444")
+		self.assertEqual(identity.display_name, "New")
+
+	def test_unauthenticated_disconnect_redirects_to_login(self):
+		self.client.logout()
+		response = self.client.post(reverse("unlink_provider", kwargs={"provider": "discord"}))
+		self.assertIn(response.status_code, (301, 302))
+		self.assertIn("/accounts/login/", response.url)
+		self.assertFalse(SocialIdentity.objects.filter(user=self.user, provider="discord").exists())
+
+	def test_connect_start_is_rate_limited_per_user(self):
+		session = self.client.session
+		session["oauth_state_discord"] = "state"
+		session.save()
+		with patch("accounts.views.discord_is_configured", return_value=True), \
+			patch("accounts.views.build_authorize_url", return_value="https://discord.com/oauth2/authorize") as mock_authorize:
+			for _ in range(10):
+				response = self.client.get(reverse("discord_connect_start"))
+				self.assertEqual(response.status_code, 302)
+			before = mock_authorize.call_count
+			blocked = self.client.get(reverse("discord_connect_start"))
+		self.assertRedirects(blocked, reverse("account_security"))
+		self.assertEqual(mock_authorize.call_count, before)
+
+	def test_callback_is_rate_limited_per_user(self):
+		self._session_state("rate-state")
+		with patch("accounts.views.exchange_code", return_value={"access_token": "tok"}) as mock_exchange, \
+			patch("accounts.views.fetch_current_user", return_value={"id": "123", "username": "u"}), \
+			patch("accounts.views.build_avatar_url", return_value=""):
+			for _ in range(10):
+				self.client.get(reverse("discord_connect_callback"), {"code": "c", "state": "rate-state"})
+				self._session_state("rate-state")
+			before = mock_exchange.call_count
+			blocked = self.client.get(reverse("discord_connect_callback"), {"code": "c", "state": "rate-state"})
+		self.assertRedirects(blocked, reverse("account_security"))
+		self.assertEqual(mock_exchange.call_count, before)
+
+	def test_safe_post_connect_redirect_respects_oauth_next(self):
+		self._session_state("safe-next-state")
+		session = self.client.session
+		session["oauth_next"] = "/profiles/DiscGamerZW/"
+		session.save()
+		with patch("accounts.views.exchange_code", return_value={"access_token": "tok"}), \
+			patch("accounts.views.fetch_current_user", return_value={"id": "321", "username": "safe", "global_name": "Safe"}), \
+			patch("accounts.views.build_avatar_url", return_value=""):
+			response = self.client.get(reverse("discord_connect_callback"), {"code": "c", "state": "safe-next-state"})
+		self.assertRedirects(response, "/profiles/DiscGamerZW/")
+		self.assertNotIn("oauth_next", self.client.session)
+
+	def test_security_page_shows_discord_row(self):
+		SocialIdentity.objects.create(user=self.user, provider="discord", provider_user_id="2468", display_name="Flow Master", metadata={"avatar_url": "https://cdn.discordapp.com/avatars/2468/a.webp?size=128"})
+		response = self.client.get(reverse("account_security"))
+		self.assertContains(response, "Discord")
+		self.assertContains(response, "Connected as Flow Master")
+		self.assertContains(response, "https://cdn.discordapp.com/avatars/2468/a.webp?size=128")
+
+	def test_security_page_shows_discord_unavailable_when_unconfigured(self):
+		with patch("accounts.views.discord_is_configured", return_value=False):
+			response = self.client.get(reverse("account_security"))
+		self.assertContains(response, "Discord")
+		self.assertContains(response, "Not configured")
 
 
 class GamerProfileWorkflowTests(TestCase):

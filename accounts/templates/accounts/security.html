@@ -28,6 +28,9 @@
                                     No {{ provider.name }} account connected
                                 {% endif %}
                             </p>
+                            {% if provider.connected and provider.avatar_url %}
+                                <img class="provider-avatar" src="{{ provider.avatar_url }}" alt="{{ provider.name }} avatar" width="48" height="48">
+                            {% endif %}
                         </div>
                         {% if provider.connected %}
                             <form method="post" action="{% url 'unlink_provider' provider.provider %}">
@@ -37,6 +40,8 @@
                         {% elif provider.available %}
                             {% if provider.provider == 'google' %}
                                 <a class="button button-provider google-button" href="{% url 'google_login_start' %}">{{ provider.name }}</a>
+                            {% elif provider.provider == 'discord' %}
+                                <a class="button button-provider discord-button" href="{% url 'discord_connect_start' %}">Connect</a>
                             {% else %}
                                 <a class="button button-provider apple-button" href="{% url 'apple_login_start' %}">{{ provider.name }}</a>
                             {% endif %}

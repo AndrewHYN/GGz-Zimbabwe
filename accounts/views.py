@@ -59,6 +59,14 @@ from .models import (
 	notify,
 )
 from .services import can_message, refresh_public_gaming_feed
+from .discord_service import (
+	DiscordOAuthError,
+	build_authorize_url,
+	build_avatar_url,
+	exchange_code,
+	fetch_current_user,
+	is_configured as discord_is_configured,
+)
 from hello_world.storage import log_s3_client_error
 
 logger = logging.getLogger(__name__)
@@ -72,6 +80,8 @@ def _build_provider_redirect_url(provider):
 	base = _provider_redirect_base_url()
 	if provider == "google":
 		return f"{base}/accounts/auth/google/callback/"
+	if provider == "discord":
+		return f"{base}/accounts/auth/discord/callback/"
 	return f"{base}/accounts/auth/apple/callback/"
 
 
@@ -91,6 +101,8 @@ def _provider_is_configured(provider):
 		return bool(settings.GOOGLE_CLIENT_ID and settings.GOOGLE_CLIENT_SECRET)
 	if provider == "apple":
 		return bool(settings.APPLE_CLIENT_ID and settings.APPLE_CLIENT_SECRET)
+	if provider == "discord":
+		return discord_is_configured()
 	return False
 
 
@@ -2319,8 +2331,83 @@ def apple_login_callback(request):
 		return redirect("login")
 
 
+@login_required
+def discord_connect_start(request):
+	request.session["oauth_next"] = _safe_redirect_url(request, "account_security")
+	if _rate_limit_exceeded(request, "discord_connect", 10, 300):
+		messages.error(request, "Too many Discord connection attempts. Please wait a few minutes and try again.")
+		return redirect("account_security")
+	if not discord_is_configured():
+		messages.error(request, "Connecting Discord is not available right now.")
+		return redirect("account_security")
+	redirect_uri = settings.DISCORD_REDIRECT_URI or _build_provider_redirect_url("discord")
+	state = _safe_provider_state(request, "discord")
+	try:
+		authorize_url = build_authorize_url(state, redirect_uri)
+	except DiscordOAuthError:
+		messages.error(request, "Discord connection is not configured.")
+		return redirect("account_security")
+	return redirect(authorize_url)
+
+
+@login_required
+def discord_connect_callback(request):
+	state = request.GET.get("state")
+	saved_state = request.session.get("oauth_state_discord")
+	request.session.pop("oauth_state_discord", None)
+	request.session.modified = True
+	if not saved_state or state != saved_state:
+		messages.error(request, "Discord connection was interrupted; please try again.")
+		return redirect("account_security")
+	if request.GET.get("error"):
+		messages.error(request, "Discord connection was cancelled or failed.")
+		return redirect("account_security")
+	if _rate_limit_exceeded(request, "discord_callback", 10, 300):
+		messages.error(request, "Too many Discord connection attempts. Please wait a few minutes and try again.")
+		return redirect("account_security")
+	code = request.GET.get("code")
+	if not code:
+		messages.error(request, "Discord did not return an authorization code.")
+		return redirect("account_security")
+	redirect_uri = settings.DISCORD_REDIRECT_URI or _build_provider_redirect_url("discord")
+	try:
+		token_response = exchange_code(code, redirect_uri)
+		access_token = token_response.get("access_token")
+		if not access_token:
+			raise DiscordOAuthError("Discord did not return an access token.")
+		discord_user = fetch_current_user(access_token)
+		claims = {
+			"id": str(discord_user.get("id") or ""),
+			"email": str(discord_user.get("email") or ""),
+			"name": (discord_user.get("global_name") or discord_user.get("username") or "").strip(),
+		}
+		user = _resolve_or_create_provider_user("discord", claims, request)
+		avatar_url = build_avatar_url(discord_user)
+		identity = SocialIdentity.objects.filter(user=user, provider="discord", provider_user_id=claims["id"]).first()
+		if identity:
+			metadata = dict(identity.metadata or {})
+			metadata["avatar_url"] = avatar_url or ""
+			identity.metadata = metadata
+			identity.save(update_fields=("metadata", "updated_at"))
+		next_url = request.session.get("oauth_next", "account_security")
+		request.session.pop("oauth_next", None)
+		request.session.modified = True
+		messages.success(request, "Your Discord account is now connected to GGz.")
+		return redirect(_safe_redirect_url(request, next_url))
+	except ProviderLinkingError as error:
+		messages.error(request, error.message)
+		return redirect("account_security")
+	except DiscordOAuthError:
+		messages.error(request, "Discord could not confirm your identity. Please try again.")
+		return redirect("account_security")
+	except Exception:
+		logger.exception("Discord connect callback failed")
+		messages.error(request, "Discord connection could not be completed. Please try again.")
+		return redirect("account_security")
+
+
 def unlink_provider(request, provider):
-	if provider not in {"google", "apple"}:
+	if provider not in {"google", "apple", "discord"}:
 		return redirect("account_security")
 	if not request.user.is_authenticated:
 		return redirect("login")
@@ -2408,13 +2495,14 @@ def account_security(request):
 		messages.success(request, "Presence privacy settings updated.")
 		return redirect("account_security")
 	providers = []
-	for provider in ("google", "apple"):
+	for provider in ("google", "apple", "discord"):
 		connected = SocialIdentity.objects.filter(user=request.user, provider=provider).first()
 		providers.append({
 			"provider": provider,
 			"name": provider.title(),
 			"connected": bool(connected),
 			"display_name": connected.display_name if connected else "",
+			"avatar_url": (connected.metadata or {}).get("avatar_url", "") if connected else "",
 			"available": _provider_is_configured(provider),
 		})
 	profile = get_object_or_404(GamerProfile, user=request.user)
