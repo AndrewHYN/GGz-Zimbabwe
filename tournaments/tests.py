@@ -46,6 +46,7 @@ class TournamentTests(TestCase):
 			self.tournament.banner.delete(save=False)
 
 	def test_registration_and_duplicate_prevention(self):
+		self.player.games.add(self.game)
 		self.client.login(username="player", password="pass-12345")
 		url = reverse("tournament_register", args=[self.tournament.slug])
 		self.client.post(url)
@@ -107,7 +108,7 @@ class TournamentTests(TestCase):
 
 	def test_match_result_rejects_invalid_score_format(self):
 		match = TournamentMatch.objects.create(tournament=self.tournament, game=self.game, player_one=self.player, player_two=self.organizer)
-		self.client.login(username="player", password="pass-12345")
+		self.client.login(username="organizer", password="pass-12345")
 		response = self.client.post(reverse("match_result", args=[match.id]), {"winner": self.player.id, "score": "banana", "status": "Completed"})
 		self.assertEqual(response.status_code, 200)
 		self.assertContains(response, "Score must use the format")
@@ -294,7 +295,7 @@ class TournamentTests(TestCase):
 		self.assertEqual(TournamentMatch.objects.get(id=match.next_match_id).player_one, self.player)
 		final = self.tournament.matches.filter(round=2).first()
 		final.player_one = self.player
-		final.player_two = self.organizer
+		final.player_two = players[1]
 		final.save(update_fields=("player_one", "player_two"))
 		self.client.post(reverse("match_result", args=(final.id,)), {"winner": self.player.id, "score": "2-1", "status": "Completed"})
 		self.organizer.refresh_from_db()
@@ -323,6 +324,223 @@ class TournamentTests(TestCase):
 		response = self.client.post(reverse("match_create", args=(self.tournament.slug,)), {"game": self.game.id, "player_one": self.player.id, "player_two": outsider.id, "round": 1, "status": "Scheduled"})
 		self.assertEqual(response.status_code, 200)
 		self.assertFalse(TournamentMatch.objects.exists())
+
+	def _register(self, player):
+		TournamentRegistration.objects.get_or_create(tournament=self.tournament, player=player)
+
+	def _eligible_match(self, player_two):
+		match = TournamentMatch.objects.create(tournament=self.tournament, game=self.game, player_one=self.player, player_two=player_two)
+		self.player.games.add(self.game)
+		player_two.games.add(self.game)
+		self._register(self.player)
+		self._register(player_two)
+		return match
+
+	def test_bracket_cannot_crown_champion_before_the_final(self):
+		players = [self.player]
+		for index in range(3):
+			players.append(GamerProfile.objects.create(user=User.objects.create_user(username=f"flow{index}"), gamer_tag=f"Flow{index}"))
+		for player in players:
+			self._register(player)
+		self.tournament.max_participants = 4
+		self.tournament.save(update_fields=("max_participants",))
+		self.client.login(username="organizer", password="pass-12345")
+		self.client.post(reverse("generate_bracket", args=(self.tournament.slug,)))
+		semis = self.tournament.matches.filter(round=1).order_by("id")
+		final = self.tournament.matches.get(round=2)
+		self.assertEqual(len(semis), 2)
+		self.assertEqual(final.status, "Scheduled")
+		self.assertIsNone(final.winner_id)
+		self.client.post(reverse("match_result", args=(semis[0].id,)), {"winner": semis[0].player_one_id, "score": "2-0"})
+		final.refresh_from_db()
+		self.tournament.refresh_from_db()
+		self.assertEqual(final.status, "Scheduled")
+		self.assertIsNone(final.winner_id)
+		self.assertNotEqual(final.score, "Bye")
+		self.assertEqual(final.player_one_id, semis[0].player_one_id)
+		self.assertNotEqual(self.tournament.status, "Completed")
+		self.client.post(reverse("match_result", args=(semis[1].id,)), {"winner": semis[1].player_two_id, "score": "2-1"})
+		final.refresh_from_db()
+		self.assertEqual(final.status, "Scheduled")
+		self.assertIsNone(final.winner_id)
+		self.assertEqual(final.player_two_id, semis[1].player_two_id)
+		self.tournament.refresh_from_db()
+		self.assertNotEqual(self.tournament.status, "Completed")
+		self.client.post(reverse("match_result", args=(final.id,)), {"winner": final.player_one_id, "score": "2-1"})
+		final.refresh_from_db()
+		self.tournament.refresh_from_db()
+		self.assertEqual(final.status, "Completed")
+		self.assertEqual(final.winner_id, final.player_one_id)
+		self.assertEqual(self.tournament.status, "Completed")
+		self.player.refresh_from_db()
+		self.assertEqual(self.player.tournament_wins, 1)
+
+	def test_bye_match_advances_without_completing_the_tournament(self):
+		players = [self.player]
+		for index in range(2):
+			players.append(GamerProfile.objects.create(user=User.objects.create_user(username=f"byeflow{index}"), gamer_tag=f"ByeFlow{index}"))
+		for player in players:
+			self._register(player)
+		self.tournament.max_participants = 4
+		self.tournament.save(update_fields=("max_participants",))
+		self.client.login(username="organizer", password="pass-12345")
+		self.client.post(reverse("generate_bracket", args=(self.tournament.slug,)))
+		self.assertEqual(self.tournament.matches.count(), 3)
+		bye_match = self.tournament.matches.get(score="Bye")
+		self.assertIsNone(bye_match.player_two_id)
+		self.assertEqual(bye_match.status, "Completed")
+		final = self.tournament.matches.get(round=2)
+		self.assertEqual(final.status, "Scheduled")
+		self.assertIsNone(final.winner_id)
+		self.assertNotEqual(final.score, "Bye")
+		self.assertEqual(final.player_two_id, bye_match.player_one_id)
+		self.tournament.refresh_from_db()
+		self.assertNotEqual(self.tournament.status, "Completed")
+		real_semi = self.tournament.matches.filter(round=1).exclude(pk=bye_match.pk).get()
+		real_winner = real_semi.player_one
+		response = self.client.post(reverse("match_result", args=(real_semi.id,)), {"winner": real_winner.id, "score": "2-1"})
+		self.assertEqual(response.status_code, 302)
+		final.refresh_from_db()
+		self.assertEqual(final.player_one_id, real_winner.id)
+		self.assertEqual(final.status, "Scheduled")
+		self.client.post(reverse("match_result", args=(final.id,)), {"winner": real_winner.id, "score": "2-0"})
+		final.refresh_from_db()
+		self.tournament.refresh_from_db()
+		self.assertEqual(final.score, "2-0")
+		self.assertEqual(final.status, "Completed")
+		self.assertEqual(self.tournament.status, "Completed")
+		real_winner.refresh_from_db()
+		self.assertEqual(real_winner.tournament_wins, 1)
+		bye_match.player_one.refresh_from_db()
+		self.assertEqual(bye_match.player_one.tournament_wins, 0)
+
+	def test_bracket_generation_creates_no_empty_matches(self):
+		players = [self.player]
+		for index in range(4):
+			players.append(GamerProfile.objects.create(user=User.objects.create_user(username=f"phantom{index}"), gamer_tag=f"Phantom{index}"))
+		for player in players:
+			self._register(player)
+		self.tournament.max_participants = 8
+		self.tournament.save(update_fields=("max_participants",))
+		self.client.login(username="organizer", password="pass-12345")
+		self.client.post(reverse("generate_bracket", args=(self.tournament.slug,)))
+		self.assertEqual(self.tournament.matches.count(), 7)
+		self.assertEqual(self.tournament.matches.filter(round=1).count(), 4)
+		self.assertEqual(self.tournament.matches.filter(round=2).count(), 2)
+		self.assertEqual(self.tournament.matches.filter(round=3).count(), 1)
+		self.assertFalse(self.tournament.matches.filter(round=1, player_one_id__isnull=True, player_two_id__isnull=True).exists())
+		self.assertFalse(self.tournament.matches.filter(round=1, player_one_id__isnull=True).exists())
+		self.assertEqual(self.tournament.matches.filter(score="Bye").count(), 3)
+		self.tournament.refresh_from_db()
+		self.assertNotEqual(self.tournament.status, "Completed")
+
+	def test_duplicate_result_is_rejected_without_double_counting(self):
+		self.tournament.max_participants = 2
+		self.tournament.save(update_fields=("max_participants",))
+		opponent = GamerProfile.objects.create(user=User.objects.create_user(username="duel"), gamer_tag="DuelZW")
+		self.player.games.add(self.game)
+		opponent.games.add(self.game)
+		self._register(self.player)
+		self._register(opponent)
+		self.client.login(username="organizer", password="pass-12345")
+		self.client.post(reverse("generate_bracket", args=(self.tournament.slug,)))
+		self.assertEqual(self.tournament.matches.count(), 1)
+		match = self.tournament.matches.get()
+		response = self.client.post(reverse("match_result", args=(match.id,)), {"winner": self.player.id, "score": "2-0"})
+		self.assertEqual(response.status_code, 302)
+		match.refresh_from_db()
+		self.assertEqual(match.status, "Completed")
+		self.assertEqual(match.winner_id, self.player.id)
+		self.tournament.refresh_from_db()
+		self.assertEqual(self.tournament.status, "Completed")
+		self.player.refresh_from_db()
+		self.assertEqual(self.player.tournament_wins, 1)
+		second = self.client.post(reverse("match_result", args=(match.id,)), {"winner": self.player.id, "score": "3-0"})
+		self.assertEqual(second.status_code, 200)
+		self.assertContains(second, "already has a recorded result")
+		self.tournament.refresh_from_db()
+		self.assertEqual(self.tournament.status, "Completed")
+		self.player.refresh_from_db()
+		self.assertEqual(self.player.tournament_wins, 1)
+		opponent.refresh_from_db()
+		self.assertEqual(opponent.tournament_wins, 0)
+
+	def test_match_result_is_limited_to_organizer_or_staff(self):
+		opponent = GamerProfile.objects.create(user=User.objects.create_user(username="authority"), gamer_tag="AuthorityZW")
+		GamerProfile.objects.create(user=User.objects.create_user(username="authority-outside", password="pass-12345"), gamer_tag="AuthorityOutsideZW")
+		match = self._eligible_match(opponent)
+		self.client.login(username="authority-outside", password="pass-12345")
+		self.assertEqual(self.client.post(reverse("match_result", args=(match.id,)), {"winner": self.player.id, "score": "2-0"}).status_code, 403)
+		self.client.login(username="player", password="pass-12345")
+		self.assertEqual(self.client.post(reverse("match_result", args=(match.id,)), {"winner": self.player.id, "score": "2-0"}).status_code, 403)
+		match.refresh_from_db()
+		self.assertEqual(match.status, "Scheduled")
+		self.client.login(username="organizer", password="pass-12345")
+		self.assertEqual(self.client.post(reverse("match_result", args=(match.id,)), {"winner": self.player.id, "score": "2-0"}).status_code, 302)
+		staff_user = User.objects.create_user(username="referee", password="pass-12345", is_staff=True)
+		GamerProfile.objects.create(user=staff_user, gamer_tag="RefereeZW")
+		staff_match = self._eligible_match(opponent)
+		self.client.login(username="referee", password="pass-12345")
+		self.assertEqual(self.client.post(reverse("match_result", args=(staff_match.id,)), {"winner": opponent.id, "score": "2-0"}).status_code, 302)
+		staff_match.refresh_from_db()
+		self.assertEqual(staff_match.status, "Completed")
+		self.assertEqual(staff_match.winner_id, opponent.id)
+
+	def test_client_submitted_status_cannot_force_match_state(self):
+		opponent = GamerProfile.objects.create(user=User.objects.create_user(username="status"), gamer_tag="StatusZW")
+		match = self._eligible_match(opponent)
+		self.client.login(username="organizer", password="pass-12345")
+		self.client.post(reverse("match_result", args=(match.id,)), {"winner": self.player.id, "score": "2-0", "status": "Cancelled"})
+		match.refresh_from_db()
+		self.assertEqual(match.status, "Completed")
+		self.assertEqual(match.score, "2-0")
+		second = TournamentMatch.objects.create(tournament=self.tournament, game=self.game, player_one=self.player, player_two=opponent)
+		response = self.client.post(reverse("match_result", args=(second.id,)), {"status": "Completed"})
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "requires a winner and score")
+		second.refresh_from_db()
+		self.assertEqual(second.status, "Scheduled")
+		self.assertIsNone(second.winner_id)
+
+	def test_player_cannot_leave_after_bracket_generation(self):
+		opponent = GamerProfile.objects.create(user=User.objects.create_user(username="leave"), gamer_tag="LeaveZW")
+		self.player.games.add(self.game)
+		opponent.games.add(self.game)
+		self._register(self.player)
+		self._register(opponent)
+		self.tournament.max_participants = 2
+		self.tournament.save(update_fields=("max_participants",))
+		self.client.login(username="player", password="pass-12345")
+		leave_url = reverse("tournament_leave", args=(self.tournament.slug,))
+		self.assertEqual(self.client.post(leave_url).status_code, 302)
+		self.tournament.refresh_from_db()
+		self.assertFalse(self.tournament.registrations.filter(player=self.player, status="Registered").exists())
+		self.assertEqual(self.client.post(reverse("tournament_register", args=(self.tournament.slug,))).status_code, 302)
+		self.client.login(username="organizer", password="pass-12345")
+		self.client.post(reverse("generate_bracket", args=(self.tournament.slug,)))
+		self.client.login(username="player", password="pass-12345")
+		self.assertEqual(self.client.post(leave_url).status_code, 403)
+		self.tournament.refresh_from_db()
+		self.assertTrue(self.tournament.registrations.filter(player=self.player, status="Registered").exists())
+
+	def test_self_registration_requires_owning_the_tournament_game(self):
+		url = reverse("tournament_register", args=(self.tournament.slug,))
+		self.client.login(username="player", password="pass-12345")
+		self.assertEqual(self.client.post(url).status_code, 403)
+		self.assertFalse(TournamentRegistration.objects.filter(tournament=self.tournament, player=self.player).exists())
+		self.player.games.add(self.game)
+		self.assertEqual(self.client.post(url).status_code, 302)
+		self.assertTrue(TournamentRegistration.objects.filter(tournament=self.tournament, player=self.player, status="Registered").exists())
+
+	def test_invitation_acceptance_requires_owning_the_tournament_game(self):
+		invitation = TournamentInvitation.objects.create(tournament=self.tournament, player=self.player)
+		url = reverse("tournament_invitation_action", args=(invitation.id, "accept"))
+		self.client.login(username="player", password="pass-12345")
+		self.assertEqual(self.client.post(url).status_code, 403)
+		self.assertFalse(TournamentRegistration.objects.filter(tournament=self.tournament, player=self.player).exists())
+		self.player.games.add(self.game)
+		self.assertEqual(self.client.post(url).status_code, 302)
+		self.assertTrue(TournamentRegistration.objects.filter(tournament=self.tournament, player=self.player, status="Registered").exists())
 
 	def test_cleared_conversation_is_not_counted_as_unread(self):
 		from accounts.models import Conversation, ConversationParticipant, Message

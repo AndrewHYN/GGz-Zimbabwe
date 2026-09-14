@@ -212,27 +212,20 @@ def tournament_cancel(request, slug):
 
 
 def _advance_winner(match):
-	if match.status != "Completed" or not match.winner or not match.next_match:
+	if match.status != "Completed" or not match.winner_id or not match.next_match_id:
 		return
-	next_match = match.next_match
+	# Fully-filled round-2+ slots that are missing only the pending source
+	# winner are waiting matches, never Byes. This helper only places a
+	# winner into its next-match slot and never completes that next match.
+	next_match = TournamentMatch.objects.select_for_update().get(pk=match.next_match_id)
 	sources = list(TournamentMatch.objects.filter(next_match=next_match).order_by("id"))
-	if sources and sources[0].id == match.id:
-		next_match.player_one = match.winner
-	else:
-		next_match.player_two = match.winner
-	next_match.save(update_fields=("player_one", "player_two"))
-	if next_match.player_one and next_match.player_two:
+	slot = "player_one" if sources and sources[0].id == match.id else "player_two"
+	if getattr(next_match, f"{slot}_id") == match.winner_id:
 		return
-	if next_match.player_one or next_match.player_two:
-		next_match.winner = next_match.player_one or next_match.player_two
-		next_match.status = "Completed"
-		next_match.score = "Bye"
-		next_match.save(update_fields=("winner", "status", "score"))
-		if not next_match.next_match_id:
-			GamerProfile.objects.filter(id=next_match.winner_id).update(tournament_wins=F("tournament_wins") + 1)
-			next_match.tournament.status = "Completed"
-			next_match.tournament.save(update_fields=("status",))
-		_advance_winner(next_match)
+	if getattr(next_match, f"{slot}_id"):
+		return
+	setattr(next_match, f"{slot}_id", match.winner_id)
+	next_match.save(update_fields=(slot,))
 
 
 @login_required
@@ -240,21 +233,28 @@ def generate_bracket(request, slug):
 	tournament = get_object_or_404(Tournament, slug=slug, organizer__user=request.user)
 	if request.method != "POST":
 		return HttpResponseForbidden("This action requires POST.")
-	if tournament.format != "1v1" or tournament.matches.exists():
-		messages.error(request, "This tournament cannot generate a new bracket.")
+	if tournament.format != "1v1":
+		messages.error(request, "Only 1v1 tournaments can generate a bracket.")
 		return redirect("tournament_manage", slug=slug)
-	players = list(TournamentRegistration.objects.filter(tournament=tournament, status="Registered").order_by("joined_at").values_list("player", flat=True))
-	if len(players) < 2:
-		messages.error(request, "At least two registered players are required.")
-		return redirect("tournament_manage", slug=slug)
-	size = 1
-	while size < len(players):
-		size *= 2
-	players += [None] * (size - len(players))
 	with transaction.atomic():
+		tournament = Tournament.objects.select_for_update().get(pk=tournament.pk)
+		if tournament.matches.exists():
+			messages.error(request, "This tournament already has a bracket.")
+			return redirect("tournament_manage", slug=slug)
+		players = list(TournamentRegistration.objects.filter(tournament=tournament, status="Registered").order_by("joined_at", "id").values_list("player_id", flat=True))
+		if len(players) < 2:
+			messages.error(request, "At least two registered players are required.")
+			return redirect("tournament_manage", slug=slug)
+		size = 1
+		while size < len(players):
+			size *= 2
 		rounds = {1: []}
-		for index in range(0, size, 2):
-			rounds[1].append(TournamentMatch.objects.create(tournament=tournament, game=tournament.game, player_one_id=players[index], player_two_id=players[index + 1]))
+		number_of_byes = size - len(players)
+		real_pair_count = (len(players) - number_of_byes) // 2
+		for index in range(real_pair_count):
+			rounds[1].append(TournamentMatch.objects.create(tournament=tournament, game=tournament.game, player_one_id=players[2 * index], player_two_id=players[2 * index + 1]))
+		for player_id in players[real_pair_count * 2:]:
+			rounds[1].append(TournamentMatch.objects.create(tournament=tournament, game=tournament.game, player_one_id=player_id, player_two_id=None))
 		round_count = size.bit_length() - 1
 		for round_number in range(2, round_count + 1):
 			rounds[round_number] = [TournamentMatch.objects.create(tournament=tournament, game=tournament.game, round=round_number) for _ in range(len(rounds[round_number - 1]) // 2)]
@@ -263,8 +263,8 @@ def generate_bracket(request, slug):
 				match.next_match = rounds[round_number + 1][index // 2]
 				match.save(update_fields=("next_match",))
 		for match in rounds[1]:
-			if bool(match.player_one) != bool(match.player_two):
-				match.winner = match.player_one or match.player_two
+			if match.player_one_id and not match.player_two_id:
+				match.winner = match.player_one
 				match.status = "Completed"
 				match.score = "Bye"
 				match.save(update_fields=("winner", "status", "score"))
@@ -348,6 +348,8 @@ def tournament_register(request, slug):
 		tournament = Tournament.objects.select_for_update().get(pk=tournament.pk)
 		if tournament.status != "Registration Open" or timezone.now() > tournament.registration_deadline:
 			return HttpResponseForbidden("Registration is closed.")
+		if not player.games.filter(id=tournament.game_id).exists():
+			return HttpResponseForbidden("You are not eligible for this tournament's game.")
 		if tournament.participant_count >= tournament.max_participants:
 			return HttpResponseForbidden("This tournament is full.")
 		registration, _ = TournamentRegistration.objects.get_or_create(tournament=tournament, player=player, defaults={"status": "Registered"})
@@ -366,7 +368,11 @@ def tournament_leave(request, slug):
 	if request.method != "POST":
 		return HttpResponseForbidden("This action requires POST.")
 	tournament = get_object_or_404(Tournament, slug=slug)
-	TournamentRegistration.objects.filter(tournament=tournament, player__user=request.user, status__in=("Registered", "Waitlisted")).update(status="Withdrawn")
+	with transaction.atomic():
+		tournament = Tournament.objects.select_for_update().get(pk=tournament.pk)
+		if tournament.matches.exists():
+			return HttpResponseForbidden("You cannot leave after the tournament bracket has been generated.")
+		TournamentRegistration.objects.filter(tournament=tournament, player__user=request.user, status__in=("Registered", "Waitlisted")).update(status="Withdrawn")
 	messages.success(request, "You left the tournament.")
 	if request.headers.get("x-requested-with") == "XMLHttpRequest":
 		return JsonResponse({"ok": True, "message": "You left the tournament.", "registered": False, "count": tournament.participant_count})
@@ -415,28 +421,43 @@ def challenge_action(request, challenge_id, action):
 def match_result(request, match_id):
 	match = get_object_or_404(TournamentMatch, id=match_id)
 	player = get_object_or_404(GamerProfile, user=request.user)
-	if player not in (match.player_one, match.player_two) and player != match.tournament.organizer:
-		return HttpResponseForbidden("You cannot submit this result.")
+	if player != match.tournament.organizer and not request.user.is_staff:
+		return HttpResponseForbidden("Only the tournament organizer can record match results.")
 	form = MatchResultForm(request.POST or None, instance=match)
 	was_completed = match.status == "Completed" and match.winner_id
-	registered_ids = set(TournamentRegistration.objects.filter(tournament=match.tournament, status="Registered").values_list("player_id", flat=True))
-	valid_players = {player_id for player_id in (match.player_one_id, match.player_two_id) if player_id}
-	if form.is_valid() and was_completed:
-		form.add_error(None, "This match already has a recorded result.")
-	if form.is_valid() and not was_completed and not valid_players.issubset(registered_ids):
-		form.add_error(None, "Both match players must be registered in this tournament.")
-	if form.is_valid() and not was_completed and match.game_id != match.tournament.game_id:
-		form.add_error(None, "This match must use the tournament game.")
-	if form.is_valid() and not was_completed and valid_players.issubset(registered_ids) and match.game_id == match.tournament.game_id:
-		match = form.save()
-		_advance_winner(match)
-		if match.status == "Completed" and match.winner:
-			notify(match.winner, player, "match", f"You advanced in {match.tournament.name}", f"/tournaments/{match.tournament.slug}/")
-			if not match.next_match:
-				GamerProfile.objects.filter(id=match.winner_id).update(tournament_wins=F("tournament_wins") + 1)
-				match.tournament.status = "Completed"
-				match.tournament.save(update_fields=("status",))
-		return redirect("tournament_detail", slug=match.tournament.slug)
+	if form.is_valid():
+		if was_completed:
+			form.add_error(None, "This match already has a recorded result.")
+		else:
+			with transaction.atomic():
+				locked_match = TournamentMatch.objects.select_for_update().get(pk=match.pk)
+				registered_ids = set(TournamentRegistration.objects.filter(tournament=locked_match.tournament, status="Registered").values_list("player_id", flat=True))
+				valid_players = {player_id for player_id in (locked_match.player_one_id, locked_match.player_two_id) if player_id}
+				if locked_match.status == "Completed" and locked_match.winner_id:
+					form.add_error(None, "This match already has a recorded result.")
+				elif not valid_players.issubset(registered_ids):
+					form.add_error(None, "Both match players must be registered in this tournament.")
+				elif len(valid_players) != 2:
+					form.add_error(None, "This match does not have two players yet.")
+				elif locked_match.game_id != locked_match.tournament.game_id:
+					form.add_error(None, "This match must use the tournament game.")
+				else:
+					winner = form.cleaned_data["winner"]
+					locked_match.winner = winner
+					locked_match.score = form.cleaned_data["score"]
+					locked_match.status = "Completed"
+					locked_match.save(update_fields=("winner", "score", "status"))
+					if locked_match.next_match_id:
+						_advance_winner(locked_match)
+						notify(winner, player, "match", f"You advanced in {locked_match.tournament.name}", f"/tournaments/{locked_match.tournament.slug}/")
+					else:
+						tournament = Tournament.objects.select_for_update().get(pk=locked_match.tournament_id)
+						if tournament.status != "Completed":
+							tournament.status = "Completed"
+							tournament.save(update_fields=("status",))
+						GamerProfile.objects.filter(id=winner.id).update(tournament_wins=F("tournament_wins") + 1)
+						notify(winner, player, "match", f"You won {locked_match.tournament.name}", f"/tournaments/{locked_match.tournament.slug}/")
+					return redirect("tournament_detail", slug=locked_match.tournament.slug)
 	return render(request, "tournaments/match_form.html", {"form": form, "match": match, "tournament": match.tournament})
 
 @login_required

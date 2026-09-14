@@ -32,7 +32,7 @@
                                 {% csrf_token %}
                                 <button class="button" type="submit">Join tournament</button>
                             </form>
-                        {% elif registration.status == "Registered" %}
+                        {% elif registration.status == "Registered" and not tournament.matches.exists %}
                             <form method="post" action="{% url 'tournament_leave' tournament.slug %}" class="inline-action" data-async-mutation>
                                 {% csrf_token %}
                                 <button class="button alt" type="submit">Leave tournament</button>
