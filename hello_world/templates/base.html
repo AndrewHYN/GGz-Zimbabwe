@@ -4,6 +4,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+(function () {
+  var t = "dark";
+  try {
+    t = localStorage.getItem("ggz-theme");
+    if (t !== "dark" && t !== "light") {
+      t = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+    }
+  } catch (e) { t = "dark"; }
+  document.documentElement.dataset.theme = t;
+})();
+    </script>
     <meta name="description" content="GGz is a home for players to discover, compete, and build reputation.">
     <title>{% block title %}GGz | Gaming, with intent{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -77,6 +89,11 @@
                         <button type="submit" aria-label="Search GGz">Search</button>
                     </form>
                 </div>
+
+                <button type="button" class="nav-icon-button nav-theme-toggle" data-theme-toggle aria-pressed="false" aria-label="Switch to light theme" title="Switch between light and dark theme">
+                    <svg class="theme-icon-day" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.31 11.31 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
+                    <svg class="theme-icon-night" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                </button>
 
                 {% if request.user.is_authenticated %}
                     <a href="{% url 'notification_list' %}" class="nav-icon-button" title="Notifications" aria-label="Notifications">
@@ -156,6 +173,11 @@
                     <a href="{% url 'notification_list' %}">Notifications</a>
                     <a href="{% url 'dashboard' %}">Dashboard</a>
                 </div>
+                <div>
+                    <h3>Legal</h3>
+                    <a href="{% url 'privacy' %}">Privacy Policy</a>
+                    <a href="{% url 'terms' %}">Terms of Service</a>
+                </div>
             </div>
         </div>
         <div class="footer-bottom">
@@ -164,7 +186,30 @@
         </div>
     </footer>
 
+    <div id="cookie-consent" class="cookie-consent" role="dialog" aria-label="Cookie consent" hidden>
+        <p>We use essential cookies for security, session management, and to remember your theme preference. No tracking or analytics cookies are used.</p>
+        <div class="cookie-actions">
+            <a href="{% url 'privacy' %}" class="button button-secondary">Privacy Policy</a>
+            <a href="{% url 'terms' %}" class="button button-secondary">Terms of Service</a>
+            <button type="button" class="button button-primary" id="cookie-accept" aria-label="Accept essential cookies">Accept</button>
+        </div>
+    </div>
+
     <script src="{% static 'main.js' %}" defer></script>
     <script src="{% static 'ggz_stability.js' %}" defer></script>
+    <script>
+    (function() {
+        var consent = document.getElementById('cookie-consent');
+        var accept = document.getElementById('cookie-accept');
+        if (!consent || !accept) return;
+        if (!localStorage.getItem('ggz-cookie-consent')) {
+            consent.hidden = false;
+        }
+        accept.addEventListener('click', function() {
+            localStorage.setItem('ggz-cookie-consent', '1');
+            consent.hidden = true;
+        });
+    })();
+    </script>
 </body>
 </html>

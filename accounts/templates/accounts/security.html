@@ -76,6 +76,23 @@
                 <button class="button button-primary" type="submit">Save privacy</button>
             </form>
         </section>
+        <section class="card-panel settings-panel">
+            <h2>Your data</h2>
+            <p class="muted">Download a copy of your GGz data or permanently delete your account.</p>
+            <div class="security-actions">
+                <form method="post" class="inline-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_name" value="export-data">
+                    <button class="button button-secondary" type="submit">Download my data</button>
+                </form>
+                <form method="post" class="inline-form settings-danger">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_name" value="delete-account">
+                    <input type="text" name="confirm_username" placeholder="Type your username to confirm" required autocomplete="username" aria-label="Confirm your username">
+                    <button class="button button-danger" type="submit">Delete my account</button>
+                </form>
+            </div>
+        </section>
     </div>
 </main>
 {% endblock %}

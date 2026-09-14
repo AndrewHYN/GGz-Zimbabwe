@@ -26,6 +26,14 @@ def service_worker(request):
 	return FileResponse((settings.BASE_DIR / "hello_world" / "static" / "ggz-service-worker.js").open("rb"), content_type="application/javascript")
 
 
+def privacy(request):
+    return render(request, "privacy.html")
+
+
+def terms(request):
+    return render(request, "terms.html")
+
+
 def _companion_fallback_reply(message, user=None):
     normalized = (message or "").strip()
     lowered = normalized.lower()
@@ -110,6 +118,10 @@ def index(request):
         "featured_games": Game.objects.order_by("-popularity", "name")[:4],
         "upcoming_tournaments": Tournament.objects.select_related("game", "organizer__user").filter(status__in=("Registration Open", "Live")).order_by("start_date")[:3],
         "upcoming_events": Event.objects.select_related("game", "organizer__user").filter(status__in=("Upcoming", "Live")).order_by("start_date")[:3],
+        "featured_tournament": Tournament.objects.select_related("game", "organizer__user")
+        .filter(status__in=("Registration Open", "Live"))
+        .order_by("start_date")
+        .first(),
     }
 
     if request.user.is_authenticated:

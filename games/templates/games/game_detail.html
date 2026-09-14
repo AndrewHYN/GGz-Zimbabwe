@@ -28,8 +28,8 @@
             </div>
 
             {% if average_rating is not None %}
-            <div class="review-summary" aria-label="Average user rating for {{ game.name }}">
-                <span class="rating-stars">★★★★★</span>
+            <div class="review-summary" aria-label="Average user rating for {{ game.name }}: {{ average_rating }} out of 5">
+                <span class="rating-stars" aria-hidden="true">{% with filled=average_rating|floatformat:0 %}{% for s in "12345" %}{% if forloop.counter|stringformat:"s" <= filled %}★{% else %}☆{% endif %}{% endfor %}{% endwith %}</span>
                 <strong>{{ average_rating }}</strong>
                 <span>({{ review_count }} review{{ review_count|pluralize }})</span>
             </div>
@@ -47,9 +47,7 @@
                         {{ store_label }}
                     </a>
                 {% else %}
-                    <a class="button button-primary" href="{% if game.free_to_play %}{{ game.primary_store_url|default:'#' }}{% else %}{{ primary_store_url|default:'#' }}{% endif %}" aria-label="{% if game.free_to_play %}Play free{% else %}Get game{% endif %} for {{ game.name }}">
-                        {% if game.free_to_play %}Play Free{% else %}Get Game{% endif %}
-                    </a>
+                    <span class="button button-primary is-disabled" aria-disabled="true">{% if game.free_to_play %}Play Free{% else %}Get Game{% endif %}</span>
                 {% endif %}
                 <a class="button button-secondary" href="{% url 'gamer_discovery' %}?game={{ game.id }}" aria-label="Find players for {{ game.name }}">Find players</a>
                 {% if viewer %}
@@ -123,7 +121,7 @@
                 </div>
                 {% else %}
                 <div class="trailer-placeholder">
-                    <p>Trailer preview is being prepared for {{ game.name }}.</p>
+                    <p>A trailer isn't available for {{ game.name }} yet.</p>
                 </div>
                 {% endif %}
             </div>
@@ -150,8 +148,6 @@
                             <div class="game-community-actions">
                                 <span>❤️ {{ post.likes.count }}</span>
                                 <span>💬 {{ post.comments.count }}</span>
-                                <span>🔁 {{ post.comments.count|add:post.likes.count|add:1 }}</span>
-                                <span>🔖</span>
                             </div>
                         </article>
                         {% endfor %}

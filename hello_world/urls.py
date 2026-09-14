@@ -15,6 +15,8 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
+import re
+
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
@@ -32,6 +34,8 @@ urlpatterns = [
     path("leaderboards/", core_views.leaderboard, name="leaderboard"),
     path("search/", core_views.global_search, name="global_search"),
     path("assistant/", core_views.ai_companion, name="ai_companion"),
+    path("privacy/", core_views.privacy, name="privacy"),
+    path("terms/", core_views.terms, name="terms"),
     path("admin/overview/", core_views.admin_dashboard, name="admin_dashboard"),
     path("discover/", account_views.geo_discovery, name="geo_discovery"),
     path("map/", account_views.map_page, name="map_page"),
@@ -124,5 +128,28 @@ urlpatterns = [
     path("__reload__/", include("django_browser_reload.urls")),
 ]
 if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # The static() helper only emits routes while DEBUG is on; use it for
+    # local static during development. Production static comes from
+    # STATIC_ROOT after collectstatic.
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+
+# Serve user-uploaded media from MEDIA_ROOT whenever media is filesystem-backed
+# (i.e. Supabase/S3 storage is not configured). The static() helper is gated on
+# DEBUG, so bind django.views.static.serve explicitly to keep /media reachable
+# in production hosts with persistent local storage. With S3 enabled no local
+# route is needed (MEDIA_URL points at the public bucket instead). On serverless
+# hosts (Vercel) local MEDIA_ROOT is ephemeral, so use the check_media_storage
+# command to sync media into S3 for durability.
+if not settings.USE_S3_MEDIA_STORAGE:
+    from django.urls import re_path
+    from django.views.static import serve as media_serve
+
+    def _serve_media(request, path, **kwargs):
+        return media_serve(request, path, document_root=settings.MEDIA_ROOT)
+
+    urlpatterns += [
+        re_path(
+            r"^%s(?P<path>.*)$" % re.escape(settings.MEDIA_URL.lstrip("/")),
+            _serve_media,
+        )
+    ]

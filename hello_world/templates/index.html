@@ -39,17 +39,30 @@
         </div>
 
         <aside class="hero-panel">
-            <div class="hero-panel-header">
-                <span>Featured drop</span>
-                <span class="status-pill">Live</span>
-            </div>
-            <h2>GGz Championship</h2>
-            <p>Community tournaments, live brackets, and local rivalries from Harare to Bulawayo.</p>
-            <div class="hero-stats">
-                <div><strong>{{ profile_count }}</strong><span>Players</span></div>
-                <div><strong>{{ game_count }}</strong><span>Games</span></div>
-                <div><strong>32</strong><span>Slots</span></div>
-            </div>
+            {% if featured_tournament %}
+                <div class="hero-panel-header">
+                    <span>Featured tournament</span>
+                    <span class="status-pill">{{ featured_tournament.status }}</span>
+                </div>
+                <h2>{{ featured_tournament.name }}</h2>
+                <p>{{ featured_tournament.format }}{% if featured_tournament.location %} · {{ featured_tournament.location }}{% else %} · Online{% endif %}{% if featured_tournament.prize_description %} · {{ featured_tournament.prize_description }}{% endif %}</p>
+                <div class="hero-stats">
+                    <div><strong>{{ profile_count }}</strong><span>Players</span></div>
+                    <div><strong>{{ game_count }}</strong><span>Games</span></div>
+                    <div><strong>{{ featured_tournament.participant_count }}</strong><span>Slots{% if featured_tournament.max_participants %} of {{ featured_tournament.max_participants }}{% endif %}</span></div>
+                </div>
+            {% else %}
+                <div class="hero-panel-header">
+                    <span>Featured drop</span>
+                </div>
+                <h2>GGz Championship Series</h2>
+                <p>Community tournaments, live brackets, and local rivalries from Harare to Bulawayo open on GGz as leagues register.</p>
+                <div class="hero-stats">
+                    <div><strong>{{ profile_count }}</strong><span>Players</span></div>
+                    <div><strong>{{ game_count }}</strong><span>Games</span></div>
+                    <div><strong>Open</strong><span>Tournament slots</span></div>
+                </div>
+            {% endif %}
             <div class="hero-actions">
                 <a class="button" href="{% url 'tournament_list' %}">View tournaments</a>
                 <a class="button alt" href="{% url 'event_list' %}">Find events</a>

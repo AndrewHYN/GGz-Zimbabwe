@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Privacy Policy | GGz{% endblock %}
+
+{% block content %}
+<main class="page-shell legal-page">
+    <header class="page-header">
+        <h1>Privacy Policy</h1>
+        <p class="lede">Last updated: {% now "F j, Y" %}</p>
+    </header>
+
+    <section class="legal-section">
+        <h2>1. Information We Collect</h2>
+        <p>We collect information you provide directly to us when you create an account, set up your profile, post content, interact with other players, or contact us for support. This includes:</p>
+        <ul>
+            <li>Account information: username, email address, password (hashed)</li>
+            <li>Profile information: gamer tag, bio, location (optional), platform preferences, gaming interests</li>
+            <li>Content you create: posts, comments, tournament registrations, event RSVPs, marketplace listings</li>
+            <li>Social connections: follows, friend requests, blocks, team memberships</li>
+            <li>Communication data: messages with other players, message requests</li>
+            <li>Technical data: IP address, browser type, device information, access times (for security and analytics)</li>
+            <li>Location data: coarse city-level location if you opt in (used for nearby events and player discovery)</li>
+        </ul>
+    </section>
+
+    <section class="legal-section">
+        <h2>2. How We Use Your Information</h2>
+        <ul>
+            <li>Provide and improve the GGz platform</li>
+            <li>Enable player discovery, matchmaking, and community features</li>
+            <li>Facilitate tournaments, events, and team play</li>
+            <li>Send service-related communications (security alerts, account changes)</li>
+            <li>Prevent abuse, fraud, and enforce our Terms of Service</li>
+            <li>Comply with legal obligations</li>
+        </ul>
+    </section>
+
+    <section class="legal-section">
+        <h2>3. Information Sharing</h2>
+        <p>We do not sell your personal information. We may share data only in these cases:</p>
+        <ul>
+            <li>With other players: profile info you make public, posts, tournament participation</li>
+            <li>With service providers: hosting, email delivery, analytics (under data processing agreements)</li>
+            <li>Legal requirements: when required by law or to protect rights and safety</li>
+            <li>Business transfers: in case of merger/acquisition (with notice)</li>
+        </ul>
+    </section>
+
+    <section class="legal-section">
+        <h2>4. Your Rights</h2>
+        <p>You can exercise the following rights through your account settings:</p>
+        <ul>
+            <li>Access and download your data (<a href="{% url 'account_security' %}">Account Security → Your Data</a>)</li>
+            <li>Rectify inaccurate information (edit profile)</li>
+            <li>Delete your account and all associated data (<a href="{% url 'account_security' %}">Account Security → Delete Account</a>)</li>
+            <li>Restrict processing (adjust privacy settings, block users)</li>
+            <li>Object to processing (unsubscribe from non-essential emails)</li>
+            <li>Data portability (JSON export available in Account Security)</li>
+        </ul>
+    </section>
+
+    <section class="legal-section">
+        <h2>5. Data Retention</h2>
+        <p>We retain your data while your account is active. After deletion, we purge personal data within 30 days, except where longer retention is required by law (e.g., transaction records for marketplace sales).</p>
+    </section>
+
+    <section class="legal-section">
+        <h2>6. Security</h2>
+        <p>We implement appropriate technical and organizational measures: HTTPS everywhere, hashed passwords, CSRF protection, Content Security Policy, rate limiting, and regular security reviews.</p>
+    </section>
+
+    <section class="legal-section">
+        <h2>7. International Transfers</h2>
+        <p>Our servers are located in South Africa. If you access GGz from outside Zimbabwe/South Africa, your data will be transferred there. We rely on standard contractual clauses for such transfers.</p>
+    </section>
+
+    <section class="legal-section">
+        <h2>8. Children's Privacy</h2>
+        <p>GGz is not directed at children under 13. We do not knowingly collect personal information from children under 13. If you believe we have collected such data, contact us to have it removed.</p>
+    </section>
+
+    <section class="legal-section">
+        <h2>9. Changes to This Policy</h2>
+        <p>We may update this policy. Material changes will be notified via email or in-app notice. Continued use constitutes acceptance.</p>
+    </section>
+
+    <section class="legal-section">
+        <h2>10. Contact</h2>
+        <p>Questions about this policy or your data: <a href="mailto:privacy@ggz.example">privacy@ggz.example</a> (replace with real contact before launch).</p>
+    </section>
+</main>
+{% endblock %}

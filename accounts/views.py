@@ -2666,6 +2666,28 @@ def account_security(request):
 		presence.save(update_fields=("show_online_status", "show_last_seen", "updated_at"))
 		messages.success(request, "Presence privacy settings updated.")
 		return redirect("account_security")
+	if request.method == "POST" and request.POST.get("form_name") == "export-data":
+		profile = get_object_or_404(GamerProfile, user=request.user)
+		from django.http import JsonResponse
+		data = {
+			"user": {"username": request.user.username, "email": request.user.email, "date_joined": request.user.date_joined.isoformat()},
+			"profile": {"gamer_tag": profile.gamer_tag, "bio": profile.bio, "location": profile.location, "public_location_label": profile.public_location_label, "platform": profile.platform, "rank": profile.get_rank_display(), "availability": profile.get_availability_display(), "matches_played": profile.matches_played, "match_wins": profile.match_wins, "tournament_wins": profile.tournament_wins, "respect_points": profile.respect_points, "created_at": profile.created_at.isoformat()},
+			"posts": list(Post.objects.filter(author=profile).values("id", "body", "game_id", "created_at")),
+			"connections": {"followers": list(profile.followers.values_list("gamer_tag", flat=True)), "following": list(profile.following.values_list("gamer_tag", flat=True)), "friends": list(profile.friends.values_list("gamer_tag", flat=True))},
+			"blocks": list(Block.objects.filter(blocker=profile).values_list("blocked__gamer_tag", flat=True)),
+			"listings": list(Listing.objects.filter(seller=profile).values("id", "title", "description", "price", "currency", "status", "created_at")),
+		}
+		import json
+		response = JsonResponse(data, json_dumps_params={"indent": 2})
+		response["Content-Disposition"] = f'attachment; filename="ggz-data-export-{request.user.username}.json"'
+		return response
+	if request.method == "POST" and request.POST.get("form_name") == "delete-account":
+		if request.POST.get("confirm_username") == request.user.username:
+			request.user.delete()
+			messages.success(request, "Your account and all associated data have been permanently deleted.")
+			return redirect("index")
+		messages.error(request, "Username confirmation did not match.")
+		return redirect("account_security")
 	providers = []
 	for provider in ("google", "apple", "discord"):
 		connected = SocialIdentity.objects.filter(user=request.user, provider=provider).first()

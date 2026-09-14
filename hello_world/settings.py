@@ -144,11 +144,13 @@ SECURE_BROWSER_XSS_FILTER = not DEBUG
 # Content Security Policy allowlist built around the site's external integrations
 # (Google Fonts, Google Maps JS API, markerclusterer CDN, OpenStreetMap embed,
 # Discord avatars, Supabase media). Inline scripts were moved to static files so
-# script-src can stay strict; style inline attributes are needed by templates.
+# script-src can stay strict; the single head script in base.html (theme init,
+# prevent-theme-flash) is allowlisted by content-hash. Inline style attributes
+# are needed by templates.
 SECURITY_HEADERS_ENABLED = config("SECURITY_HEADERS_ENABLED", default=not DEBUG, cast=bool)
 _csp_directives = [
     "default-src 'self'",
-    "script-src 'self' https://maps.googleapis.com https://cdn.jsdelivr.net",
+    "script-src 'self' 'sha256-/42vWjQLbsion3EFyzAiFefID//+R0DF9sAQG03tEBA=' 'sha256-18nMmwQtFwdARtIf0KP19CY63iRR8bZA38NfIvMVEHw=' https://maps.googleapis.com https://cdn.jsdelivr.net",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' data: https://fonts.gstatic.com",
     "img-src 'self' data: blob: https://cdn.discordapp.com https://*.supabase.co https://*.gstatic.com https://*.googleapis.com https://*.googleusercontent.com",
@@ -299,10 +301,13 @@ STATICFILES_DIRS = [
     BASE_DIR / "hello_world" / "static",
 ]
 
-STATIC_URL = config("STATIC_URL", default="static/")
+STATIC_URL = config("STATIC_URL", default="/static/")
 STATIC_ROOT = Path(config("STATIC_ROOT", default=str(BASE_DIR / "staticfiles")))
 
-MEDIA_URL = config("MEDIA_URL", default="media/")
+# Media URLs are root-relative so FileField.url stays correct on nested pages.
+# When Supabase/S3 media storage is enabled (below) this becomes an absolute
+# public CDN URL instead.
+MEDIA_URL = config("MEDIA_URL", default="/media/")
 MEDIA_ROOT = Path(config("MEDIA_ROOT", default=str(BASE_DIR / "hello_world" / "media")))
 MAX_UPLOAD_SIZE = config("MAX_UPLOAD_SIZE", default=4 * 1024 * 1024, cast=int)
 MAX_LISTING_IMAGES = config("MAX_LISTING_IMAGES", default=8, cast=int)

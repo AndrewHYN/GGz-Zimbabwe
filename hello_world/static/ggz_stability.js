@@ -152,3 +152,23 @@
     renderMessageActions(container, state);
   }
 })();
+
+(function () {
+  const root = document.documentElement;
+  const toggles = document.querySelectorAll('[data-theme-toggle]');
+  if (!toggles.length) return;
+  const currentTheme = () => (root.dataset.theme === 'light' ? 'light' : 'dark');
+  const applyTheme = (theme) => {
+    root.dataset.theme = theme;
+    try { localStorage.setItem('ggz-theme', theme); } catch (e) { /* storage unavailable */ }
+    toggles.forEach((btn) => {
+      const isLight = theme === 'light';
+      btn.setAttribute('aria-pressed', isLight ? 'true' : 'false');
+      btn.setAttribute('aria-label', isLight ? 'Switch to dark theme' : 'Switch to light theme');
+    });
+  };
+  toggles.forEach((btn) => {
+    btn.addEventListener('click', () => applyTheme(currentTheme() === 'light' ? 'dark' : 'light'));
+  });
+  applyTheme(currentTheme());
+})();

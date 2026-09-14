@@ -8,12 +8,34 @@ document.addEventListener('DOMContentLoaded', function () {
 
   const history = () => { try { return JSON.parse(localStorage.getItem(historyKey) || '[]'); } catch (error) { return []; } };
   const saveHistory = (entry) => { try { localStorage.setItem(historyKey, JSON.stringify([...history().slice(-9), entry])); } catch (error) { /* Storage is optional. */ } };
+  const historyList = document.querySelector('[data-companion-history-list]');
+  const renderHistory = () => {
+    if (!historyList) return;
+    const items = history();
+    historyList.replaceChildren();
+    if (!items.length) {
+      const current = document.createElement('span');
+      current.className = 'companion-history-item is-active';
+      current.textContent = 'Current conversation';
+      historyList.append(current);
+      return;
+    }
+    items.slice(-6).reverse().forEach((entry) => {
+      const item = document.createElement('span');
+      item.className = 'companion-history-item';
+      item.title = entry.message;
+      item.textContent = entry.message.length > 26 ? entry.message.slice(0, 26) + '…' : entry.message;
+      item.addEventListener('click', () => { textarea.value = entry.message; textarea.focus(); });
+      historyList.append(item);
+    });
+  };
+  renderHistory();
   document.querySelectorAll('[data-companion-prompt]').forEach((prompt) => prompt.addEventListener('click', () => { textarea.value = prompt.dataset.companionPrompt; textarea.focus(); form.requestSubmit(); }));
   resetButton?.addEventListener('click', () => {
     const csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]')?.value || '';
     fetch(form.action, { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'reset=1' })
       .catch(() => {})
-      .finally(() => { try { localStorage.removeItem(historyKey); } catch (error) { /* Storage is optional. */ } responseBox.replaceChildren(); const reset = document.createElement('p'); reset.textContent = 'New chat ready. What should we explore?'; responseBox.append(reset); textarea.value = ''; textarea.focus(); });
+      .finally(() => { try { localStorage.removeItem(historyKey); } catch (error) { /* Storage is optional. */ } renderHistory(); responseBox.replaceChildren(); const reset = document.createElement('p'); reset.textContent = 'New chat ready. What should we explore?'; responseBox.append(reset); textarea.value = ''; textarea.focus(); });
   });
 
   form.addEventListener('submit', function (event) {
@@ -31,7 +53,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const button = form.querySelector('button[type="submit"]');
     const originalText = button.textContent;
     button.disabled = true;
-    button.textContent = 'Thinking...';
+    button.textContent = 'Searching...';
 
     fetch(form.action, {
       method: 'POST',
@@ -80,6 +102,7 @@ document.addEventListener('DOMContentLoaded', function () {
           responseBox.append(action);
         }
         saveHistory({ message, response: result.response || '' });
+        renderHistory();
         textarea.value = '';
       })
       .catch((error) => {

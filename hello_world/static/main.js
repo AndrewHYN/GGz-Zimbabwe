@@ -1167,7 +1167,9 @@
       ratingRow.className = 'radar-rating-row';
       const stars = document.createElement('span');
       stars.className = 'stars';
-      stars.textContent = item.rating_average ? '★★★★★' : '☆☆☆☆☆';
+      const avg = Number(item.rating_average) || 0;
+      const filled = Math.max(0, Math.min(5, Math.round(avg)));
+      stars.textContent = '★'.repeat(filled) + '☆'.repeat(5 - filled);
       const ratingTextNode = document.createElement('span');
       ratingTextNode.textContent = ratingText;
       ratingRow.append(stars, ratingTextNode);
