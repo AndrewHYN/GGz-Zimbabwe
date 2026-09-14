@@ -2575,3 +2575,84 @@ class PresenceWorkflowTests(TestCase):
 		self.assertContains(response, "PresenceUserZW")
 		self.assertContains(response, "Offline")
 		self.assertContains(response, "Games &amp; competition")
+
+
+class MobileNavigationTests(TestCase):
+	"""Regression coverage for the mobile header/menu layout fix (Milestone 7).
+
+	The mobile nav-menu must be a viewport-bounded dropdown anchored to the
+	header, not a grid item that inflates the header height. The ggz_stability.css
+	layer previously forced .site-nav .nav-menu { position: relative } at every
+	breakpoint, which expanded the header to ~600px on mobile and pushed the
+	logo/hamburger down while the open menu swallowed the first screen.
+	"""
+
+	def _render_home(self):
+		response = self.client.get(reverse("index"))
+		self.assertEqual(response.status_code, 200)
+		return response.content.decode()
+
+	def test_mobile_toggle_renders_with_accessible_contract(self):
+		content = self._render_home()
+		self.assertIn('id="nav-mobile-toggle"', content)
+		self.assertIn('aria-controls="nav-menu"', content)
+		self.assertIn('aria-expanded="false"', content)
+		self.assertIn('aria-label="Toggle navigation menu"', content)
+		self.assertIn('class="nav-mobile-toggle"', content)
+		self.assertIn('id="nav-menu"', content)
+
+	def test_mobile_menu_starts_closed_so_no_state_leaks_between_requests(self):
+		content = self._render_home()
+		self.assertIn('class="nav-menu"', content)
+		self.assertNotIn("nav-menu is-open", content.replace('class="nav-menu"', "class=`nav-menu`"))
+		menu_line = next(line for line in content.splitlines() if 'id="nav-menu"' in line)
+		self.assertNotIn("is-open", menu_line)
+		self.assertIn("aria-label=\"Primary navigation menu\"", menu_line)
+
+	def test_mobile_toggle_contract_present_when_authenticated(self):
+		user = User.objects.create_user(username="mobilenavuser", password="strong-password-123")
+		GamerProfile.objects.create(user=user, gamer_tag="MobileNavZW")
+		self.client.login(username="mobilenavuser", password="strong-password-123")
+		content = self._render_home()
+		self.assertIn('id="nav-mobile-toggle"', content)
+		self.assertIn('aria-controls="nav-menu"', content)
+		self.assertIn('aria-expanded="false"', content)
+		self.assertIn('id="nav-menu"', content)
+		self.assertIn('class="nav-tools"', content)
+
+	def test_nav_markup_keeps_dropdown_anchor_above_content(self):
+		content = self._render_home()
+		self.assertIn('class="site-nav"', content)
+		self.assertIn('class="nav-container"', content)
+		# Mobile menu must come after the toggle inside the header container.
+		toggle_pos = content.index('id="nav-mobile-toggle"')
+		menu_pos = content.index('id="nav-menu"')
+		self.assertLess(toggle_pos, menu_pos)
+
+	def _read_stability_css(self):
+		from pathlib import Path
+		from django.contrib.staticfiles import finders
+		path = finders.find("ggz_stability.css")
+		self.assertIsNotNone(path)
+		return Path(path).read_text(encoding="utf-8")
+
+	def test_mobile_menu_positioning_survives_stability_layer(self):
+		css = self._read_stability_css()
+		# The desktop-only relative positioning must be scoped >= 901px so it
+		# cannot clobber the mobile dropdown.
+		self.assertIn("@media (min-width: 901px) { .site-nav .nav-menu { position: relative; z-index: 1001; } }", css)
+		# And the top-level .nav-menu must NOT be forced relative anywhere.
+		self.assertNotIn(".site-nav .nav-menu,\n", css)
+		# The mobile rule must keep the menu absolutely positioned + layered.
+		mobile_block = css.split("@media (max-width: 900px)")[1].split("}")[0].strip()
+		self.assertIn("position: absolute", mobile_block)
+		self.assertIn("z-index: 1050", mobile_block)
+		self.assertIn("overflow-y: auto", mobile_block)
+
+	def test_mobile_menu_bounds_are_viewport_aware(self):
+		css = self._read_stability_css()
+		mobile_block = css.split("@media (max-width: 900px)")[1].split("}")[0].strip()
+		self.assertIn("max-width: calc(100vw - 1.5rem)", mobile_block)
+		self.assertIn("max-height: calc(100vh - 6rem)", mobile_block)
+		self.assertIn("left: 0", mobile_block)
+		self.assertIn("right: 0", mobile_block)

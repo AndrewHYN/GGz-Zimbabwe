@@ -2,10 +2,10 @@
 .ggz-ambient-media { z-index: 0 !important; pointer-events: none !important; }
 .site-nav { position: sticky; z-index: 1000 !important; }
 .site-nav .nav-container,
-.site-nav .nav-menu,
 .site-nav .nav-tools,
 .site-nav .nav-dropdown,
 .site-nav .nav-profile { position: relative; z-index: 1001; }
+@media (min-width: 901px) { .site-nav .nav-menu { position: relative; z-index: 1001; } }
 .site-nav .nav-dropdown-panel,
 .site-nav .nav-profile-panel { z-index: 1100 !important; }
 .site-shell,
@@ -20,7 +20,7 @@
 .ggz-page input:disabled, .ggz-page select:disabled, .ggz-page textarea:disabled { cursor: not-allowed; opacity: .58; }
 .companion-form textarea { min-height: 7rem; resize: vertical; background: rgba(8,13,19,.9); border-color: rgba(139,92,246,.42); }
 .social-composer textarea { min-height: 2.75rem; padding: .7rem .8rem; background: rgba(8,13,19,.82); }
-@media (max-width: 900px) { .nav-menu { max-width: calc(100vw - 1.5rem); max-height: calc(100vh - 6rem); overflow-x: hidden; overflow-y: auto; } .nav-dropdown-panel { position: relative; top: auto; right: auto; left: auto; width: 100%; max-width: 100%; overflow-x: hidden; } }
+@media (max-width: 900px) { .nav-menu { position: absolute; top: calc(100% + 0.5rem); left: 0; right: 0; z-index: 1050; max-width: calc(100vw - 1.5rem); max-height: calc(100vh - 6rem); overflow-x: hidden; overflow-y: auto; } .nav-dropdown-panel { position: relative; top: auto; right: auto; left: auto; width: 100%; max-width: 100%; overflow-x: hidden; } }
 
 .ggz-home .hero-shell { isolation: isolate; overflow: hidden; }
 .ggz-home .hero-shell::after {
