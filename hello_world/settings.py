@@ -95,6 +95,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "hello_world.middleware.SecurityHeadersMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -139,6 +140,29 @@ SECURE_HSTS_SECONDS = config(
 SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
 SECURE_HSTS_PRELOAD = not DEBUG
 SECURE_BROWSER_XSS_FILTER = not DEBUG
+
+# Content Security Policy allowlist built around the site's external integrations
+# (Google Fonts, Google Maps JS API, markerclusterer CDN, OpenStreetMap embed,
+# Discord avatars, Supabase media). Inline scripts were moved to static files so
+# script-src can stay strict; style inline attributes are needed by templates.
+SECURITY_HEADERS_ENABLED = config("SECURITY_HEADERS_ENABLED", default=not DEBUG, cast=bool)
+_csp_directives = [
+    "default-src 'self'",
+    "script-src 'self' https://maps.googleapis.com https://cdn.jsdelivr.net",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "img-src 'self' data: blob: https://cdn.discordapp.com https://*.supabase.co https://*.gstatic.com https://*.googleapis.com https://*.googleusercontent.com",
+    "connect-src 'self' https://maps.googleapis.com https://*.googleapis.com https://*.gstatic.com",
+    "frame-src 'self' https://www.openstreetmap.org https://www.google.com https://maps.google.com",
+    "media-src 'self' blob:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+]
+if config("UPGRADE_INSECURE_REQUESTS", default=SECURE_SSL_REDIRECT, cast=bool):
+    _csp_directives.append("upgrade-insecure-requests")
+CONTENT_SECURITY_POLICY = "; ".join(_csp_directives)
 
 TEMPLATES = [
     {
@@ -281,6 +305,7 @@ STATIC_ROOT = Path(config("STATIC_ROOT", default=str(BASE_DIR / "staticfiles")))
 MEDIA_URL = config("MEDIA_URL", default="media/")
 MEDIA_ROOT = Path(config("MEDIA_ROOT", default=str(BASE_DIR / "hello_world" / "media")))
 MAX_UPLOAD_SIZE = config("MAX_UPLOAD_SIZE", default=4 * 1024 * 1024, cast=int)
+MAX_LISTING_IMAGES = config("MAX_LISTING_IMAGES", default=8, cast=int)
 EXTERNAL_FEED_TIMEOUT = config("EXTERNAL_FEED_TIMEOUT", default=3, cast=int)
 
 # IGDB (Twitch) game catalogue integration. The service degrades to local-only

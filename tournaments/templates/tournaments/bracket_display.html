@@ -12,15 +12,17 @@ Usage: {% include "tournaments/bracket_display.html" with matches=tournament.mat
                     <div class="bracket-round" data-round="{{ round.grouper }}">
                         <div class="round-header">
                             <h4 class="round-title">
-                                {% if round.grouper == 1 %}
-                                    Round of {{ tournament.max_participants|add:"-1" }}
-                                {% elif round.grouper == 2 %}
-                                    Semifinals
-                                {% elif round.grouper == 3 %}
-                                    Finals
-                                {% else %}
-                                    Round {{ round.grouper }}
-                                {% endif %}
+                                {% with match_count=round.list|length %}
+                                    {% if match_count == 1 %}
+                                        Final
+                                    {% elif match_count == 2 %}
+                                        Semifinals
+                                    {% elif match_count == 4 %}
+                                        Quarterfinals
+                                    {% else %}
+                                        Round of {% widthratio match_count 1 2 %}
+                                    {% endif %}
+                                {% endwith %}
                             </h4>
                         </div>
 

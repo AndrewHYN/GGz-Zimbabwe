@@ -1,9 +1,9 @@
 from django import forms
-from django.conf import settings
-from django.core.files.uploadedfile import UploadedFile
 from django.utils.text import slugify
 
 from .models import Event, EventPromotionRequest, Organization, OrganizationLocation
+
+from hello_world.utils import _validated_image
 
 
 class OrganizationForm(forms.ModelForm):
@@ -12,10 +12,7 @@ class OrganizationForm(forms.ModelForm):
         fields = ("name", "organization_type", "description", "website", "social_link", "logo", "contact_email")
 
     def clean_logo(self):
-        logo = self.cleaned_data.get("logo")
-        if isinstance(logo, UploadedFile) and logo.size > settings.MAX_UPLOAD_SIZE:
-            raise forms.ValidationError("Images must be 4 MB or smaller.")
-        return logo
+        return _validated_image(self.cleaned_data.get("logo"), "logo")
 
     def save(self, commit=True, owner=None):
         organization = super().save(commit=False)
@@ -119,7 +116,4 @@ class EventForm(forms.ModelForm):
         widgets = {"start_date": forms.DateTimeInput(attrs={"type": "datetime-local"}), "description": forms.Textarea(attrs={"rows": 5})}
 
     def clean_banner(self):
-        banner = self.cleaned_data.get("banner")
-        if isinstance(banner, UploadedFile) and banner.size > settings.MAX_UPLOAD_SIZE:
-            raise forms.ValidationError("Images must be 4 MB or smaller.")
-        return banner
+        return _validated_image(self.cleaned_data.get("banner"), "banner")

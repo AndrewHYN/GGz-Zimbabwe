@@ -131,6 +131,31 @@ def _rate_limit_exceeded(request, key, limit, window=60):
 	return False
 
 
+MAX_SSE_CONNECTIONS_PER_USER = 5
+
+
+def _sse_identifier(request):
+	return getattr(getattr(request, "user", None), "pk", None) or request.META.get("REMOTE_ADDR", "unknown")
+
+
+def _claim_sse_slot(request, key):
+	cache_key = f"sse:{key}:{_sse_identifier(request)}"
+	if cache.add(cache_key, 1, timeout=300):
+		return cache_key
+	if cache.incr(cache_key) > MAX_SSE_CONNECTIONS_PER_USER:
+		cache.decr(cache_key)
+		return None
+	return cache_key
+
+
+def _release_sse_slot(cache_key):
+	try:
+		if cache.get(cache_key):
+			cache.decr(cache_key)
+	except (TypeError, ValueError):
+		pass
+
+
 def google_oauth_exchange(code):
 	if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
 		return {"error": "Google OAuth is not configured."}
@@ -1149,16 +1174,22 @@ def presence_stream(request, gamer_tag):
 	viewer = getattr(request.user, "gamer_profile", None)
 	if viewer and Block.objects.filter(Q(blocker=viewer, blocked=profile) | Q(blocker=profile, blocked=viewer)).exists():
 		return JsonResponse({"error": "Presence unavailable."}, status=404)
+	sse_key = _claim_sse_slot(request, "presence")
+	if sse_key is None:
+		return JsonResponse({"error": "Too many live connections. Close an open stream and try again."}, status=429)
 	def events():
-		last_payload = None
-		for _ in range(8):
-			payload = _presence_payload(profile, viewer, refresh=True)
-			if payload != last_payload:
-				yield f"data: {json.dumps(payload)}\n\n"
-				last_payload = payload
-			else:
-				yield ": heartbeat\n\n"
-			time.sleep(1)
+		try:
+			last_payload = None
+			for _ in range(8):
+				payload = _presence_payload(profile, viewer, refresh=True)
+				if payload != last_payload:
+					yield f"data: {json.dumps(payload)}\n\n"
+					last_payload = payload
+				else:
+					yield ": heartbeat\n\n"
+				time.sleep(1)
+		finally:
+			_release_sse_slot(sse_key)
 	return StreamingHttpResponse(events(), content_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
@@ -1535,6 +1566,9 @@ def feed_refresh(request):
 	viewer = getattr(request.user, "gamer_profile", None)
 	if request.method != "POST":
 		return redirect("feed")
+	if _rate_limit_exceeded(request, "feed_refresh", 6):
+		messages.error(request, "The discovery feed refreshes in real time — try again in a minute.")
+		return redirect(f"{reverse('feed')}?tab=for-you")
 	game_id = request.POST.get("game")
 	if game_id:
 		game = get_object_or_404(Game, id=game_id)
@@ -1630,21 +1664,28 @@ def post_detail(request, post_id):
 
 @login_required
 def post_like(request, post_id):
+	if request.method != "POST":
+		if request.headers.get("x-requested-with") == "XMLHttpRequest":
+			return JsonResponse({"ok": False, "error": "This action requires POST."}, status=405)
+		return redirect("feed")
 	post = get_object_or_404(_visible_posts(getattr(request.user, "gamer_profile", None)), id=post_id)
-	if request.method == "POST":
-		profile = get_object_or_404(GamerProfile, user=request.user)
-		like, created = PostLike.objects.get_or_create(post=post, user=profile)
-		if not created:
-			like.delete()
-		elif post.author != profile:
-			_notify(post.author, profile, "like", f"{profile.gamer_tag} liked your post", f"/feed/posts/{post.id}/")
+	profile = get_object_or_404(GamerProfile, user=request.user)
+	like, created = PostLike.objects.get_or_create(post=post, user=profile)
+	if not created:
+		like.delete()
+	elif post.author != profile:
+		_notify(post.author, profile, "like", f"{profile.gamer_tag} liked your post", f"/feed/posts/{post.id}/")
 	if request.headers.get("x-requested-with") == "XMLHttpRequest":
 		return JsonResponse({"ok": True, "liked": created, "count": PostLike.objects.filter(post=post).count()})
-	return redirect(request.POST.get("next") or "feed")
+	return redirect(_safe_redirect_url(request, "feed"))
 
 
 @login_required
 def post_save_toggle(request, post_id):
+	if request.method != "POST":
+		if request.headers.get("x-requested-with") == "XMLHttpRequest":
+			return JsonResponse({"ok": False, "error": "This action requires POST."}, status=405)
+		return redirect("feed")
 	post = get_object_or_404(_visible_posts(getattr(request.user, "gamer_profile", None)), id=post_id)
 	profile = get_object_or_404(GamerProfile, user=request.user)
 	save_item = PostSave.objects.filter(post=post, user=profile).first()
@@ -1656,7 +1697,7 @@ def post_save_toggle(request, post_id):
 		liked = True
 	if request.headers.get("x-requested-with") == "XMLHttpRequest":
 		return JsonResponse({"ok": True, "saved": liked, "count": post.saved_by.count()})
-	return redirect(request.POST.get("next") or "feed")
+	return redirect(_safe_redirect_url(request, "feed"))
 
 
 @login_required
@@ -1793,24 +1834,30 @@ def notification_stream(request):
 	}
 	if request.GET.get("format") == "json":
 		return JsonResponse(payload)
+	sse_key = _claim_sse_slot(request, "notifications")
+	if sse_key is None:
+		return JsonResponse({"error": "Too many live connections. Close an open stream and try again."}, status=429)
 	def events():
-		last_signature = None
-		for _ in range(60):
-			latest = profile.notifications.select_related("actor").first()
-			payload = {
-				"unread_count": profile.notifications.filter(is_read=False).count(),
-				"unread_message_count": _unread_message_count(profile),
-				"latest_id": latest.id if latest else None,
-				"latest_message": latest.message if latest else "",
-				"latest_target": latest.target_url if latest else "",
-			}
-			signature = json.dumps(payload, sort_keys=True)
-			if signature != last_signature:
-				last_signature = signature
-				yield f"data: {signature}\n\n"
-			else:
-				yield ": heartbeat\n\n"
-			time.sleep(1)
+		try:
+			last_signature = None
+			for _ in range(60):
+				latest = profile.notifications.select_related("actor").first()
+				payload = {
+					"unread_count": profile.notifications.filter(is_read=False).count(),
+					"unread_message_count": _unread_message_count(profile),
+					"latest_id": latest.id if latest else None,
+					"latest_message": latest.message if latest else "",
+					"latest_target": latest.target_url if latest else "",
+				}
+				signature = json.dumps(payload, sort_keys=True)
+				if signature != last_signature:
+					last_signature = signature
+					yield f"data: {signature}\n\n"
+				else:
+					yield ": heartbeat\n\n"
+				time.sleep(1)
+		finally:
+			_release_sse_slot(sse_key)
 	return StreamingHttpResponse(events(), content_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
@@ -1861,17 +1908,23 @@ def conversation_inbox_stream(request):
 	profile = get_object_or_404(GamerProfile, user=request.user)
 	if request.GET.get("format") == "json":
 		return JsonResponse(_conversation_snapshot(profile))
+	sse_key = _claim_sse_slot(request, "inbox")
+	if sse_key is None:
+		return JsonResponse({"error": "Too many live connections. Close an open stream and try again."}, status=429)
 	def events():
-		last_payload = None
-		for _ in range(60):
-			payload = _conversation_snapshot(profile)
-			encoded = json.dumps(payload, sort_keys=True)
-			if encoded != last_payload:
-				last_payload = encoded
-				yield f"data: {encoded}\n\n"
-			else:
-				yield ": heartbeat\n\n"
-			time.sleep(1)
+		try:
+			last_payload = None
+			for _ in range(60):
+				payload = _conversation_snapshot(profile)
+				encoded = json.dumps(payload, sort_keys=True)
+				if encoded != last_payload:
+					last_payload = encoded
+					yield f"data: {encoded}\n\n"
+				else:
+					yield ": heartbeat\n\n"
+				time.sleep(1)
+		finally:
+			_release_sse_slot(sse_key)
 	return StreamingHttpResponse(events(), content_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
@@ -1923,6 +1976,11 @@ def conversation_detail(request, conversation_id):
 		client_id = (request.POST.get("client_id") or "").strip()[:64] or None
 		other = conversation.participants.exclude(id=profile.id).first()
 		if body and other and can_message(profile, other):
+			if _rate_limit_exceeded(request, "message_send", 60):
+				if request.headers.get("x-requested-with") == "XMLHttpRequest":
+					return JsonResponse({"error": "Too many messages. Please slow down."}, status=429)
+				messages.error(request, "Too many messages. Please slow down.")
+				return redirect("conversation_detail", conversation_id=conversation.id)
 			message = Message.objects.filter(conversation=conversation, sender=profile, client_id=client_id).first() if client_id else None
 			created = message is None
 			if message is None:
@@ -1967,6 +2025,8 @@ def conversation_send(request, conversation_id):
 	client_id = (request.POST.get("client_id") or "").strip()[:64] or None
 	if not body or len(body) > 2000 or not can_message(profile, other):
 		return JsonResponse({"error": "That message could not be sent."}, status=400)
+	if _rate_limit_exceeded(request, "message_send", 60):
+		return JsonResponse({"error": "Too many messages. Please slow down."}, status=429)
 	message = Message.objects.filter(conversation=conversation, sender=profile, client_id=client_id).first() if client_id else None
 	created = message is None
 	if message is None:
@@ -2020,27 +2080,33 @@ def conversation_stream(request, conversation_id):
 				message.save(update_fields=("delivered_at",))
 			payloads.append(_message_payload(message, profile))
 		return JsonResponse({"messages": payloads, "has_more": len(messages) == 50, "unread_message_count": _unread_message_count(profile)})
+	sse_key = _claim_sse_slot(request, "conversation")
+	if sse_key is None:
+		return JsonResponse({"error": "Too many live connections. Close an open stream and try again."}, status=429)
 	def events():
-		last_payloads = {}
-		last_typing = None
-		for _ in range(60):
-			messages_qs = conversation.messages.select_related("sender").order_by("id")
-			for message in messages_qs:
-				if message.sender_id != profile.id and message.delivered_at is None:
-					message.delivered_at = timezone.now()
-					message.save(update_fields=("delivered_at",))
-				payload = _message_payload(message, profile)
-				if last_payloads.get(message.id) != payload:
-					last_payloads[message.id] = payload
-					yield f"data: {json.dumps(payload)}\n\n"
-			if not messages_qs:
-				yield ": heartbeat\n\n"
-			typing_link = ConversationParticipant.objects.filter(conversation=conversation, profile=other).first()
-			typing = bool(typing_link and typing_link.typing_until and typing_link.typing_until > timezone.now())
-			if typing != last_typing:
-				last_typing = typing
-				yield f"data: {json.dumps({'event': 'typing', 'typing': typing})}\n\n"
-			time.sleep(1)
+		try:
+			last_payloads = {}
+			last_typing = None
+			for _ in range(60):
+				messages_qs = conversation.messages.select_related("sender").order_by("id")
+				for message in messages_qs:
+					if message.sender_id != profile.id and message.delivered_at is None:
+						message.delivered_at = timezone.now()
+						message.save(update_fields=("delivered_at",))
+					payload = _message_payload(message, profile)
+					if last_payloads.get(message.id) != payload:
+						last_payloads[message.id] = payload
+						yield f"data: {json.dumps(payload)}\n\n"
+				if not messages_qs:
+					yield ": heartbeat\n\n"
+				typing_link = ConversationParticipant.objects.filter(conversation=conversation, profile=other).first()
+				typing = bool(typing_link and typing_link.typing_until and typing_link.typing_until > timezone.now())
+				if typing != last_typing:
+					last_typing = typing
+					yield f"data: {json.dumps({'event': 'typing', 'typing': typing})}\n\n"
+				time.sleep(1)
+		finally:
+			_release_sse_slot(sse_key)
 	return StreamingHttpResponse(events(), content_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
@@ -2052,6 +2118,11 @@ def conversation_start(request, gamer_tag):
 		return HttpResponseForbidden("Invalid conversation action.")
 	if Block.objects.filter(Q(blocker=profile, blocked=other) | Q(blocker=other, blocked=profile)).exists():
 		return HttpResponseForbidden("You cannot contact this player.")
+	if request.method == "POST" and _rate_limit_exceeded(request, "message_request", 20):
+		if request.headers.get("x-requested-with") == "XMLHttpRequest":
+			return JsonResponse({"error": "Too many message requests. Please slow down."}, status=429)
+		messages.error(request, "Too many message requests. Please slow down.")
+		return redirect("profile_detail", gamer_tag=other.gamer_tag)
 	context_url = (request.POST.get("context_url") or request.GET.get("context_url") or "").strip()
 	context_label = (request.POST.get("context_label") or request.GET.get("context_label") or "").strip()[:160]
 	if not context_url.startswith("/") or context_url.startswith("//"):
@@ -2086,6 +2157,11 @@ def message_request_action(request, gamer_tag, action):
 	other = get_object_or_404(GamerProfile, gamer_tag=gamer_tag)
 	if profile == other or Block.objects.filter(Q(blocker=profile, blocked=other) | Q(blocker=other, blocked=profile)).exists():
 		return HttpResponseForbidden("You cannot message this player.")
+	if _rate_limit_exceeded(request, "message_request_action", 30):
+		if request.headers.get("x-requested-with") == "XMLHttpRequest":
+			return JsonResponse({"error": "Too many message request actions. Please slow down."}, status=429)
+		messages.error(request, "Too many message request actions. Please slow down.")
+		return redirect("profile_detail", gamer_tag=other.gamer_tag)
 	if action == "send":
 		request_row = MessageRequest.objects.filter(sender=profile, recipient=other).first()
 		created = request_row is None

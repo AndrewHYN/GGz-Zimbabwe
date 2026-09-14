@@ -103,3 +103,58 @@
 .tournament-card-media::after { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, transparent 46%, rgba(7,11,16,.58)); content: ""; }
 @media (max-width: 760px) { .tournament-feature-media { aspect-ratio: 16 / 9; } }
 @media (prefers-reduced-motion: reduce) { .tournament-card-media .tournament-banner { transition: none; } }
+
+/* M10: consolidated mobile navigation — one coherent scrolling surface.
+   Loaded after main.css, so matching-specificity rules here take precedence.
+   Guarantees the Discover/Community dropdowns (and the in-menu search) never
+   escape the viewport: document.documentElement.scrollWidth == innerWidth. */
+@media (max-width: 900px) {
+    .nav-menu {
+        align-items: stretch;
+        margin: 0;
+    }
+    .nav-menu .nav-dropdown {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+    }
+    .nav-menu .nav-dropdown-panel {
+        position: relative;
+        top: auto;
+        right: auto;
+        left: auto;
+        display: none;
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        margin-top: 0.25rem;
+        padding: 0.25rem;
+        border: 0;
+        border-radius: 12px;
+        box-shadow: none;
+        opacity: 1;
+        visibility: visible;
+        transform: none;
+        overflow: hidden;
+    }
+    .nav-menu .nav-more[aria-expanded="true"] + .nav-dropdown-panel {
+        display: block;
+    }
+    .nav-menu .nav-dropdown-link {
+        overflow-wrap: anywhere;
+        white-space: normal;
+    }
+    .nav-search-mobile,
+    .nav-search-mobile form,
+    .nav-search-mobile .nav-search-field {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+    }
+    .nav-search-mobile input {
+        min-width: 0;
+    }
+}
+@media (max-width: 640px) {
+    .nav-search-mobile { display: flex; }
+}

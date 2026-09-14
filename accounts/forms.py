@@ -1,16 +1,14 @@
 import re
 
 from django import forms
-from django.conf import settings
 from django.contrib.auth import password_validation
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
-from django.core.files.uploadedfile import UploadedFile
 from django.core.validators import EmailValidator
-from django.forms import ValidationError
-from PIL import Image, UnidentifiedImageError
 
 from .models import Comment, GamerProfile, Post
+
+from hello_world.utils import _validated_image
 
 
 class GamerProfileForm(forms.ModelForm):
@@ -50,18 +48,7 @@ class GamerProfileForm(forms.ModelForm):
         return self._clean_image("cover")
 
     def _clean_image(self, field_name):
-        image = self.cleaned_data.get(field_name)
-        if not isinstance(image, UploadedFile):
-            return image
-        if image.size > settings.MAX_UPLOAD_SIZE:
-            raise forms.ValidationError("Images must be 4 MB or smaller.")
-        try:
-            with Image.open(image) as opened:
-                opened.verify()
-            image.seek(0)
-        except (UnidentifiedImageError, OSError):
-            raise forms.ValidationError("Upload a valid image file.")
-        return image
+        return _validated_image(self.cleaned_data.get(field_name), field_name)
 
     def save(self, commit=True):
         old_avatar_name = self.instance.avatar.name if self.instance.avatar else None
@@ -142,10 +129,7 @@ class PostForm(forms.ModelForm):
         }
 
     def clean_image(self):
-        image = self.cleaned_data.get("image")
-        if isinstance(image, UploadedFile) and image.size > settings.MAX_UPLOAD_SIZE:
-            raise forms.ValidationError("Images must be 4 MB or smaller.")
-        return image
+        return _validated_image(self.cleaned_data.get("image"), "image")
 
 
 class CommentForm(forms.ModelForm):

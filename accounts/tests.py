@@ -18,6 +18,7 @@ from django.core import mail
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
+from django.http import HttpRequest
 from django.test import Client, RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils.encoding import force_bytes
@@ -30,7 +31,7 @@ from games.models import Game
 from .models import Block, Conversation, ConversationParticipant, ExternalFeedItem, Follow, FriendRequest, Friendship, GamerPresence, GamerProfile, Message, MessageRequest, Notification, Post, PostLike, PushSubscription, Report, RespectTransaction, SocialIdentity, Venue, notify
 from .forms import GamerProfileForm
 from .services import _parse_rss_feed, refresh_public_gaming_feed
-from .views import _safe_redirect_url, apple_oauth_userinfo, google_verify_id_token
+from .views import _claim_sse_slot, _release_sse_slot, _safe_redirect_url, apple_oauth_userinfo, google_verify_id_token
 from .discord_service import (
     DiscordOAuthError,
     build_authorize_url,
@@ -1093,6 +1094,28 @@ class GamerProfileWorkflowTests(TestCase):
 		)
 		self.assertFalse(form.is_valid())
 		self.assertTrue(any("valid image" in error.lower() for error in form.errors["cover"]))
+
+	def test_profile_avatar_rejects_unapproved_image_formats(self):
+		image_data = BytesIO()
+		Image.new("RGB", (24, 24), "#22c55e").save(image_data, format="BMP")
+		form = GamerProfileForm(
+			data={"gamer_tag": self.profile.gamer_tag},
+			files={"avatar": SimpleUploadedFile("avatar.bmp", image_data.getvalue(), content_type="image/bmp")},
+			instance=self.profile,
+		)
+		self.assertFalse(form.is_valid())
+		self.assertIn("Images must be PNG, JPEG, WEBP, or GIF.", form.errors["avatar"])
+
+	def test_profile_avatar_rejects_excessive_dimensions(self):
+		image_data = BytesIO()
+		Image.new("RGB", (6000, 5000), "#6366f1").save(image_data, format="PNG")
+		form = GamerProfileForm(
+			data={"gamer_tag": self.profile.gamer_tag},
+			files={"avatar": SimpleUploadedFile("avatar.png", image_data.getvalue(), content_type="image/png")},
+			instance=self.profile,
+		)
+		self.assertFalse(form.is_valid())
+		self.assertIn("Image dimensions are too large.", form.errors["avatar"])
 
 	def test_discovery_filters_by_location_and_platform(self):
 		response = self.client.get(
@@ -2386,6 +2409,48 @@ class NotificationAndMessagingTests(TestCase):
 		self.client.login(username="recipient", password="pass")
 		response = self.client.get(reverse("message_requests"))
 		self.assertNotContains(response, "Sender")
+
+	def test_message_request_sending_is_rate_limited(self):
+		cache.clear()
+		self.addCleanup(cache.clear)
+		self.client.login(username="sender", password="pass")
+		start_url = reverse("conversation_start", args=(self.recipient.gamer_tag,))
+		for _ in range(20):
+			response = self.client.post(start_url, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+			self.assertEqual(response.status_code, 200)
+		response = self.client.post(start_url, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertEqual(response.status_code, 429)
+
+	def test_conversation_send_is_rate_limited(self):
+		cache.clear()
+		self.addCleanup(cache.clear)
+		conversation = Conversation.objects.create()
+		ConversationParticipant.objects.bulk_create([
+			ConversationParticipant(conversation=conversation, profile=self.sender),
+			ConversationParticipant(conversation=conversation, profile=self.recipient),
+		])
+		first, second = sorted((self.sender.id, self.recipient.id))
+		Friendship.objects.create(profile_one_id=first, profile_two_id=second)
+		self.client.login(username="sender", password="pass")
+		send_url = reverse("conversation_send", args=(conversation.id,))
+		for _ in range(60):
+			response = self.client.post(send_url, {"body": "Rapid ping"}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+			self.assertEqual(response.status_code, 200)
+		response = self.client.post(send_url, {"body": "One more ping"}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertEqual(response.status_code, 429)
+
+	def test_sse_connection_slots_are_bounded_and_released(self):
+		cache.clear()
+		self.addCleanup(cache.clear)
+		request = HttpRequest()
+		request.user = self.sender.user
+		held = [_claim_sse_slot(request, "test-stream") for _ in range(5)]
+		self.assertTrue(all(held))
+		self.assertIsNone(_claim_sse_slot(request, "test-stream"))
+		_release_sse_slot(held[0])
+		extra = _claim_sse_slot(request, "test-stream")
+		self.assertIsNotNone(extra)
+		_release_sse_slot(extra)
 
 
 class SearchAndRankTests(TestCase):

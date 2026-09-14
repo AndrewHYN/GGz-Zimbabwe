@@ -542,6 +542,70 @@ class TournamentTests(TestCase):
 		self.assertEqual(self.client.post(url).status_code, 302)
 		self.assertTrue(TournamentRegistration.objects.filter(tournament=self.tournament, player=self.player, status="Registered").exists())
 
+	def test_registration_rejected_after_bracket_generation(self):
+		opponent = GamerProfile.objects.create(user=User.objects.create_user(username="locker", password="pass-12345"), gamer_tag="LockerZW")
+		outsider = GamerProfile.objects.create(user=User.objects.create_user(username="outsider", password="pass-12345"), gamer_tag="OutsiderZW")
+		for profile in (self.player, opponent, outsider):
+			profile.games.add(self.game)
+		self._register(self.player)
+		self._register(opponent)
+		self.tournament.max_participants = 4
+		self.tournament.save(update_fields=("max_participants",))
+		self.client.login(username="organizer", password="pass-12345")
+		self.assertEqual(self.client.post(reverse("generate_bracket", args=(self.tournament.slug,))).status_code, 302)
+		self.client.login(username="outsider", password="pass-12345")
+		response = self.client.post(reverse("tournament_register", args=(self.tournament.slug,)))
+		self.assertEqual(response.status_code, 403)
+		self.assertFalse(TournamentRegistration.objects.filter(tournament=self.tournament, player=outsider).exists())
+
+	def test_invitation_acceptance_rejected_after_bracket_generation(self):
+		opponent = GamerProfile.objects.create(user=User.objects.create_user(username="locker2", password="pass-12345"), gamer_tag="LockerTwoZW")
+		invitee = GamerProfile.objects.create(user=User.objects.create_user(username="skiptee", password="pass-12345"), gamer_tag="SkipTeeZW")
+		for profile in (self.player, opponent, invitee):
+			profile.games.add(self.game)
+		self._register(self.player)
+		self._register(opponent)
+		self.tournament.max_participants = 4
+		self.tournament.save(update_fields=("max_participants",))
+		invitation = TournamentInvitation.objects.create(tournament=self.tournament, player=invitee)
+		self.client.login(username="organizer", password="pass-12345")
+		self.client.post(reverse("generate_bracket", args=(self.tournament.slug,)))
+		self.client.login(username="skiptee", password="pass-12345")
+		response = self.client.post(reverse("tournament_invitation_action", args=(invitation.id, "accept")))
+		self.assertEqual(response.status_code, 403)
+		invitation.refresh_from_db()
+		self.assertEqual(invitation.status, "Pending")
+
+	def test_match_result_rejects_winner_outside_match_participants(self):
+		opponent = GamerProfile.objects.create(user=User.objects.create_user(username="outlaw", password="pass-12345"), gamer_tag="OutlawZW")
+		outside = GamerProfile.objects.create(user=User.objects.create_user(username="imposter", password="pass-12345"), gamer_tag="ImposterZW")
+		match = self._eligible_match(opponent)
+		self.client.login(username="organizer", password="pass-12345")
+		response = self.client.post(reverse("match_result", args=(match.id,)), {"winner": outside.id, "score": "2-0", "status": "Completed"})
+		self.assertEqual(response.status_code, 200)
+		match.refresh_from_db()
+		self.assertEqual(match.status, "Scheduled")
+		self.assertIsNone(match.winner_id)
+
+	def test_bracket_round_labels_derived_from_depth(self):
+		players = [self.player]
+		for index in range(3):
+			players.append(GamerProfile.objects.create(user=User.objects.create_user(username=f"deep{index}", password="pass-12345"), gamer_tag=f"Deep{index}ZW"))
+		for profile in players:
+			self._register(profile)
+		self.tournament.max_participants = 4
+		self.tournament.save(update_fields=("max_participants",))
+		self.client.login(username="organizer", password="pass-12345")
+		self.client.post(reverse("generate_bracket", args=(self.tournament.slug,)))
+		response = self.client.get(reverse("tournament_detail", args=(self.tournament.slug,)))
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Semifinals")
+		self.assertRegex(
+			response.content.decode("utf-8"),
+			r'(?s)<h4 class="round-title">.*?Final.*?</h4>',
+		)
+		self.assertNotContains(response, "Round of 15")
+
 	def test_cleared_conversation_is_not_counted_as_unread(self):
 		from accounts.models import Conversation, ConversationParticipant, Message
 		from django.utils import timezone

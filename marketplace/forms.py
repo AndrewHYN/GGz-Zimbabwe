@@ -1,8 +1,8 @@
 from django import forms
-from django.conf import settings
-from django.core.files.uploadedfile import UploadedFile
 
 from .models import Listing, ListingImage
+
+from hello_world.utils import _validated_image
 
 
 class ListingForm(forms.ModelForm):
@@ -18,7 +18,4 @@ class ListingImageForm(forms.ModelForm):
         fields = ("image",)
 
     def clean_image(self):
-        image = self.cleaned_data["image"]
-        if isinstance(image, UploadedFile) and image.size > settings.MAX_UPLOAD_SIZE:
-            raise forms.ValidationError("Images must be 4 MB or smaller.")
-        return image
+        return _validated_image(self.cleaned_data["image"], "image")

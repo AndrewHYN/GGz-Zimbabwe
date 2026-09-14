@@ -1130,42 +1130,119 @@
 
     function setLocationCard(item) {
       if (!locationCard) return;
+      locationCard.replaceChildren();
+      const eyebrow = document.createElement('p');
+      eyebrow.className = 'eyebrow';
+      eyebrow.textContent = 'Selected location';
+      locationCard.appendChild(eyebrow);
       if (!item) {
-        locationCard.innerHTML = '<p class="eyebrow">Selected location</p><h3>Choose a venue</h3><p class="muted">Select a marker or use the map filters to discover gaming hubs, tournaments, and events.</p>';
+        const heading = document.createElement('h3');
+        heading.textContent = 'Choose a venue';
+        const muted = document.createElement('p');
+        muted.className = 'muted';
+        muted.textContent = 'Select a marker or use the map filters to discover gaming hubs, tournaments, and events.';
+        locationCard.appendChild(heading);
+        locationCard.appendChild(muted);
         return;
       }
 
+      const safeUrl = (url) => {
+        if (!url || url === '#') return null;
+        try {
+          const parsed = new URL(url, window.location.origin);
+          if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return parsed.href;
+        } catch (error) {
+          return null;
+        }
+        return null;
+      };
+
+      const heading = document.createElement('h3');
+      heading.textContent = item.name || 'GGz location';
+
       const ratingText = item.rating_average !== null && item.rating_average !== undefined ? `${Number(item.rating_average).toFixed(1)}` : 'No ratings yet';
-      const ratingCount = item.rating_count || 0;
+      const ratingRow = document.createElement('div');
+      ratingRow.className = 'radar-rating-row';
+      const stars = document.createElement('span');
+      stars.className = 'stars';
+      stars.textContent = item.rating_average ? '★★★★★' : '☆☆☆☆☆';
+      const ratingTextNode = document.createElement('span');
+      ratingTextNode.textContent = ratingText;
+      ratingRow.append(stars, ratingTextNode);
+
       const scoreText = item.ggz_score !== null && item.ggz_score !== undefined ? `${Number(item.ggz_score).toFixed(1)} / 10` : 'No score yet';
-      const status = item.verification_status && String(item.verification_status).toUpperCase() === 'VERIFIED' ? '<span class="verified-badge">✓ Verified</span>' : '';
-      const organizationUrl = item.organization_url && item.organization_url !== '#' ? item.organization_url : '';
-      const actionUrl = organizationUrl
-        ? `<a class="primary-button" href="${organizationUrl}">View Organization</a>`
-        : item.url && item.url !== '#'
-          ? `<a class="primary-button" href="${item.url}">View Hub</a>`
-        : '<button type="button" class="primary-button" disabled>View Hub</button>';
-      const directionsUrl = item.latitude && item.longitude ? `https://www.google.com/maps/dir/?api=1&destination=${item.latitude},${item.longitude}` : '#';
       const eventSummary = item.event_count ? `🎪 ${item.event_count} events` : '🎪 No events';
       const tournamentSummary = item.tournament_count ? `🏆 ${item.tournament_count} tournaments` : '🏆 No tournaments';
+      const statStack = document.createElement('div');
+      statStack.className = 'stat-stack';
+      const stat = (label, value) => {
+        const row = document.createElement('div');
+        const strong = document.createElement('strong');
+        strong.textContent = label;
+        const span = document.createElement('span');
+        span.textContent = value;
+        row.append(strong, span);
+        return row;
+      };
+      statStack.append(
+        stat('GGz Score', scoreText),
+        stat('Location', item.location || item.city || 'Public venue'),
+        stat('Activity', eventSummary),
+        stat('Tournaments', tournamentSummary),
+      );
 
-      locationCard.innerHTML = `
-        <p class="eyebrow">Selected location</p>
-        <h3>${item.name || 'GGz location'}</h3>
-        ${status}
-        <div class="radar-rating-row"><span class="stars">${item.rating_average ? '★★★★★' : '☆☆☆☆☆'}</span><span>${ratingText}</span></div>
-        <div class="stat-stack">
-          <div><strong>GGz Score</strong><span>${scoreText}</span></div>
-          <div><strong>Location</strong><span>${item.location || item.city || 'Public venue'}</span></div>
-          <div><strong>Activity</strong><span>${eventSummary}</span></div>
-          <div><strong>Tournaments</strong><span>${tournamentSummary}</span></div>
-        </div>
-        ${item.description ? `<p class="muted radar-card-description">${item.description}</p>` : ''}
-        <div class="stack-buttons">
-          ${actionUrl}
-          <a class="secondary-button" href="${directionsUrl}" target="_blank" rel="noopener">Directions</a>
-        </div>
-      `;
+      const buttons = document.createElement('div');
+      buttons.className = 'stack-buttons';
+      const organizationUrl = safeUrl(item.organization_url);
+      const hubUrl = safeUrl(item.url);
+      if (organizationUrl) {
+        const orgLink = document.createElement('a');
+        orgLink.className = 'primary-button';
+        orgLink.href = organizationUrl;
+        orgLink.textContent = 'View Organization';
+        buttons.appendChild(orgLink);
+      } else if (hubUrl) {
+        const hubLink = document.createElement('a');
+        hubLink.className = 'primary-button';
+        hubLink.href = hubUrl;
+        hubLink.textContent = 'View Hub';
+        buttons.appendChild(hubLink);
+      } else {
+        const hubButton = document.createElement('button');
+        hubButton.type = 'button';
+        hubButton.className = 'primary-button';
+        hubButton.disabled = true;
+        hubButton.textContent = 'View Hub';
+        buttons.appendChild(hubButton);
+      }
+      const latitude = Number(item.latitude);
+      const longitude = Number(item.longitude);
+      if (item.latitude && item.longitude && Number.isFinite(latitude) && Number.isFinite(longitude)) {
+        const directions = document.createElement('a');
+        directions.className = 'secondary-button';
+        directions.href = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
+        directions.target = '_blank';
+        directions.rel = 'noopener';
+        directions.textContent = 'Directions';
+        buttons.appendChild(directions);
+      }
+
+      locationCard.appendChild(heading);
+      if (item.verification_status && String(item.verification_status).toUpperCase() === 'VERIFIED') {
+        const verifiedBadge = document.createElement('span');
+        verifiedBadge.className = 'verified-badge';
+        verifiedBadge.textContent = '✓ Verified';
+        locationCard.appendChild(verifiedBadge);
+      }
+      locationCard.appendChild(ratingRow);
+      locationCard.appendChild(statStack);
+      if (item.description) {
+        const description = document.createElement('p');
+        description.className = 'muted radar-card-description';
+        description.textContent = item.description;
+        locationCard.appendChild(description);
+      }
+      locationCard.appendChild(buttons);
     }
 
     function getActiveLayers() {

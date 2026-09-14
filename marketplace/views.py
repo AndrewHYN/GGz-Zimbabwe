@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
@@ -12,6 +13,21 @@ from games.models import Game
 
 from .forms import ListingForm, ListingImageForm
 from .models import Listing, ListingImage, SavedListing
+
+
+def _create_listing_images(listing, uploaded_images):
+	errors = []
+	if len(uploaded_images) > settings.MAX_LISTING_IMAGES:
+		errors.append(f"Listings can include at most {settings.MAX_LISTING_IMAGES} photos.")
+	else:
+		for image in uploaded_images:
+			image_form = ListingImageForm({"image": image}, {"image": image})
+			if image_form.is_valid():
+				if listing is not None:
+					ListingImage.objects.create(listing=listing, image=image)
+			else:
+				errors.extend(str(error).strip() for error in image_form.errors["image"])
+	return errors
 
 
 def listing_list(request):
@@ -45,15 +61,17 @@ def listing_detail(request, listing_id):
 def listing_create(request):
 	form = ListingForm(request.POST or None)
 	if form.is_valid():
-		listing = form.save(commit=False)
-		listing.seller = get_object_or_404(GamerProfile, user=request.user)
-		listing.save()
-		for image in request.FILES.getlist("images"):
-			image_form = ListingImageForm({"image": image}, {"image": image})
-			if image_form.is_valid():
-				ListingImage.objects.create(listing=listing, image=image)
-		messages.success(request, "Your listing is live.")
-		return redirect("listing_detail", listing_id=listing.id)
+		image_errors = _create_listing_images(None, request.FILES.getlist("images"))
+		if image_errors:
+			for error in image_errors:
+				form.add_error(None, error)
+		else:
+			listing = form.save(commit=False)
+			listing.seller = get_object_or_404(GamerProfile, user=request.user)
+			listing.save()
+			_create_listing_images(listing, request.FILES.getlist("images"))
+			messages.success(request, "Your listing is live.")
+			return redirect("listing_detail", listing_id=listing.id)
 	return render(request, "marketplace/listing_form.html", {"form": form, "title": "Create listing"})
 
 
@@ -62,13 +80,15 @@ def listing_edit(request, listing_id):
 	listing = get_object_or_404(Listing, id=listing_id, seller__user=request.user)
 	form = ListingForm(request.POST or None, instance=listing)
 	if form.is_valid():
-		form.save()
-		for image in request.FILES.getlist("images"):
-			image_form = ListingImageForm({"image": image}, {"image": image})
-			if image_form.is_valid():
-				ListingImage.objects.create(listing=listing, image=image)
-		messages.success(request, "Your listing was updated.")
-		return redirect("listing_detail", listing_id=listing.id)
+		image_errors = _create_listing_images(None, request.FILES.getlist("images"))
+		if image_errors:
+			for error in image_errors:
+				form.add_error(None, error)
+		else:
+			form.save()
+			_create_listing_images(listing, request.FILES.getlist("images"))
+			messages.success(request, "Your listing was updated.")
+			return redirect("listing_detail", listing_id=listing.id)
 	return render(request, "marketplace/listing_form.html", {"form": form, "title": "Edit listing", "listing": listing})
 
 

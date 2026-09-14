@@ -134,6 +134,8 @@ def tournament_invitation_action(request, invitation_id, action):
 		tournament = Tournament.objects.select_for_update().get(pk=tournament.pk)
 		if tournament.status != "Registration Open" or timezone.now() > tournament.registration_deadline:
 			return HttpResponseForbidden("This invitation is no longer valid.")
+		if tournament.matches.exists():
+			return HttpResponseForbidden("Registration is closed after the tournament bracket has been generated.")
 		if tournament.participant_count >= tournament.max_participants:
 			return HttpResponseForbidden("This tournament is full.")
 		registration, created = TournamentRegistration.objects.get_or_create(tournament=tournament, player=player, defaults={"status": "Registered"})
@@ -326,6 +328,8 @@ def tournament_register(request, slug):
 			tournament = Tournament.objects.select_for_update().get(pk=tournament.pk)
 			if tournament.status != "Registration Open" or timezone.now() > tournament.registration_deadline:
 				return HttpResponseForbidden("Registration is closed.")
+			if tournament.matches.exists():
+				return HttpResponseForbidden("Registration is closed after the tournament bracket has been generated.")
 			if tournament.participant_count + len(members) > tournament.max_participants:
 				return HttpResponseForbidden("This team would exceed the tournament participant limit.")
 			for membership in members:
@@ -348,6 +352,8 @@ def tournament_register(request, slug):
 		tournament = Tournament.objects.select_for_update().get(pk=tournament.pk)
 		if tournament.status != "Registration Open" or timezone.now() > tournament.registration_deadline:
 			return HttpResponseForbidden("Registration is closed.")
+		if tournament.matches.exists():
+			return HttpResponseForbidden("Registration is closed after the tournament bracket has been generated.")
 		if not player.games.filter(id=tournament.game_id).exists():
 			return HttpResponseForbidden("You are not eligible for this tournament's game.")
 		if tournament.participant_count >= tournament.max_participants:

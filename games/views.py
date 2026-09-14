@@ -193,6 +193,9 @@ def game_detail(request, game_id):
 def game_import(request, igdb_id):
 	if request.method != "POST":
 		return redirect("game_list")
+	if _rate_limit_exceeded(request, "game_import", 10):
+		messages.error(request, "Too many catalogue imports. Please slow down.")
+		return redirect("game_list")
 	try:
 		game = import_game(igdb_id)
 	except IntegrityError:
@@ -275,6 +278,8 @@ def game_challenge_create(request, game_id):
 
 @login_required
 def game_review_create(request, game_id):
+	if request.method != "POST":
+		return HttpResponseForbidden("This action requires POST.")
 	game = get_object_or_404(Game, id=game_id)
 	profile = get_object_or_404(GamerProfile, user=request.user)
 	rating = request.POST.get("rating")
@@ -303,6 +308,8 @@ def game_review_create(request, game_id):
 
 @login_required
 def game_wishlist_toggle(request, game_id):
+	if request.method != "POST":
+		return HttpResponseForbidden("This action requires POST.")
 	game = get_object_or_404(Game, id=game_id)
 	profile = get_object_or_404(GamerProfile, user=request.user)
 	wishlist_item = GameWishlist.objects.filter(game=game, profile=profile).first()
