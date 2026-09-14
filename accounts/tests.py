@@ -31,6 +31,7 @@ from games.models import Game
 from .models import Block, Conversation, ConversationParticipant, ExternalFeedItem, Follow, FriendRequest, Friendship, GamerPresence, GamerProfile, Message, MessageRequest, Notification, Post, PostLike, PushSubscription, Report, RespectTransaction, SocialIdentity, Venue, notify
 from .forms import GamerProfileForm
 from .services import _parse_rss_feed, refresh_public_gaming_feed
+from .relationships import can_message
 from .views import _claim_sse_slot, _release_sse_slot, _safe_redirect_url, apple_oauth_userinfo, google_verify_id_token
 from .discord_service import (
     DiscordOAuthError,
@@ -1193,24 +1194,20 @@ class GamerProfileWorkflowTests(TestCase):
 		self.profile.refresh_from_db()
 		self.assertEqual(self.profile.bio, "Updated without an image.")
 
-	def test_friend_request_can_be_accepted_and_removed(self):
+	def test_mutual_follow_creates_and_removes_friendship(self):
 		self.client.login(username="tendai", password="strong-password-123")
-		self.client.post(
-			reverse("connection_action", args=["RudoZW", "friend"])
-		)
-		self.assertEqual(FriendRequest.objects.count(), 1)
+		self.client.post(reverse("connection_action", args=["RudoZW", "follow"]))
+		self.assertEqual(Follow.objects.count(), 1)
+		self.assertFalse(Friendship.objects.exists())
 
 		self.client.logout()
 		self.client.login(username="rudo", password="strong-password-123")
-		self.client.post(
-			reverse("connection_action", args=["TendaiZW", "accept"])
-		)
+		self.client.post(reverse("connection_action", args=["TendaiZW", "follow"]))
 		self.assertEqual(Friendship.objects.count(), 1)
 
-		self.client.post(
-			reverse("connection_action", args=["TendaiZW", "remove"])
-		)
+		self.client.post(reverse("connection_action", args=["TendaiZW", "remove"]))
 		self.assertFalse(Friendship.objects.exists())
+		self.assertFalse(Follow.objects.exists())
 
 
 	def test_follow_is_unique_and_self_follow_is_forbidden(self):
@@ -2215,30 +2212,33 @@ class NotificationAndMessagingTests(TestCase):
 		self.client.login(username="sender", password="pass")
 		self.assertEqual(self.client.post(start_url).status_code, 403)
 
-	def test_follow_grants_message_permission_and_unfollow_reverts_to_request(self):
+	def test_follow_does_not_grant_direct_messaging_mutual_follow_creates_friends(self):
 		self.client.login(username="sender", password="pass")
 		follow_url = reverse("connection_action", args=(self.recipient.gamer_tag, "follow"))
 		response = self.client.post(follow_url, HTTP_X_REQUESTED_WITH="XMLHttpRequest", HTTP_ACCEPT="application/json")
 		self.assertTrue(response.json()["following"])
 		message_response = self.client.post(reverse("conversation_start", args=(self.recipient.gamer_tag,)), HTTP_X_REQUESTED_WITH="XMLHttpRequest", HTTP_ACCEPT="application/json")
-		self.assertTrue(message_response.json()["ok"])
-		self.client.post(reverse("connection_action", args=(self.recipient.gamer_tag, "unfollow")), HTTP_X_REQUESTED_WITH="XMLHttpRequest", HTTP_ACCEPT="application/json")
-		message_response = self.client.post(reverse("conversation_start", args=(self.recipient.gamer_tag,)), HTTP_X_REQUESTED_WITH="XMLHttpRequest", HTTP_ACCEPT="application/json")
 		self.assertTrue(message_response.json()["requested"])
-		self.assertEqual(MessageRequest.objects.filter(sender=self.sender, recipient=self.recipient).count(), 1)
-
-	def test_friendship_and_accepted_request_survive_unfollow_permission(self):
+		self.assertEqual(MessageRequest.objects.filter(sender=self.sender, recipient=self.recipient, status="Pending").count(), 1)
+		self.client.login(username="recipient", password="pass")
+		self.client.post(reverse("connection_action", args=(self.sender.gamer_tag, "follow")), HTTP_X_REQUESTED_WITH="XMLHttpRequest", HTTP_ACCEPT="application/json")
 		self.client.login(username="sender", password="pass")
-		first, second = sorted((self.sender.id, self.recipient.id))
-		Friendship.objects.create(profile_one_id=first, profile_two_id=second)
+		message_response = self.client.post(reverse("conversation_start", args=(self.recipient.gamer_tag,)), HTTP_X_REQUESTED_WITH="XMLHttpRequest", HTTP_ACCEPT="application/json")
+		self.assertTrue(message_response.json()["conversation_id"])
+		self.assertTrue(Friendship.objects.filter(profile_one_id=min(self.sender.id, self.recipient.id), profile_two_id=max(self.sender.id, self.recipient.id)).exists())
+
+	def test_unfollow_breaks_friendship_when_mutuality_lost(self):
+		self.client.login(username="sender", password="pass")
 		self.client.post(reverse("connection_action", args=(self.recipient.gamer_tag, "follow")))
+		self.client.login(username="recipient", password="pass")
+		self.client.post(reverse("connection_action", args=(self.sender.gamer_tag, "follow")), HTTP_X_REQUESTED_WITH="XMLHttpRequest", HTTP_ACCEPT="application/json")
+		self.client.login(username="sender", password="pass")
 		self.client.post(reverse("connection_action", args=(self.recipient.gamer_tag, "unfollow")))
+		first, second = sorted((self.sender.id, self.recipient.id))
+		self.assertFalse(Friendship.objects.filter(profile_one_id=first, profile_two_id=second).exists())
+		self.assertTrue(Follow.objects.filter(follower=self.recipient, following=self.sender).exists())
 		response = self.client.post(reverse("conversation_start", args=(self.recipient.gamer_tag,)), HTTP_X_REQUESTED_WITH="XMLHttpRequest", HTTP_ACCEPT="application/json")
-		self.assertTrue(response.json()["conversation_id"])
-		Friendship.objects.filter(profile_one_id=first, profile_two_id=second).delete()
-		MessageRequest.objects.create(sender=self.sender, recipient=self.recipient, status="Accepted")
-		response = self.client.post(reverse("conversation_start", args=(self.recipient.gamer_tag,)), HTTP_X_REQUESTED_WITH="XMLHttpRequest", HTTP_ACCEPT="application/json")
-		self.assertTrue(response.json()["conversation_id"])
+		self.assertTrue(response.json()["requested"])
 
 	def test_declined_request_does_not_grant_message_permission(self):
 		MessageRequest.objects.create(sender=self.sender, recipient=self.recipient, status="Declined")
@@ -2317,9 +2317,12 @@ class NotificationAndMessagingTests(TestCase):
 			response = client.post(url, HTTP_X_REQUESTED_WITH="XMLHttpRequest", HTTP_ACCEPT="application/json")
 		self.assertEqual(response.status_code, 403)
 
-	def test_followed_player_can_start_a_conversation_without_a_reload(self):
+	def test_mutual_follow_allows_conversation_without_a_reload(self):
 		self.client.login(username="sender", password="pass")
 		self.client.post(reverse("connection_action", args=(self.recipient.gamer_tag, "follow")))
+		self.client.login(username="recipient", password="pass")
+		self.client.post(reverse("connection_action", args=(self.sender.gamer_tag, "follow")), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.client.login(username="sender", password="pass")
 		response = self.client.get(reverse("conversation_start", args=(self.recipient.gamer_tag,)))
 		self.assertEqual(response.status_code, 302)
 		self.assertEqual(Conversation.objects.count(), 1)
@@ -2721,3 +2724,134 @@ class MobileNavigationTests(TestCase):
 		self.assertIn("max-height: calc(100vh - 6rem)", mobile_block)
 		self.assertIn("left: 0", mobile_block)
 		self.assertIn("right: 0", mobile_block)
+
+
+class SocialGraphRelationshipTests(TestCase):
+	"""M11 social graph: mutual follow is the source of truth for friendship."""
+
+	def setUp(self):
+		self.user_a = User.objects.create_user(username="alice", password="pass")
+		self.user_b = User.objects.create_user(username="bob", password="pass")
+		self.user_c = User.objects.create_user(username="charlie", password="pass")
+		self.alice = GamerProfile.objects.create(user=self.user_a, gamer_tag="Alice")
+		self.bob = GamerProfile.objects.create(user=self.user_b, gamer_tag="Bob")
+		self.charlie = GamerProfile.objects.create(user=self.user_c, gamer_tag="Charlie")
+
+	def test_one_way_follow_does_not_grant_direct_message(self):
+		self.client.login(username="alice", password="pass")
+		self.client.post(reverse("connection_action", args=(self.bob.gamer_tag, "follow")), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertFalse(can_message(self.alice, self.bob))
+		response = self.client.post(reverse("conversation_start", args=(self.bob.gamer_tag,)), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertTrue(response.json()["requested"])
+		self.assertFalse(Conversation.objects.exists())
+
+	def test_mutual_follow_creates_friendship_and_notifies_original_follower(self):
+		self.client.login(username="alice", password="pass")
+		self.client.post(reverse("connection_action", args=(self.bob.gamer_tag, "follow")), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertFalse(Notification.objects.filter(notification_type="friends").exists())
+		self.client.login(username="bob", password="pass")
+		self.client.post(reverse("connection_action", args=(self.alice.gamer_tag, "follow")), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		first, second = sorted((self.alice.id, self.bob.id))
+		self.assertTrue(Friendship.objects.filter(profile_one_id=first, profile_two_id=second).exists())
+		self.assertTrue(can_message(self.alice, self.bob))
+		self.assertTrue(Notification.objects.filter(recipient=self.alice, notification_type="friends").exists())
+		self.assertFalse(Notification.objects.filter(recipient=self.bob, notification_type="friends").exists())
+
+	def test_unfollow_removes_friendship_when_mutuality_lost(self):
+		self.client.login(username="alice", password="pass")
+		self.client.post(reverse("connection_action", args=(self.bob.gamer_tag, "follow")), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.client.login(username="bob", password="pass")
+		self.client.post(reverse("connection_action", args=(self.alice.gamer_tag, "follow")), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		first, second = sorted((self.alice.id, self.bob.id))
+		self.assertTrue(Friendship.objects.filter(profile_one_id=first, profile_two_id=second).exists())
+		self.client.post(reverse("connection_action", args=(self.alice.gamer_tag, "unfollow")), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertFalse(Friendship.objects.filter(profile_one_id=first, profile_two_id=second).exists())
+		self.assertFalse(can_message(self.alice, self.bob))
+		self.assertTrue(Follow.objects.filter(follower=self.alice, following=self.bob).exists())
+		self.assertFalse(Follow.objects.filter(follower=self.bob, following=self.alice).exists())
+
+	def test_friend_request_endpoints_are_retired(self):
+		self.client.login(username="alice", password="pass")
+		response = self.client.post(reverse("connection_action", args=(self.bob.gamer_tag, "friend")), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertEqual(response.json()["message"], "Friend requests are no longer used. Follow each other to become friends.")
+		self.assertFalse(FriendRequest.objects.filter(sender=self.alice, receiver=self.bob).exists())
+		for action in ("cancel", "reject", "accept"):
+			self.client.post(reverse("connection_action", args=(self.bob.gamer_tag, action)), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+
+	def test_block_removes_follows_friendship_and_message_requests(self):
+		self.client.login(username="alice", password="pass")
+		self.client.post(reverse("connection_action", args=(self.bob.gamer_tag, "follow")), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.client.login(username="bob", password="pass")
+		self.client.post(reverse("connection_action", args=(self.alice.gamer_tag, "follow")), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		MessageRequest.objects.create(sender=self.alice, recipient=self.bob)
+		self.client.post(reverse("connection_action", args=(self.alice.gamer_tag, "block")), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertFalse(Follow.objects.filter(follower=self.bob, following=self.alice).exists())
+		first, second = sorted((self.alice.id, self.bob.id))
+		self.assertFalse(Friendship.objects.filter(profile_one_id=first, profile_two_id=second).exists())
+		self.assertFalse(MessageRequest.objects.filter(sender=self.alice, recipient=self.bob).exists())
+
+	def test_profile_shows_friends_chip_for_mutual_follow(self):
+		self.client.login(username="alice", password="pass")
+		self.client.post(reverse("connection_action", args=(self.bob.gamer_tag, "follow")), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.client.login(username="bob", password="pass")
+		self.client.post(reverse("connection_action", args=(self.alice.gamer_tag, "follow")), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.client.login(username="alice", password="pass")
+		response = self.client.get(reverse("profile_detail", args=(self.bob.gamer_tag,)))
+		self.assertContains(response, "Friends")
+		self.assertContains(response, "Message")
+
+	def test_profile_shows_follow_back_button_when_followed_by(self):
+		self.client.login(username="bob", password="pass")
+		self.client.post(reverse("connection_action", args=(self.alice.gamer_tag, "follow")), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.client.login(username="alice", password="pass")
+		response = self.client.get(reverse("profile_detail", args=(self.bob.gamer_tag,)))
+		self.assertContains(response, "Follow back")
+
+	def test_message_request_flow_still_works_for_non_friends(self):
+		self.client.login(username="alice", password="pass")
+		self.client.post(reverse("connection_action", args=(self.bob.gamer_tag, "follow")), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.client.post(reverse("conversation_start", args=(self.bob.gamer_tag,)), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.client.login(username="bob", password="pass")
+		response = self.client.get(reverse("message_requests"))
+		self.assertContains(response, "Alice")
+		self.client.post(reverse("message_request_action", args=(self.alice.gamer_tag, "accept")), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertTrue(MessageRequest.objects.filter(sender=self.alice, recipient=self.bob, status="Accepted").exists())
+		self.assertTrue(can_message(self.alice, self.bob))
+
+	def test_friends_page_annotates_played_together_from_completed_matches(self):
+		from accounts.relationships import follow
+		from tournaments.models import Tournament, TournamentMatch
+
+		game = Game.objects.create(name="GGz Arena")
+		tournament = Tournament.objects.create(
+			organizer=self.alice,
+			game=game,
+			name="GGz Cup",
+			slug="ggz-cup-socialgraph",
+			format="Single",
+			start_date=timezone.now(),
+			registration_deadline=timezone.now(),
+		)
+		TournamentMatch.objects.create(
+			tournament=tournament, game=game, player_one=self.alice, player_two=self.bob,
+			status="Completed", scheduled_at=timezone.now(),
+		)
+		follow(self.alice, self.bob)
+		follow(self.bob, self.alice)
+		self.client.login(username="alice", password="pass")
+		response = self.client.get(reverse("profile_friends", args=[self.alice.gamer_tag]))
+		self.assertContains(response, "Played together 1 time")
+
+	def test_suggestions_boost_mutual_friend_and_shared_game(self):
+		game = Game.objects.create(name="Boost Arena")
+		self.alice.games.add(game)
+		billy = GamerProfile.objects.create(user=User.objects.create_user(username="billy"), gamer_tag="Billy")
+		billy.games.add(game)
+		first, second = sorted((self.alice.id, billy.id))
+		Friendship.objects.create(profile_one_id=first, profile_two_id=second)
+		GamerProfile.objects.create(user=User.objects.create_user(username="billyx"), gamer_tag="Billyx")
+		self.client.login(username="alice", password="pass")
+		response = self.client.get(reverse("gamer_suggestions"), {"q": "bil"})
+		results = response.json()["results"]
+		self.assertEqual(len(results), 2)
+		self.assertEqual(results[0]["gamer_tag"], "Billy")

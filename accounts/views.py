@@ -58,7 +58,17 @@ from .models import (
 	Venue,
 	notify,
 )
-from .services import can_message, refresh_public_gaming_feed
+from .services import refresh_public_gaming_feed
+from .relationships import (
+	can_message,
+	follow as _social_follow,
+	unfollow as _social_unfollow,
+	remove_friend as _social_remove_friend,
+	block_user as _social_block_user,
+	relationship_between,
+	is_friend as _is_friend,
+	is_blocked_between as _is_blocked,
+)
 from .discord_service import (
 	DiscordOAuthError,
 	build_authorize_url,
@@ -1049,7 +1059,18 @@ def gamer_suggestions(request):
 			default=Value(10),
 			output_field=IntegerField(),
 		)
-	).distinct().order_by("-relevance", "gamer_tag")[:5]
+	).distinct().order_by("-relevance", "gamer_tag")[:12]
+	results = list(profiles)
+	if viewer:
+		_viewer_signals = _suggestion_social_signals(viewer, results)
+		results = sorted(
+			results,
+			key=lambda profile: (
+				-(profile.relevance + _viewer_signals[profile.id][0] + _viewer_signals[profile.id][1]),
+				profile.gamer_tag,
+			),
+		)
+	results = results[:5]
 	return JsonResponse({
 		"results": [
 			{
@@ -1058,9 +1079,34 @@ def gamer_suggestions(request):
 				"rank": profile.get_rank_display(),
 				"url": reverse("profile_detail", args=[profile.gamer_tag]),
 			}
-			for profile in profiles
+			for profile in results
 		]
 	})
+
+
+def _suggestion_social_signals(viewer, candidates):
+	"""Purely additive, real-data boosts for discovery.
+
+	Returns {candidate_id: (shared_game_count, mutual_friends_count)} derived
+	from the friendship mirror and games both players actually own.
+	"""
+	neighbor_ids = {viewer.id} | {candidate.id for candidate in candidates}
+	edges = Friendship.objects.filter(
+		Q(profile_one__in=neighbor_ids) | Q(profile_two__in=neighbor_ids)
+	).values_list("profile_one_id", "profile_two_id")
+	neighbors = {}
+	for first_id, second_id in edges:
+		neighbors.setdefault(first_id, set()).add(second_id)
+		neighbors.setdefault(second_id, set()).add(first_id)
+	viewer_neighbors = neighbors.get(viewer.id, set())
+	viewer_games = set(viewer.games.values_list("id", flat=True))
+	signals = {}
+	for candidate in candidates:
+		mutual_friends = len(viewer_neighbors & neighbors.get(candidate.id, set()))
+		candidate_games = {game.id for game in candidate.games.all()}
+		shared_games = len(viewer_games & candidate_games)
+		signals[candidate.id] = (shared_games * 8, mutual_friends * 12)
+	return signals
 
 
 @login_required
@@ -1096,10 +1142,71 @@ def _profile_connection_list(profile, relation_name):
 	if relation_name == "following":
 		return GamerProfile.objects.filter(followers__follower=profile).select_related("user").prefetch_related("games").order_by("gamer_tag")
 	if relation_name == "friends":
-		return GamerProfile.objects.filter(
-			Q(friendships_as_one__profile_two=profile) | Q(friendships_as_two__profile_one=profile)
-		).select_related("user").prefetch_related("games").order_by("gamer_tag").distinct()
+		friends = list(
+			GamerProfile.objects.filter(
+				Q(friendships_as_one__profile_two=profile) | Q(friendships_as_two__profile_one=profile)
+			).select_related("user").prefetch_related("games").order_by("gamer_tag").distinct()
+		)
+		if friends:
+			_annotate_social_card_stats(profile, friends)
+		return friends
 	return GamerProfile.objects.none()
+
+
+def _annotate_social_card_stats(profile, friends):
+	"""Attach lightweight, real-data social context to friend cards.
+
+	All stats come from trusted GGz activity (completed matches, team
+	memberships, friendship edges). Sessions are never fabricated.
+	"""
+	from teams.models import TeamMembership
+	from tournaments.models import TournamentMatch
+
+	friend_ids = [friend.id for friend in friends]
+	owns_ids = set(friend_ids) | {profile.id}
+
+	friend_edges = Friendship.objects.filter(
+		Q(profile_one__in=owns_ids) | Q(profile_two__in=owns_ids)
+	).values_list("profile_one_id", "profile_two_id")
+	neighbors = {}
+	for first_id, second_id in friend_edges:
+		neighbors.setdefault(first_id, set()).add(second_id)
+		neighbors.setdefault(second_id, set()).add(first_id)
+	profile_neighbors = neighbors.get(profile.id, set())
+
+	match_counts = {}
+	match_last = {}
+	matches = TournamentMatch.objects.filter(
+		status="Completed",
+		player_one__in=owns_ids,
+		player_two__in=owns_ids,
+	).values_list("player_one_id", "player_two_id", "scheduled_at", "created_at")
+	for player_one_id, player_two_id, scheduled_at, created_at in matches:
+		if player_one_id is None or player_two_id is None:  # noqa: SIM102
+			continue
+		pair_key = tuple(sorted((player_one_id, player_two_id)))
+		if profile.id not in pair_key:
+			continue
+		match_counts[pair_key] = match_counts.get(pair_key, 0) + 1
+		last_at = scheduled_at or created_at
+		if match_last.get(pair_key) is None or last_at > match_last[pair_key]:
+			match_last[pair_key] = last_at
+
+	team_ids_by_profile = {}
+	team_memberships = TeamMembership.objects.filter(player__in=owns_ids).values_list("player_id", "team_id")
+	for player_id, team_id in team_memberships:
+		team_ids_by_profile.setdefault(player_id, set()).add(team_id)
+
+	for friend in friends:
+		friend.mutual_friends_count = len(profile_neighbors & neighbors.get(friend.id, set()))
+		pair_key = tuple(sorted((profile.id, friend.id)))
+		friend.played_together_count = match_counts.get(pair_key, 0)
+		friend.last_played_together = match_last.get(pair_key)
+		friend.shared_squad = bool(
+			team_ids_by_profile.get(profile.id, set()) & team_ids_by_profile.get(friend.id, set())
+		)
+		shared_game_ids = set(profile.games.values_list("id", flat=True)) & set(friend.games.values_list("id", flat=True))
+		friend.shared_game_count = len(shared_game_ids)
 
 
 def _presence_snapshot(profile, viewer=None, refresh=False):
@@ -1122,12 +1229,15 @@ def _presence_payload(profile, viewer=None, refresh=False):
 
 
 def _connection_state(viewer, target):
+	if viewer is None or target is None or viewer.id == target.id:
+		return {"following": False, "friends": False, "followed_by": False, "blocked": False, "message_state": "request", "request_state": "none", "outgoing_request_status": "", "incoming_request_status": ""}
 	outgoing = MessageRequest.objects.filter(sender=viewer, recipient=target).first()
 	incoming = MessageRequest.objects.filter(sender=target, recipient=viewer).first()
-	first, second = sorted((viewer.id, target.id))
-	friends = Friendship.objects.filter(profile_one_id=first, profile_two_id=second).exists()
-	following = Follow.objects.filter(follower=viewer, following=target).exists()
-	blocked = Block.objects.filter(Q(blocker=viewer, blocked=target) | Q(blocker=target, blocked=viewer)).exists()
+	state = relationship_between(viewer, target)
+	friends = state == "FRIENDS"
+	following = state in {"FOLLOWING", "FRIENDS"}
+	followed_by = state in {"FOLLOWED_BY", "FRIENDS"}
+	blocked = state.startswith("BLOCKED")
 	if incoming and incoming.status == "Pending":
 		request_state = "incoming"
 	elif outgoing and outgoing.status == "Pending":
@@ -1136,13 +1246,14 @@ def _connection_state(viewer, target):
 		request_state = "none"
 	if blocked:
 		message_state = "blocked"
-	elif friends or following or (outgoing and outgoing.status == "Accepted") or (incoming and incoming.status == "Accepted"):
+	elif friends or (outgoing and outgoing.status == "Accepted") or (incoming and incoming.status == "Accepted"):
 		message_state = "direct"
 	else:
 		message_state = "request"
 	return {
 		"following": following,
 		"friends": friends,
+		"followed_by": followed_by,
 		"blocked": blocked,
 		"message_state": message_state,
 		"request_state": request_state,
@@ -1202,6 +1313,8 @@ def profile_detail(request, gamer_tag):
 	friendship = None
 	friend_request = None
 	is_following = False
+	is_friends = False
+	followed_by = False
 	is_blocked = False
 	message_request = None
 	message_request_incoming = None
@@ -1216,6 +1329,8 @@ def profile_detail(request, gamer_tag):
 			status="pending",
 		).first()
 		is_following = Follow.objects.filter(follower=viewer, following=profile).exists()
+		is_friends = _is_friend(viewer, profile)
+		followed_by = Follow.objects.filter(follower=profile, following=viewer).exists()
 		is_blocked = Block.objects.filter(Q(blocker=viewer, blocked=profile) | Q(blocker=profile, blocked=viewer)).exists()
 		message_request = MessageRequest.objects.filter(sender=viewer, recipient=profile).first()
 		message_request_incoming = MessageRequest.objects.filter(sender=profile, recipient=viewer).first()
@@ -1249,6 +1364,8 @@ def profile_detail(request, gamer_tag):
 			"friendship": friendship,
 			"friend_request": friend_request,
 			"is_following": is_following,
+			"is_friends": is_friends,
+			"followed_by": followed_by,
 			"is_blocked": is_blocked,
 			"message_request": message_request,
 			"message_request_incoming": message_request_incoming,
@@ -1364,49 +1481,26 @@ def connection_action(request, gamer_tag, action):
 	if target == viewer:
 		return _json_error("You cannot interact with your own profile.", 403) if _is_json_request(request) else HttpResponseForbidden("You cannot interact with your own profile.")
 	if action == "follow":
-		if Block.objects.filter(Q(blocker=target, blocked=viewer) | Q(blocker=viewer, blocked=target)).exists():
+		created, became_friends = _social_follow(viewer, target)
+		if not created and _is_blocked(viewer, target):
 			return _json_error("Blocked players cannot follow each other.", 403) if _is_json_request(request) else HttpResponseForbidden("Blocked players cannot follow each other.")
-		created = Follow.objects.get_or_create(follower=viewer, following=target)[1]
-		if created:
-			_notify(target, viewer, "follow", f"{viewer.gamer_tag} followed you", f"/profiles/{viewer.gamer_tag}/")
 	elif action == "unfollow":
-		Follow.objects.filter(follower=viewer, following=target).delete()
+		_social_unfollow(viewer, target)
 	elif action == "friend":
-		if not Block.objects.filter(
-			Q(blocker=target, blocked=viewer) | Q(blocker=viewer, blocked=target)
-		).exists():
-			FriendRequest.objects.update_or_create(
-				sender=viewer, receiver=target,
-				defaults={"status": "pending"},
-			)
-			_notify(target, viewer, "friend_request", f"{viewer.gamer_tag} sent you a friend request", f"/profiles/{viewer.gamer_tag}/")
-	elif action in {"cancel", "reject"}:
-		FriendRequest.objects.filter(
-			sender=viewer if action == "cancel" else target,
-			receiver=target if action == "cancel" else viewer,
-			status="pending",
-		).update(status="cancelled" if action == "cancel" else "rejected")
-	elif action == "accept":
-		friend_request = get_object_or_404(
-			FriendRequest, sender=target, receiver=viewer, status="pending"
-		)
-		first, second = sorted((viewer.id, target.id))
-		Friendship.objects.get_or_create(profile_one_id=first, profile_two_id=second)
-		friend_request.delete()
-		_notify(target, viewer, "friend_accept", f"{viewer.gamer_tag} accepted your friend request", f"/profiles/{viewer.gamer_tag}/")
+		if _is_json_request(request):
+			return JsonResponse({"ok": False, "message": "Friend requests are no longer used. Follow each other to become friends."})
+		messages.info(request, "Friend requests are no longer used. Follow each other to become friends.")
+		return redirect("profile_detail", gamer_tag=target.gamer_tag)
+	elif action in {"cancel", "reject", "accept"}:
+		notice = "Friend requests are no longer used. Follow each other to become friends."
+		if _is_json_request(request):
+			return JsonResponse({"ok": False, "message": notice})
+		messages.info(request, notice)
+		return redirect("profile_detail", gamer_tag=target.gamer_tag)
 	elif action == "remove":
-		first, second = sorted((viewer.id, target.id))
-		Friendship.objects.filter(profile_one_id=first, profile_two_id=second).delete()
+		_social_remove_friend(viewer, target)
 	elif action == "block":
-		Block.objects.get_or_create(blocker=viewer, blocked=target)
-		Follow.objects.filter(
-			Q(follower=viewer, following=target) | Q(follower=target, following=viewer)
-		).delete()
-		FriendRequest.objects.filter(
-			Q(sender=viewer, receiver=target) | Q(sender=target, receiver=viewer)
-		).delete()
-		first, second = sorted((viewer.id, target.id))
-		Friendship.objects.filter(profile_one_id=first, profile_two_id=second).delete()
+		_social_block_user(viewer, target)
 	elif action == "unblock":
 		Block.objects.filter(blocker=viewer, blocked=target).delete()
 	elif action == "respect":
@@ -1432,7 +1526,9 @@ def connection_action(request, gamer_tag, action):
 		return JsonResponse({
 				"ok": True,
 				"action": action,
-				"following": Follow.objects.filter(follower=viewer, following=target).exists(),
+				"following": state["following"],
+				"friends": state["friends"],
+				"followed_by": state["followed_by"],
 				"follower_count": target.followers.count(),
 				**state,
 			})

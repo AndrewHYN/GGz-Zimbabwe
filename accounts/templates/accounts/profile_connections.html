@@ -25,6 +25,14 @@
                     <span>{{ person.platform|default:"Platform open" }}</span>
                 </div>
                 <p class="gamer-games">{% for game in person.games.all|slice:":2" %}{{ game.name }}{% if not forloop.last %}, {% endif %}{% empty %}Games not listed yet{% endfor %}</p>
+                {% if mode == 'friends' %}
+                <div class="gamer-social-hints">
+                    {% if person.shared_squad %}<span class="social-hint">Squad</span>{% endif %}
+                    {% if person.shared_game_count %}<span class="social-hint">{{ person.shared_game_count }} shared game{% if person.shared_game_count != 1 %}s{% endif %}</span>{% endif %}
+                    {% if person.mutual_friends_count %}<span class="social-hint">{{ person.mutual_friends_count }} mutual friend{% if person.mutual_friends_count != 1 %}s{% endif %}</span>{% endif %}
+                    {% if person.played_together_count %}<span class="social-hint">Played together {{ person.played_together_count }} time{% if person.played_together_count != 1 %}s{% endif %}{% if person.last_played_together %} · last {{ person.last_played_together|date:"M j" }}{% endif %}</span>{% endif %}
+                </div>
+                {% endif %}
                 <div class="gamer-card-foot">
                     <span class="respect-label">{{ person.respect_points }} respect</span>
                     <a class="button alt" href="{% url 'profile_detail' person.gamer_tag %}">View profile</a>

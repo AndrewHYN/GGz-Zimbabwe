@@ -14,8 +14,6 @@ from accounts.models import (
     Conversation,
     ConversationParticipant,
     Follow,
-    FriendRequest,
-    Friendship,
     GamerProfile,
     Message,
     Notification,
@@ -50,10 +48,15 @@ class Command(BaseCommand):
         for profile, game_names in ((profiles["organizer"], ("Valorant", "EA FC 25")), (profiles["player"], ("Valorant", "Tekken 8")), (profiles["casual"], ("Stardew Valley", "EA FC 25")), (profiles["seller"], ("Tekken 8",))):
             profile.games.set([games[name] for name in game_names])
 
-        first, second = sorted((profiles["organizer"].id, profiles["player"].id))
-        Friendship.objects.get_or_create(profile_one_id=first, profile_two_id=second)
-        Follow.objects.get_or_create(follower=profiles["casual"], following=profiles["player"])
-        Follow.objects.get_or_create(follower=profiles["player"], following=profiles["casual"])
+        from accounts.relationships import follow
+
+        organizer = profiles["organizer"]
+        player = profiles["player"]
+        casual = profiles["casual"]
+        follow(organizer, player)
+        follow(player, organizer)
+        follow(player, casual)
+        follow(casual, player)
 
         venue = Venue.objects.get_or_create(
             name="GGz Demo Arena",
@@ -106,7 +109,7 @@ class Command(BaseCommand):
             second_listing_image = ListingImage(listing=second_listing)
             self._image(ListingImage, second_listing_image, "image", "demo-controller.png", "listings")
         SavedListing.objects.get_or_create(user=profiles["player"], listing=listing)
-        FriendRequest.objects.get_or_create(sender=profiles["casual"], receiver=profiles["seller"], defaults={"status": "pending"})
+        follow(profiles["casual"], profiles["seller"])
         self._messages_and_notifications(profiles)
         self.stdout.write(self.style.SUCCESS("GGz demo data seeded idempotently."))
 

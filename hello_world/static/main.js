@@ -270,8 +270,9 @@
         .then((result) => {
           if (form.matches('[data-follow-form]')) {
             form.action = result.following ? form.action.replace('/follow/', '/unfollow/') : form.action.replace('/unfollow/', '/follow/');
-            if (label) label.textContent = result.following ? 'Following' : 'Follow';
-            else button.innerHTML = result.following ? '<span aria-hidden="true">✓</span> Following' : '<span aria-hidden="true">+</span> Follow';
+            const followText = result.friends ? 'Friends' : result.following ? 'Following' : result.followed_by ? 'Follow back' : 'Follow';
+            if (label) label.textContent = followText;
+            else button.innerHTML = result.following ? '<span aria-hidden="true">✓</span> ' + followText : '<span aria-hidden="true">+</span> ' + followText;
             button.setAttribute('aria-pressed', String(result.following));
             document.querySelectorAll('[data-followers-count]').forEach((count) => { count.textContent = result.follower_count; });
             updateProfileConnectionState(result);
@@ -355,9 +356,10 @@
     const followForm = container.querySelector('[data-follow-form]');
     const label = followForm?.querySelector('[data-follow-label]');
     const button = followForm?.querySelector('[data-follow-button]');
+    const followText = result.friends ? 'Friends' : result.following ? 'Following' : result.followed_by ? 'Follow back' : 'Follow';
     if (followForm) followForm.action = result.following ? container.dataset.unfollowUrl : container.dataset.followUrl;
-    if (label) label.textContent = result.following ? 'Following' : 'Follow';
-    if (button) { button.innerHTML = result.following ? '<span aria-hidden="true">✓</span> Following' : '<span aria-hidden="true">+</span> Follow'; button.setAttribute('aria-pressed', String(result.following)); }
+    if (label) label.textContent = followText;
+    if (button) { button.innerHTML = result.following ? '<span aria-hidden="true">✓</span> ' + followText : '<span aria-hidden="true">+</span> ' + followText; button.setAttribute('aria-pressed', String(result.following)); }
     document.querySelectorAll('[data-followers-count]').forEach((count) => { if (typeof result.follower_count === 'number') count.textContent = result.follower_count; });
     renderProfileMessageActions(container, result);
   };

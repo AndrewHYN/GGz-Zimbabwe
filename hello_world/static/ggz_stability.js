@@ -81,21 +81,26 @@
     if (label) label.textContent = currentFollowing ? 'Unfollowing...' : 'Following...';
     try {
       const result = await jsonRequest(form);
+      const followText = result.friends ? 'Friends' : result.following ? 'Following' : result.followed_by ? 'Follow back' : 'Follow';
       if (result.following) {
         form.action = form.action.replace('/follow/', '/unfollow/');
-        if (label) label.textContent = 'Following';
       } else {
         form.action = form.action.replace('/unfollow/', '/follow/');
-        if (label) label.textContent = 'Follow';
       }
       if (button) {
-        button.innerHTML = result.following ? '<span aria-hidden="true">✓</span> <span data-follow-label>Following</span>' : '<span aria-hidden="true">+</span> <span data-follow-label>Follow</span>';
+        button.innerHTML = result.following ? `<span aria-hidden="true">✓</span> <span data-follow-label>${followText}</span>` : `<span aria-hidden="true">+</span> <span data-follow-label>${followText}</span>`;
         button.setAttribute('aria-pressed', String(Boolean(result.following)));
+      } else if (label) {
+        label.textContent = followText;
+      }
+      if (result.friends) {
+        showStatus(form, "You're now Friends!");
+      } else {
+        showStatus(form, '');
       }
       updateBadge('[data-followers-count]', result.follower_count);
       const container = form.closest('[data-profile-actions]');
       if (container && result.message_state) renderMessageActions(container, result);
-      showStatus(form, '');
     } catch (error) {
       if (label) label.textContent = currentFollowing ? 'Following' : 'Follow';
       showStatus(form, error.message || 'Could not update the follow state.', true);
