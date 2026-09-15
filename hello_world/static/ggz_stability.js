@@ -172,3 +172,16 @@
   });
   applyTheme(currentTheme());
 })();
+
+(() => {
+    const consent = document.getElementById('cookie-consent');
+    const accept = document.getElementById('cookie-accept');
+    if (!consent || !accept) return;
+    if (!localStorage.getItem('ggz-cookie-consent')) {
+        consent.hidden = false;
+    }
+    accept.addEventListener('click', () => {
+        localStorage.setItem('ggz-cookie-consent', '1');
+        consent.hidden = true;
+    });
+})();

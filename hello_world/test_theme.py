@@ -33,7 +33,7 @@ class ThemeToggleContractTests(TestCase):
 	def test_exactly_one_inline_script_allowed_by_csp_hash(self):
 		html = self._base_html()
 		matches = RE_INLINE_SCRIPT.findall(html)
-		self.assertEqual(len(matches), 2)
+		self.assertEqual(len(matches), 1)
 		for match in matches:
 			digest = base64.b64encode(hashlib.sha256(match.encode("utf-8")).digest()).decode()
 			self.assertIn(f"'sha256-{digest}'", settings.CONTENT_SECURITY_POLICY)
