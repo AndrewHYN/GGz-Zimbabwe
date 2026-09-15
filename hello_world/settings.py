@@ -150,7 +150,7 @@ SECURE_BROWSER_XSS_FILTER = not DEBUG
 SECURITY_HEADERS_ENABLED = config("SECURITY_HEADERS_ENABLED", default=not DEBUG, cast=bool)
 _csp_directives = [
     "default-src 'self'",
-    "script-src 'self' 'sha256-/42vWjQLbsion3EFyzAiFefID//+R0DF9sAQG03tEBA=' https://maps.googleapis.com https://cdn.jsdelivr.net",
+    "script-src 'self' 'sha256-/42vWjQLbsion3EFyzAiFefID//+R0DF9sAQG03tEBA=' 'sha256-KGvSsUMnP3UBHYwkthVh5H2x0F2WCXOV0xLB1uszeOk=' https://maps.googleapis.com https://cdn.jsdelivr.net",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' data: https://fonts.gstatic.com",
     "img-src 'self' data: blob: https://cdn.discordapp.com https://*.supabase.co https://*.gstatic.com https://*.googleapis.com https://*.googleusercontent.com",
