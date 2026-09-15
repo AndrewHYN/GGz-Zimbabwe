@@ -3,6 +3,13 @@
 {% block content %}
 <main class="page-shell organization-public-page">
   <header class="organization-public-header">
+    {% if organization.logo %}
+    <div class="organization-public-logo" style="background-image: url('{{ organization.logo.url }}');">
+        <img src="{{ organization.logo.url }}" alt="" loading="lazy" onerror="this.onerror=null; this.outerHTML='<div class=\"media-fallback organization-logo large\">Logo unavailable</div>'" style="display: none;">
+    </div>
+    {% else %}
+    <div class="media-fallback organization-logo large">Logo unavailable</div>
+    {% endif %}
     <div>
       <p class="eyebrow">GGz Organization</p>
       <h1>{{ organization.name }}</h1>

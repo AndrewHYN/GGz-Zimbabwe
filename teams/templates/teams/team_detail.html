@@ -3,9 +3,28 @@
 {% block content %}
 <main class="page-shell utility-page">
   <a class="back-link" href="{% url 'team_list' %}">&larr; Back to teams</a>
-  <p class="eyebrow">Team profile</p>
-  <h1>{{ team.name }} <em>[{{ team.tag }}]</em></h1>
-  <p class="lede">{{ team.description|default:"This team is building its GGz story." }}</p>
+  {% if team.banner %}
+  <div class="team-banner-wrapper">
+      <img src="{{ team.banner.url }}" alt="{{ team.name }} banner" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null; this.outerHTML='<div class=\"media-fallback team-banner large\">Banner unavailable</div>'">
+  </div>
+  {% else %}
+  <div class="team-banner-wrapper media-fallback team-banner large">Banner unavailable</div>
+  {% endif %}
+  <div class="team-header-content">
+    <a class="back-link" href="{% url 'team_list' %}">&larr; Back to teams</a>
+    {% if team.logo %}
+    <div class="team-logo-wrapper">
+        <img src="{{ team.logo.url }}" alt="{{ team.name }} logo" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null; this.outerHTML='<div class=\"media-fallback team-logo large\">Logo unavailable</div>'">
+    </div>
+    {% else %}
+    <div class="team-logo-wrapper media-fallback team-logo large">Logo unavailable</div>
+    {% endif %}
+    <div class="team-header-text">
+        <p class="eyebrow">Team profile</p>
+        <h1>{{ team.name }} <em>[{{ team.tag }}]</em></h1>
+        <p class="lede">{{ team.description|default:"This team is building its GGz story." }}</p>
+    </div>
+  </div>
 
   <dl class="details">
     <div class="detail"><dt>Game</dt><dd>{{ team.game.name|default:"Open roster" }}</dd></div>

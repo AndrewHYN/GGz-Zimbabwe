@@ -10,7 +10,13 @@
   <section class="organization-directory-grid" aria-label="Public organizations">
     {% for organization in organizations %}
     <article class="organization-directory-card">
-      <div class="organization-card-mark">{{ organization.name|slice:":1"|upper }}</div>
+      {% if organization.logo %}
+      <div class="organization-card-logo" style="background-image: url('{{ organization.logo.url }}');">
+          <img src="{{ organization.logo.url }}" alt="" loading="lazy" onerror="this.onerror=null; this.outerHTML='<div class=\"media-fallback organization-logo\">Logo unavailable</div>'" style="display: none;">
+      </div>
+      {% else %}
+      <div class="organization-card-logo media-fallback organization-logo">Logo unavailable</div>
+      {% endif %}
       <div class="organization-card-body"><p class="eyebrow">{{ organization.get_organization_type_display }}</p><h2>{{ organization.name }}</h2><p>{{ organization.description|truncatewords:22|default:"Gaming community and local operator." }}</p><p class="muted">{{ organization.locations.all.0.city|default:organization.city|default:"Zimbabwe" }}</p><span class="public-location-status">● Active on Radar</span><div class="row-actions"><a class="button" href="{% url 'organization_public_profile' organization.slug %}">View organization</a><a class="button alt" href="{% url 'map_page' %}">View on Radar</a></div></div>
     </article>
     {% endfor %}
