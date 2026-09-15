@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Refund & Cancellation Policy | GGz{% endblock %}
+
+{% block content %}
+<main class="page-shell legal-page">
+    <header class="page-header">
+        <h1>Refund & Cancellation Policy</h1>
+        <p class="lede">Last updated: {% now "F j, Y" %}</p>
+    </header>
+
+    <section class="legal-section">
+        <h2>Current Status — No Direct Payments Processed</h2>
+        <p>As of this policy date, <strong>GGz does not process any paid transactions directly</strong>. The platform does not collect payment card details, does not integrate with payment processors (Stripe, PayPal, crypto, mobile money, etc.), and does not charge fees for tournament entries, marketplace listings, or any other platform features.</p>
+        <p>All current GGz features — player profiles, community feed, tournament discovery, event RSVPs, team creation, marketplace listings, messaging, and companion search — are provided at no cost to users.</p>
+    </section>
+
+    <section class="legal-section">
+        <h2>Marketplace Transactions</h2>
+        <p>The GGz Marketplace is a peer-to-peer listing service. Transactions (payment, delivery, fulfillment) occur <strong>directly between users</strong> outside the GGz platform. GGz is not a party to these transactions, does not process payments, and does not offer refunds, chargebacks, or purchase protection for marketplace deals.</p>
+        <p>Users are responsible for conducting due diligence, using safe payment methods, and resolving disputes directly with the other party. GGz may mediate but is not liable for outcomes.</p>
+    </section>
+
+    <section class="legal-section">
+        <h2>Future Paid Services</h2>
+        <p>If GGz introduces paid features in the future (e.g., paid tournament entries, premium subscriptions, promoted listings, marketplace escrow), this policy will be updated <strong>before launch</strong> to reflect:</p>
+        <ul>
+            <li>The specific payment processor(s) and methods used</li>
+            <li>Refund eligibility criteria for each paid feature</li>
+            <li>Cancellation windows and conditions</li>
+            <li>Dispute resolution process</li>
+            <li>Any non-refundable fees or exclusions</li>
+        </ul>
+        <p><strong>No blanket "all sales final" or invented exclusions are declared here.</strong> Any future refund terms will be based on the actual service contracts and payment processor terms in effect at that time.</p>
+    </section>
+
+    <section class="legal-section">
+        <h2>Account Deletion & Data</h2>
+        <p>Deleting your account is free and permanent. See the <a href="{% url 'privacy' %}">Privacy Policy</a> and <a href="{% url 'account_security' %}">Account Security</a> page for data export and deletion rights.</p>
+    </section>
+
+    <section class="legal-section">
+        <h2>Contact</h2>
+        <p>Questions about this policy: <a href="mailto:legal@ggz.example">legal@ggz.example</a> (placeholder — replace with operational contact before public launch).</p>
+    </section>
+</main>
+{% endblock %}

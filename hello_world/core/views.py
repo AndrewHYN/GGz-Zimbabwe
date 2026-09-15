@@ -30,6 +30,14 @@ def privacy(request):
     return render(request, "privacy.html")
 
 
+def cookie_policy(request):
+    return render(request, "cookie.html")
+
+
+def refund_policy(request):
+    return render(request, "refund.html")
+
+
 def terms(request):
     return render(request, "terms.html")
 

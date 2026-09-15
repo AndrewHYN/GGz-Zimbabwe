@@ -176,6 +176,8 @@
                 <div>
                     <h3>Legal</h3>
                     <a href="{% url 'privacy' %}">Privacy Policy</a>
+                    <a href="{% url 'cookie_policy' %}">Cookie Policy</a>
+                    <a href="{% url 'refund_policy' %}">Refund Policy</a>
                     <a href="{% url 'terms' %}">Terms of Service</a>
                 </div>
             </div>
@@ -190,6 +192,7 @@
         <p>We use essential cookies for security, session management, and to remember your theme preference. No tracking or analytics cookies are used.</p>
         <div class="cookie-actions">
             <a href="{% url 'privacy' %}" class="button button-secondary">Privacy Policy</a>
+            <a href="{% url 'cookie_policy' %}" class="button button-secondary">Cookie Policy</a>
             <a href="{% url 'terms' %}" class="button button-secondary">Terms of Service</a>
             <button type="button" class="button button-primary" id="cookie-accept" aria-label="Accept essential cookies">Accept</button>
         </div>

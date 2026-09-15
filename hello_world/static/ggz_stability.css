@@ -233,3 +233,9 @@ html[data-theme="light"] .theme-icon-day { display: none; }
 .cookie-consent p { margin: 0; font-size: .85rem; color: var(--text-secondary); }
 .cookie-actions { display: flex; gap: .5rem; flex-wrap: wrap; justify-content: flex-end; }
 @media (max-width: 640px) { .cookie-consent { left: .5rem; right: .5rem; } .cookie-actions { justify-content: stretch; } .cookie-actions .button { flex: 1; } }
+.compliance-checklist { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .85rem; }
+.compliance-checklist th, .compliance-checklist td { border: 1px solid var(--border); padding: .5rem .75rem; text-align: left; vertical-align: top; }
+.compliance-checklist th { background: var(--bg-1); font-weight: 600; }
+.compliance-checklist td:last-child { color: var(--text-tertiary); font-size: .8rem; }
+.compliance-checklist tr:nth-child(even) { background: var(--bg-1); }
+@media (max-width: 640px) { .compliance-checklist { display: block; overflow-x: auto; } }

@@ -18,7 +18,7 @@
             <li>Content you create: posts, comments, tournament registrations, event RSVPs, marketplace listings</li>
             <li>Social connections: follows, friend requests, blocks, team memberships</li>
             <li>Communication data: messages with other players, message requests</li>
-            <li>Technical data: IP address, browser type, device information, access times (for security and analytics)</li>
+            <li>Technical data: IP address, browser type, device information, access times (for security and service operation)</li>
             <li>Location data: coarse city-level location if you opt in (used for nearby events and player discovery)</li>
         </ul>
     </section>
@@ -71,7 +71,8 @@
 
     <section class="legal-section">
         <h2>7. International Transfers</h2>
-        <p>Our servers are located in South Africa. If you access GGz from outside Zimbabwe/South Africa, your data will be transferred there. We rely on standard contractual clauses for such transfers.</p>
+        <p>GGz uses third-party hosting and infrastructure providers. The locations of data processing may vary by provider. If you access GGz from outside Zimbabwe, your data will be transferred to the jurisdictions where our providers operate.</p>
+        <p><strong>Launch blocker:</strong> Cross-border transfer safeguards (standard contractual clauses, adequacy decisions, or other appropriate mechanisms) require legal verification before public launch. This is flagged as a pre-launch requirement.</p>
     </section>
 
     <section class="legal-section">
@@ -85,8 +86,32 @@
     </section>
 
     <section class="legal-section">
-        <h2>10. Contact</h2>
-        <p>Questions about this policy or your data: <a href="mailto:privacy@ggz.example">privacy@ggz.example</a> (replace with real contact before launch).</p>
+        <h2>11. Data Protection Compliance Checklist (Pre-Launch)</h2>
+        <p>The following items require verification by the data controller / legal counsel before public launch. This checklist is based on the current Zimbabwe data protection framework (Cyber and Data Protection Act [Chapter 12:07]) and general data protection principles.</p>
+        <table class="compliance-checklist">
+            <thead>
+                <tr><th>Requirement</th><th>Status</th><th>Notes</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>Data controller identification</td><td>Needs owner/legal determination</td><td>Legal entity operating GGz must be identified</td></tr>
+                <tr><td>POTRAZ registration / licensing applicability</td><td>Needs owner/legal determination</td><td>Depends on business structure and processing scope</td></tr>
+                <tr><td>Data Protection Officer (DPO) appointment</td><td>Needs owner/legal determination</td><td>Required if core activities involve large-scale systematic monitoring or sensitive data</td></tr>
+                <tr><td>Records of Processing Activities (ROPA)</td><td>Partially implemented</td><td>Technical logging exists; formal ROPA document needed</td></tr>
+                <tr><td>Processor agreements (DPA) with all subprocessors</td><td>In progress</td><td>Hosting, email, Supabase, Google Maps, OSM providers</td></tr>
+                <tr><td>Cross-border transfer safeguards</td><td>In progress</td><td>Standard contractual clauses or adequacy — legal review required</td></tr>
+                <tr><td>Children's data protection (under 13)</td><td>Implemented in policy</td><td>Age gate at signup; no under-13 targeting</td></tr>
+                <tr><td>Data retention schedules</td><td>Partially implemented</td><td>Account deletion purges within 30 days; marketplace records may require longer</td></tr>
+                <tr><td>Data subject rights (access, rectification, erasure, portability, restriction, objection)</td><td>Technically implemented</td><td>Export JSON, account deletion, profile edit, block users</td></tr>
+                <tr><td>Security incident handling & breach notification</td><td>Needs formal procedure</td><td>Incident response plan and POTRAZ notification timeline required</td></tr>
+                <tr><td>Privacy by design / default in new features</td><td>Ongoing</td><td>Engineering practice; formal DPIA process for high-risk features</td></tr>
+            </tbody>
+        </table>
+        <p><strong>Note:</strong> "Needs owner/legal determination" means the codebase cannot establish this requirement — the business owner or legal counsel must decide based on GGz's actual structure, size, and processing activities.</p>
+    </section>
+
+    <section class="legal-section">
+        <h2>12. Contact</h2>
+        <p>Questions about this policy or your data: <a href="mailto:privacy@ggz.example">privacy@ggz.example</a> — <strong>placeholder; must be replaced with a verified operational contact before public launch</strong>.</p>
     </section>
 </main>
 {% endblock %}

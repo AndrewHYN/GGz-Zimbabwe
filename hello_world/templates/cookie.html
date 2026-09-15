@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Cookie Policy | GGz{% endblock %}
+
+{% block content %}
+<main class="page-shell legal-page">
+    <header class="page-header">
+        <h1>Cookie Policy</h1>
+        <p class="lede">Last updated: {% now "F j, Y" %}</p>
+    </header>
+
+    <section class="legal-section">
+        <h2>Overview</h2>
+        <p>GGz uses only <strong>strictly necessary</strong> cookies and localStorage items. We do not use analytics cookies, marketing cookies, or any tracking technologies.</p>
+    </section>
+
+    <section class="legal-section">
+        <h2>Strictly Necessary (Always Active)</h2>
+        <table class="compliance-checklist">
+            <thead>
+                <tr><th>Name / Key</th><th>Type</th><th>Purpose</th><th>Duration</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>sessionid</td><td>Cookie (HttpOnly, Secure, SameSite=Lax)</td><td>Django session authentication</td><td>Session / 2 weeks (configurable)</td></tr>
+                <tr><td>csrftoken</td><td>Cookie (HttpOnly, Secure, SameSite=Lax)</td><td>CSRF protection for form submissions</td><td>1 year</td></tr>
+                <tr><td>ggz-theme</td><td>localStorage</td><td>User theme preference (light/dark)</td><td>Until cleared by user</td></tr>
+                <tr><td>ggz-cookie-consent</td><td>localStorage</td><td>Records cookie banner acceptance</td><td>Until cleared by user</td></tr>
+                <tr><td>ggz-companion-history</td><td>localStorage</td><td>GGz Companion chat history (user-initiated)</td><td>Up to 10 entries, until cleared</td></tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section class="legal-section">
+        <h2>External Resources (Not Cookies, But Load Third-Party Content)</h2>
+        <p>The following external resources are loaded on specific pages. They may set their own cookies or process IP addresses per their own policies:</p>
+        <ul>
+            <li><strong>Google Fonts</strong> (fonts.googleapis.com, fonts.gstatic.com) — loaded on all pages for the Inter font. Google's privacy policy applies.</li>
+            <li><strong>Google Maps JavaScript API</strong> (maps.googleapis.com) — loaded only on map/radar pages when API key is configured. Google's privacy policy applies.</li>
+            <li><strong>OpenStreetMap Nominatim</strong> (nominatim.openstreetmap.org) — used for geocoding on map pages. OSM Foundation privacy policy applies.</li>
+            <li><strong>Supabase Storage</strong> (*.supabase.co) — used for media uploads when S3-compatible storage is configured. Supabase privacy policy applies.</li>
+            <li><strong>Discord CDN</strong> (cdn.discordapp.com) — used for Discord-linked avatar images. Discord privacy policy applies.</li>
+        </ul>
+    </section>
+
+    <section class="legal-section">
+        <h2>No Analytics / Marketing Cookies</h2>
+        <p>GGz does <strong>not</strong> use:</p>
+        <ul>
+            <li>Google Analytics / GA4 / gtag</li>
+            <li>Google Tag Manager (GTM)</li>
+            <li>Facebook/Meta Pixel</li>
+            <li>Mixpanel, Amplitude, Plausible, Matomo, or any analytics platform</li>
+            <li>Advertising/tracking pixels</li>
+            <li>Third-party tracking cookies</li>
+        </ul>
+        <p>If analytics are added in the future, this policy will be updated and consent will be obtained where required.</p>
+    </section>
+
+    <section class="legal-section">
+        <h2>Managing Cookies</h2>
+        <ul>
+            <li>Essential cookies cannot be disabled without breaking core functionality (login, CSRF protection, session).</li>
+            <li>localStorage items (theme, cookie consent, companion history) can be cleared via browser dev tools or by using the "Clear data" option in browser settings.</li>
+            <li>The cookie consent banner stores your acceptance in <code>ggz-cookie-consent</code> localStorage.</li>
+        </ul>
+    </section>
+
+    <section class="legal-section">
+        <h2>Contact</h2>
+        <p>Questions: <a href="mailto:privacy@ggz.example">privacy@ggz.example</a> — <strong>placeholder; must be replaced with a verified operational contact before public launch</strong>.</p>
+    </section>
+</main>
+{% endblock %}
