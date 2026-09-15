@@ -7,7 +7,11 @@
     <!-- Hero Section -->
     <section class="event-hero">
         <div class="event-hero-image-wrapper">
-            <div class="event-hero-image event-banner-fallback">🎮 EVENT</div>
+            {% if event.banner %}
+                <img class="event-hero-image" src="{{ event.banner.url }}" alt="{{ event.name }} banner" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null; this.outerHTML='<div class=\"media-fallback event-banner large\">Banner unavailable</div>'">
+            {% else %}
+                <div class="media-fallback event-banner large">Banner unavailable</div>
+            {% endif %}
         </div>
 
         <div class="event-hero-copy">

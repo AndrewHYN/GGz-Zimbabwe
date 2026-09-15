@@ -9,9 +9,9 @@
     <section class="game-detail-hero">
         <div class="detail-visual">
             {% if game.cover_art_url %}
-                <img src="{{ game.cover_art_url }}" alt="{{ game.name }} cover art" loading="lazy" referrerpolicy="no-referrer" onerror="this.outerHTML='<div class=detail-fallback>GGz</div>'">
+                <img src="{{ game.cover_art_url }}" alt="{{ game.name }} cover art" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null; this.outerHTML='<div class=\"media-fallback game-cover large\">Cover art unavailable</div>'">
             {% else %}
-                <div class="detail-fallback">GGz</div>
+                <div class="media-fallback game-cover large">Cover art unavailable</div>
             {% endif %}
         </div>
         <div class="detail-copy">

@@ -177,11 +177,50 @@
     const consent = document.getElementById('cookie-consent');
     const accept = document.getElementById('cookie-accept');
     if (!consent || !accept) return;
-    if (!localStorage.getItem('ggz-cookie-consent')) {
+
+    const CONSENT_KEY = 'ggz-cookie-consent';
+    let isClosing = false;
+
+    const showBanner = () => {
         consent.hidden = false;
+        requestAnimationFrame(() => {
+            consent.classList.add('is-visible');
+        });
+    };
+
+    const hideBanner = () => {
+        if (isClosing) return;
+        isClosing = true;
+        consent.classList.add('is-closing');
+        consent.classList.remove('is-visible');
+
+        const onTransitionEnd = (event) => {
+            if (event.target === consent && event.propertyName === 'opacity') {
+                consent.removeEventListener('transitionend', onTransitionEnd);
+                consent.hidden = true;
+                consent.classList.remove('is-closing');
+                isClosing = false;
+            }
+        };
+
+        consent.addEventListener('transitionend', onTransitionEnd);
+
+        setTimeout(() => {
+            if (!consent.hidden) {
+                consent.removeEventListener('transitionend', onTransitionEnd);
+                consent.hidden = true;
+                consent.classList.remove('is-closing');
+                isClosing = false;
+            }
+        }, 300);
+    };
+
+    if (!localStorage.getItem('ggz-cookie-consent')) {
+        showBanner();
     }
+
     accept.addEventListener('click', () => {
         localStorage.setItem('ggz-cookie-consent', '1');
-        consent.hidden = true;
+        hideBanner();
     });
 })();

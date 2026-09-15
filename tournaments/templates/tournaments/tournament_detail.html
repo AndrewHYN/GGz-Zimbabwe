@@ -8,9 +8,9 @@
     <section class="tournament-hero">
         <div class="tournament-hero-image-wrapper">
             {% if tournament.banner %}
-                <img class="tournament-hero-image" src="{{ tournament.banner.url }}" alt="{{ tournament.name }} banner">
+                <img class="tournament-hero-image" src="{{ tournament.banner.url }}" alt="{{ tournament.name }} banner" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null; this.outerHTML='<div class=\"media-fallback tournament-banner large\">Banner unavailable</div>'">
             {% else %}
-                <div class="tournament-hero-image tournament-banner-fallback">GGz / COMPETE</div>
+                <div class="media-fallback tournament-banner large">Banner unavailable</div>
             {% endif %}
         </div>
 
