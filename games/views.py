@@ -4,11 +4,13 @@ from django.db import IntegrityError
 from django.core.paginator import Paginator, EmptyPage
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponseForbidden
+from django.http import HttpResponseForbidden, JsonResponse
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from urllib.parse import urlencode
+from django.core.management import call_command
+from django.conf import settings
 
 from marketplace.models import Listing
 from accounts.models import Block, ExternalFeedItem, GamerProfile
@@ -304,12 +306,6 @@ def game_review_create(request, game_id):
 	else:
 		messages.success(request, "Review updated.")
 	return redirect("game_detail", game_id=game.id)
-
-
-@login_required
-from django.core.management import call_command
-from django.conf import settings
-from django.http import JsonResponse
 
 
 @login_required
