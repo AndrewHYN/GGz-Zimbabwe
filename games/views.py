@@ -307,6 +307,12 @@ def game_review_create(request, game_id):
 
 
 @login_required
+from django.core.management import call_command
+from django.conf import settings
+from django.http import JsonResponse
+
+
+@login_required
 def game_wishlist_toggle(request, game_id):
 	if request.method != "POST":
 		return HttpResponseForbidden("This action requires POST.")
@@ -320,3 +326,24 @@ def game_wishlist_toggle(request, game_id):
 		GameWishlist.objects.create(game=game, profile=profile)
 		messages.success(request, f"Added {game.name} to your wishlist.")
 	return redirect("game_detail", game_id=game.id)
+
+
+# One-time IGDB sync endpoint - remove after production sync
+@login_required
+def igdb_sync_all(request):
+	if not request.user.is_superuser:
+		return HttpResponseForbidden("Superuser required.")
+	if request.method != "POST":
+		return HttpResponseForbidden("POST required.")
+	
+	# Verify secret token
+	token = request.POST.get("token") or request.GET.get("token")
+	expected_token = getattr(settings, "IGDB_SYNC_TOKEN", None)
+	if not expected_token or token != expected_token:
+		return HttpResponseForbidden("Invalid token.")
+	
+	try:
+		call_command("sync_igdb", "--all")
+		return JsonResponse({"status": "success", "message": "IGDB sync completed"})
+	except Exception as e:
+		return JsonResponse({"status": "error", "message": str(e)}, status=500)

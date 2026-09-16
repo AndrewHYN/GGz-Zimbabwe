@@ -84,15 +84,23 @@ class Command(BaseCommand):
         self._print_summary(results, dry_run)
 
     def _get_media_files(self, subdir):
-        """Get all files in a media subdirectory."""
-        path = Path(settings.MEDIA_ROOT) / subdir
-        if not path.exists():
+        """Get all files in a media subdirectory using the configured storage backend."""
+        from django.core.files.storage import default_storage
+        try:
+            # List files in the subdirectory using the storage backend
+            dirs, files = default_storage.listdir(subdir)
+            return [f"{subdir}/{f}" for f in files]
+        except Exception as e:
+            self.stdout.write(self.style.WARNING(f"  Could not list {subdir}: {e}"))
             return []
-        return [f for f in path.rglob("*") if f.is_file()]
 
     def _match_file_to_record(self, filename, candidates, key_fields):
         """Try to match a filename to a record using fuzzy matching."""
-        filename_lower = filename.lower()
+        # Handle both Path objects and strings
+        if hasattr(filename, 'name'):
+            filename_lower = filename.name.lower()
+        else:
+            filename_lower = filename.lower()
         best_match = None
         best_score = 0
 
@@ -157,12 +165,11 @@ class Command(BaseCommand):
                 ["gamer_tag"]
             )
             if match:
-                rel_path = match.relative_to(settings.MEDIA_ROOT)
                 if not dry_run:
-                    profile.cover.name = str(rel_path)
+                    profile.cover.name = match
                     profile.save(update_fields=["cover"])
                 stats["updated"] += 1
-                self.stdout.write(f"  Updated cover for {profile.gamer_tag}: {rel_path}")
+                self.stdout.write(f"  Updated cover for {profile.gamer_tag}: {match}")
             else:
                 stats["skipped"] += 1
 
@@ -191,12 +198,11 @@ class Command(BaseCommand):
                 ["name", "slug"]
             )
             if match:
-                rel_path = match.relative_to(settings.MEDIA_ROOT)
                 if not dry_run:
-                    tournament.banner.name = str(rel_path)
+                    tournament.banner.name = match
                     tournament.save(update_fields=["banner"])
                 stats["updated"] += 1
-                self.stdout.write(f"  Updated banner for {tournament.name}: {rel_path}")
+                self.stdout.write(f"  Updated banner for {tournament.name}: {match}")
             else:
                 stats["skipped"] += 1
 
@@ -260,12 +266,11 @@ class Command(BaseCommand):
                 ["name", "slug"]
             )
             if match:
-                rel_path = match.relative_to(settings.MEDIA_ROOT)
                 if not dry_run:
-                    org.logo.name = str(rel_path)
+                    org.logo.name = match
                     org.save(update_fields=["logo"])
                 stats["updated"] += 1
-                self.stdout.write(f"  Updated logo for {org.name}: {rel_path}")
+                self.stdout.write(f"  Updated logo for {org.name}: {match}")
             else:
                 stats["skipped"] += 1
 
@@ -286,12 +291,11 @@ class Command(BaseCommand):
             else:
                 match = self._match_file_to_record(team.name, logo_files, ["name", "slug"])
                 if match:
-                    rel_path = match.relative_to(settings.MEDIA_ROOT)
                     if not dry_run:
-                        team.logo.name = str(rel_path)
+                        team.logo.name = match
                         team.save(update_fields=["logo"])
                     stats["updated"] += 1
-                    self.stdout.write(f"  Updated logo for {team.name}: {rel_path}")
+                    self.stdout.write(f"  Updated logo for {team.name}: {match}")
                 else:
                     stats["skipped"] += 1
 
@@ -300,12 +304,11 @@ class Command(BaseCommand):
             else:
                 match = self._match_file_to_record(team.name, banner_files, ["name", "slug"])
                 if match:
-                    rel_path = match.relative_to(settings.MEDIA_ROOT)
                     if not dry_run:
-                        team.banner.name = str(rel_path)
+                        team.banner.name = match
                         team.save(update_fields=["banner"])
                     stats["updated"] += 1
-                    self.stdout.write(f"  Updated banner for {team.name}: {rel_path}")
+                    self.stdout.write(f"  Updated banner for {team.name}: {match}")
                 else:
                     stats["skipped"] += 1
 
@@ -335,12 +338,11 @@ class Command(BaseCommand):
                 ["id", "author__gamer_tag"]
             )
             if match:
-                rel_path = match.relative_to(settings.MEDIA_ROOT)
                 if not dry_run:
-                    post.image.name = str(rel_path)
+                    post.image.name = match
                     post.save(update_fields=["image"])
                 stats["updated"] += 1
-                self.stdout.write(f"  Updated image for post {post.id}: {rel_path}")
+                self.stdout.write(f"  Updated image for post {post.id}: {match}")
             else:
                 stats["skipped"] += 1
 

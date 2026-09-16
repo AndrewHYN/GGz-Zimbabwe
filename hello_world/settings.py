@@ -317,6 +317,7 @@ EXTERNAL_FEED_TIMEOUT = config("EXTERNAL_FEED_TIMEOUT", default=3, cast=int)
 # mode when credentials are not configured, so these may stay blank in dev.
 IGDB_CLIENT_ID = config("IGDB_CLIENT_ID", default="")
 IGDB_CLIENT_SECRET = config("IGDB_CLIENT_SECRET", default="")
+IGDB_SYNC_TOKEN = config("IGDB_SYNC_TOKEN", default="")
 IGDB_AUTH_URL = config("IGDB_AUTH_URL", default="https://id.twitch.tv/oauth2/token")
 IGDB_BASE_URL = config("IGDB_BASE_URL", default="https://api.igdb.com/v4")
 IGDB_TIMEOUT = config("IGDB_TIMEOUT", default=8, cast=int)
