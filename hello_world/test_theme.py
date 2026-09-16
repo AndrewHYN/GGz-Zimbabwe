@@ -33,7 +33,7 @@ class ThemeToggleContractTests(TestCase):
 	def test_exactly_one_inline_script_allowed_by_csp_hash(self):
 		html = self._base_html()
 		matches = RE_INLINE_SCRIPT.findall(html)
-		self.assertEqual(len(matches), 2)
+		self.assertEqual(len(matches), 1)
 		for match in matches:
 			digest = base64.b64encode(hashlib.sha256(match.encode("utf-8")).digest()).decode()
 			self.assertIn(f"'sha256-{digest}'", settings.CONTENT_SECURITY_POLICY)
@@ -46,12 +46,14 @@ class ThemeToggleContractTests(TestCase):
 		self.assertNotIn("'unsafe-eval'", script_source)
 		# style-src may have 'unsafe-inline' for template inline styles; that's allowed
 
-	def test_theme_toggle_renders_in_nav_tools_with_both_icons(self):
+def test_theme_toggle_renders_in_nav_tools_with_both_icons(self):
 		html = self._base_html()
 		toolbar = html.split("class=\"nav-tools\"")[1].split("class=\"site-shell\"")[0]
 		self.assertIn("data-theme-toggle", toolbar)
 		self.assertIn("class=\"theme-icon-day\"", toolbar)
 		self.assertIn("class=\"theme-icon-night\"", toolbar)
+		# PWA install button removed
+		self.assertNotIn("data-pwa-install", toolbar)
 
 
 class LegalPagesTests(TestCase):
