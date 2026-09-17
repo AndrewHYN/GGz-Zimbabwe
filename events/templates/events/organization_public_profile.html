@@ -5,7 +5,7 @@
   <header class="organization-public-header">
     {% if organization.logo %}
     <div class="organization-public-logo" style="background-image: url('{{ organization.logo.url }}');">
-        <img src="{{ organization.logo.url }}" alt="" loading="lazy" onerror="this.onerror=null; this.outerHTML='<div class=\"media-fallback organization-logo large\">Logo unavailable</div>'" style="display: none;">
+        <img src="{{ organization.logo.url }}" alt="" loading="lazy">
     </div>
     {% else %}
     <div class="media-fallback organization-logo large">Logo unavailable</div>
