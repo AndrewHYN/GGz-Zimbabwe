@@ -7739,13 +7739,13 @@ a:hover { color: #a5b4fc; }
 @media (max-width: 600px) { .social-page-header { align-items: start; flex-direction: column; }.social-list-item { min-height: 4.6rem; padding: .7rem; }.social-message-list { max-height: calc(100vh - 270px); padding: 1rem .1rem; }.message-bubble { max-width: 86%; }.chat-page { min-height: calc(100vh - 110px); }.social-composer { bottom: .25rem; }.profile-page + .site-footer { display: none; } }
 
 /* Keep competitive imagery visible without letting it dominate the first viewport. */
-.tournament-feature { max-height: 17rem; }
+.tournament-feature { }
 .tournament-feature-media,
 .tournament-feature-media img,
-.tournament-feature-media .tournament-banner-fallback { min-height: 14rem; }
-.tournament-feature-copy { gap: .7rem; padding: 1.5rem 2rem; overflow: auto; }
+.tournament-feature-media .tournament-banner-fallback { min-height: 20rem; }
+.tournament-feature-copy { gap: .7rem; padding: 1.5rem 2rem; }
 .tournament-feature-copy h2 { font-size: clamp(1.5rem, 3vw, 2.4rem); }
-.tournament-card-media .tournament-banner { height: 9rem; aspect-ratio: 16 / 9; }
+.tournament-card-media .tournament-banner { height: 12rem; aspect-ratio: 16 / 10; }
 .tournament-card-body { padding: 1rem; }
 .tournament-card-body h2 { font-size: 1.05rem; }
 .tournament-hero { grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 1.25rem; padding: 1.25rem; }
@@ -7755,10 +7755,10 @@ a:hover { color: #a5b4fc; }
 .settings-page .card-grid { gap: 1rem; }
 .settings-panel { padding: 1.35rem; }
 @media (max-width: 760px) {
-    .tournament-feature { grid-template-columns: 1fr; max-height: none; }
+    .tournament-feature { grid-template-columns: 1fr; }
     .tournament-feature-media,
     .tournament-feature-media img,
-    .tournament-feature-media .tournament-banner-fallback { min-height: 9rem; max-height: 11rem; }
+    .tournament-feature-media .tournament-banner-fallback { min-height: 9rem; }
     .tournament-feature-copy { padding: 1.1rem; }
     .tournament-hero { grid-template-columns: 1fr; }
     .tournament-hero-image { max-height: 11rem; }

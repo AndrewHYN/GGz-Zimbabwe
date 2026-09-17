@@ -4,7 +4,7 @@
 <article class="player-card">
     {% if team.logo %}
     <div class="team-card-logo" style="background-image: url('{{ team.logo.url }}');">
-        <img src="{{ team.logo.url }}" alt="" loading="lazy" onerror="this.onerror=null; this.outerHTML='<div class=\"media-fallback team-logo\">Logo unavailable</div>'" style="display: none;">
+        <img src="{{ team.logo.url }}" alt="" loading="lazy">
     </div>
     {% else %}
     <div class="team-card-logo media-fallback team-logo">Logo unavailable</div>

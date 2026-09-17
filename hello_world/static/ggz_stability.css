@@ -97,19 +97,14 @@
     .companion-action-card div { display: grid; grid-template-columns: 1fr 1fr; }
 }
 
-.tournament-feature-media { aspect-ratio: 16 / 9; min-height: 0; }
-.tournament-feature-media img, .tournament-feature-media .tournament-banner-fallback { width: 100%; height: 100%; min-height: 0; object-fit: cover; }
+/* Tournament — do not override main.css min-height */
 .tournament-card-media { aspect-ratio: 16 / 9; overflow: hidden; background: #17232c; }
 .tournament-card-media .tournament-banner { width: 100%; height: 100%; aspect-ratio: auto; object-fit: cover; transition: transform .45s ease; }
 .tournament-card:hover .tournament-card-media .tournament-banner { transform: scale(1.045); }
 .tournament-card-media::after { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, transparent 46%, rgba(7,11,16,.58)); content: ""; }
-@media (max-width: 760px) { .tournament-feature-media { aspect-ratio: 16 / 9; } }
 @media (prefers-reduced-motion: reduce) { .tournament-card-media .tournament-banner { transition: none; } }
 
-/* M10: consolidated mobile navigation — one coherent scrolling surface.
-   Loaded after main.css, so matching-specificity rules here take precedence.
-   Guarantees the Discover/Community dropdowns (and the in-menu search) never
-   escape the viewport: document.documentElement.scrollWidth == innerWidth. */
+/* M10: consolidated mobile navigation */
 @media (max-width: 900px) {
     .nav-menu {
         align-items: stretch;
@@ -170,7 +165,7 @@
     .nav-search-mobile { display: flex; }
 }
 
-/* Theme toggle — base+light palettes via html[data-theme], set before paint. */
+/* Theme toggle */
 html { color-scheme: dark; }
 html[data-theme="light"] {
     color-scheme: light;
@@ -264,8 +259,6 @@ html[data-theme="light"] .theme-icon-day { display: none; }
 .media-fallback svg { width: 2rem; height: 2rem; opacity: .5; }
 .media-fallback.large { font-size: .875rem; }
 .media-fallback.small { font-size: .6875rem; }
-
-/* Specific fallbacks for different content types */
 .media-fallback.game-cover { background: var(--bg-3); }
 .media-fallback.game-cover svg { color: var(--accent-warning); }
 .media-fallback.tournament-banner { background: var(--bg-3); }
@@ -284,14 +277,7 @@ html[data-theme="light"] .theme-icon-day { display: none; }
 .media-fallback.listing-image svg { color: var(--accent-warning); }
 .media-fallback.avatar { background: var(--bg-3); border-radius: 50%; }
 .media-fallback.avatar svg { color: var(--text-tertiary); }
-.media-fallback.organization-logo { background: var(--bg-3); }
-.media-fallback.organization-logo svg { color: var(--text-tertiary); }
-.media-fallback.tournament-banner { background: var(--bg-3); }
-.media-fallback.tournament-banner svg { color: var(--accent-primary); }
-.media-fallback.event-banner { background: var(--bg-3); }
-.media-fallback.event-banner svg { color: var(--accent-secondary); }
 
-/* Game cover fallback icon */
 .media-fallback.game-cover::before {
     content: "";
     display: inline-block;
@@ -300,8 +286,6 @@ html[data-theme="light"] .theme-icon-day { display: none; }
     margin-right: .5rem;
     background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5'%3E%3Crect x='2' y='3' width='20' height='14' rx='2'/%3E%3Cpath d='M7 3V5M17 3V5M7 14V16M17 14V16'/%3E%3C/svg%3E") center/contain no-repeat;
 }
-
-/* Tournament banner fallback icon */
 .media-fallback.tournament-banner::before {
     content: "";
     display: inline-block;
@@ -310,8 +294,6 @@ html[data-theme="light"] .theme-icon-day { display: none; }
     margin-right: .5rem;
     background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5'%3E%3Cpath d='M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5'/%3E%3C/svg%3E") center/contain no-repeat;
 }
-
-/* Event banner fallback icon */
 .media-fallback.event-banner::before {
     content: "";
     display: inline-block;
@@ -320,8 +302,6 @@ html[data-theme="light"] .theme-icon-day { display: none; }
     margin-right: .5rem;
     background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5'%3E%3Cpath d='M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2'/%3E%3Cpath d='M12 9v4'/%3E%3Cpath d='M12 17h.01'/%3E%3C/svg%3E") center/contain no-repeat;
 }
-
-/* Organization logo fallback icon */
 .media-fallback.organization-logo::before {
     content: "";
     display: inline-block;
@@ -330,8 +310,6 @@ html[data-theme="light"] .theme-icon-day { display: none; }
     margin-right: .5rem;
     background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Cpath d='M18 11a4 4 0 0 0 0-8 6 6 0 0 0 12 0'/%3E%3C/svg%3E") center/contain no-repeat;
 }
-
-/* Team logo fallback icon */
 .media-fallback.team-logo::before {
     content: "";
     display: inline-block;
@@ -340,8 +318,6 @@ html[data-theme="light"] .theme-icon-day { display: none; }
     margin-right: .5rem;
     background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5'%3E%3Cpath d='M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2'/%3E%3Cpath d='M17 11a4 4 0 0 1-8 0 4 4 0 0 1 8 0'/%3E%3C/svg%3E") center/contain no-repeat;
 }
-
-/* Team banner fallback icon */
 .media-fallback.team-banner::before {
     content: "";
     display: inline-block;
@@ -350,8 +326,6 @@ html[data-theme="light"] .theme-icon-day { display: none; }
     margin-right: .5rem;
     background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5'%3E%3Cpath d='M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2'/%3E%3Cpath d='M17 11a4 4 0 0 1-8 0 4 4 0 0 1 8 0'/%3E%3C/svg%3E") center/contain no-repeat;
 }
-
-/* Listing image fallback icon */
 .media-fallback.listing-image::before {
     content: "";
     display: inline-block;
@@ -360,8 +334,6 @@ html[data-theme="light"] .theme-icon-day { display: none; }
     margin-right: .5rem;
     background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5'%3E%3Cpath d='M21 12V7H5'/%3E%3Cpath d='M7 21V7'/%3E%3Cpath d='M17 21V7'/%3E%3Cpath d='M12 12v6'/%3E%3Cpath d='M9 15h6'/%3E%3C/svg%3E") center/contain no-repeat;
 }
-
-/* Post image fallback icon */
 .media-fallback.post-image::before {
     content: "";
     display: inline-block;
@@ -370,8 +342,6 @@ html[data-theme="light"] .theme-icon-day { display: none; }
     margin-right: .5rem;
     background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5'%3E%3Crect x='3' y='3' width='18' height='18' rx='2' ry='2'/%3E%3Ccircle cx='8.5' cy='8.5' r='1.5'/%3E%3Cpath d='M21 15l-5-5-5 5'/%3E%3C/svg%3E") center/contain no-repeat;
 }
-
-/* Avatar fallback */
 .media-fallback.avatar::before {
     content: "";
     display: inline-block;
@@ -395,7 +365,6 @@ html[data-theme="light"] .theme-icon-day { display: none; }
     width: 100%;
     height: 100%;
     object-fit: cover;
-    opacity: 0;
 }
 .event-card-banner .media-fallback {
     position: absolute;
@@ -421,7 +390,6 @@ html[data-theme="light"] .theme-icon-day { display: none; }
     width: 100%;
     height: 100%;
     object-fit: cover;
-    opacity: 0;
 }
 .organization-card-logo .media-fallback {
     position: absolute;
@@ -448,7 +416,6 @@ html[data-theme="light"] .theme-icon-day { display: none; }
     width: 100%;
     height: 100%;
     object-fit: cover;
-    opacity: 0;
 }
 .organization-public-logo .media-fallback {
     position: absolute;
@@ -475,7 +442,6 @@ html[data-theme="light"] .theme-icon-day { display: none; }
     width: 100%;
     height: 100%;
     object-fit: cover;
-    opacity: 0;
 }
 .team-banner-wrapper .media-fallback {
     position: absolute;
@@ -502,7 +468,6 @@ html[data-theme="light"] .theme-icon-day { display: none; }
     width: 100%;
     height: 100%;
     object-fit: cover;
-    opacity: 0;
 }
 .team-logo-wrapper .media-fallback {
     position: absolute;
@@ -523,34 +488,6 @@ html[data-theme="light"] .theme-icon-day { display: none; }
     position: relative;
     z-index: 1;
 }
-
-.team-logo-wrapper {
-    width: 100px;
-    height: 100px;
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    border-radius: var(--radius-xl);
-    overflow: hidden;
-    border: 3px solid var(--bg-base);
-    flex-shrink: 0;
-}
-.team-logo-wrapper img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    opacity: 0;
-}
-.team-logo-wrapper .media-fallback {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg-3);
-    border-radius: var(--radius-xl);
-}
-
 .team-header-text {
     flex: 1;
 }
@@ -570,7 +507,6 @@ html[data-theme="light"] .theme-icon-day { display: none; }
     width: 100%;
     height: 100%;
     object-fit: cover;
-    opacity: 0;
 }
 .team-card-logo .media-fallback {
     position: absolute;
@@ -582,164 +518,5 @@ html[data-theme="light"] .theme-icon-day { display: none; }
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
-/* Team banner wrapper */
-.team-banner-wrapper {
-    width: 100%;
-    height: 200px;
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    position: relative;
-    overflow: hidden;
-    margin-bottom: -100px;
-}
-.team-banner-wrapper img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    opacity: 0;
-}
-.team-banner-wrapper .media-fallback {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg-3);
-}
-
-/* Team logo wrapper */
-.team-logo-wrapper {
-    width: 100px;
-    height: 100px;
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    border-radius: var(--radius-xl);
-    overflow: hidden;
-    border: 3px solid var(--bg-base);
-    flex-shrink: 0;
-}
-.team-logo-wrapper img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    opacity: 0;
-}
-.team-logo-wrapper .media-fallback {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg-3);
-    border-radius: var(--radius-xl);
-}
-
-/* Team header content */
-.team-header-content {
-    display: flex;
-    align-items: flex-end;
-    gap: 1.5rem;
-    padding: 0 1.5rem 1.5rem;
-    position: relative;
-    z-index: 1;
-}
-
-.team-header-text {
-    flex: 1;
-}
-/* Team card logo */
-.team-card-logo {
-    width: 100%;
-    height: 100px;
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    position: relative;
-    overflow: hidden;
-}
-.team-card-logo img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    opacity: 0;
-}
-.team-card-logo .media-fallback {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg-3);
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-}
-
-/* Team banner wrapper */
-.team-banner-wrapper {
-    width: 100%;
-    height: 200px;
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    position: relative;
-    overflow: hidden;
-    margin-bottom: -100px;
-}
-.team-banner-wrapper img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    opacity: 0;
-}
-.team-banner-wrapper .media-fallback {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg-3);
-}
-
-/* Team logo wrapper */
-.team-logo-wrapper {
-    width: 100px;
-    height: 100px;
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    border-radius: var(--radius-xl);
-    overflow: hidden;
-    border: 3px solid var(--bg-base);
-    flex-shrink: 0;
-}
-.team-logo-wrapper img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    opacity: 0;
-}
-.team-logo-wrapper .media-fallback {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align_items: center;
-    justify-content: center;
-    background: var(--bg-3);
-    border-radius: var(--radius-xl);
-}
-
-/* Team header content */
-.team-header-content {
-    display: flex;
-    align-items: flex-end;
-    gap: 1.5rem;
-    padding: 0 1.5rem 1.5rem;
-    position: relative;
-    z-index: 1;
-}
-
-.team-header-text {
-    flex: 1;
-}
+/* Button & utility fixes */
+.button.is-disabled { opacity: .55; cursor: not-allowed; transform: none; box-shadow: none; text-decoration: none; }
