@@ -1,4 +1,5 @@
 from django.core.management.base import BaseCommand
+from django.core.cache import cache
 
 from games.models import Game
 from games.services.igdb import IGDBError, is_configured, sync_game
@@ -40,3 +41,4 @@ class Command(BaseCommand):
                 self.stdout.write(f"  ... {game.name}")
 
         self.stdout.write(self.style.SUCCESS(f"Synced {synced} of {queryset.count()} games."))
+        cache.delete("ggz_ambient_game_media")

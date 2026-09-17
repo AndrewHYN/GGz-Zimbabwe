@@ -451,24 +451,34 @@ class IGDBViewTests(TestCase):
         response = self.client.post(reverse("igdb_sync_production"), HTTP_X_IGDB_SYNC_TOKEN="wrong-token")
         self.assertEqual(response.status_code, 401)
         self.assertIn("Unauthorized", response.json()["message"])
+@override_settings(DEPLOYED=True, IGDB_SYNC_ADMIN_TOKEN="test-admin-token")
+@patch("games.views.call_command")
+def test_production_sync_accepts_valid_token(self, mock_call_command):
+	"""Regression: igdb_sync_production must accept valid IGDB_SYNC_ADMIN_TOKEN."""
+	mock_call_command.return_value = None
+	response = self.client.post(reverse("igdb_sync_production"), HTTP_X_IGDB_SYNC_TOKEN="test-admin-token")
+	self.assertEqual(response.status_code, 200)
+	self.assertEqual(response.json()["status"], "success")
+	mock_call_command.assert_called_once_with("sync_igdb", "--all")
 
-    @override_settings(DEPLOYED=True, IGDB_SYNC_ADMIN_TOKEN="test-admin-token")
-    @patch("games.views.call_command")
-    def test_production_sync_accepts_valid_token(self, mock_call_command):
-        """Regression: igdb_sync_production must accept valid IGDB_SYNC_ADMIN_TOKEN."""
-        self._login()
-        mock_call_command.return_value = None
-        response = self.client.post(reverse("igdb_sync_production"), HTTP_X_IGDB_SYNC_TOKEN="test-admin-token")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["status"], "success")
-        mock_call_command.assert_called_once_with("sync_igdb", "--all")
 
-    @override_settings(DEPLOYED=True, IGDB_SYNC_ADMIN_TOKEN="test-admin-token")
-    def test_production_sync_returns_error_on_command_failure(self):
-        """Regression: igdb_sync_production must return error JSON when call_command fails."""
-        self._login()
-        with patch("games.views.call_command", side_effect=Exception("IGDB timeout")):
-            response = self.client.post(reverse("igdb_sync_production"), HTTP_X_IGDB_SYNC_TOKEN="test-admin-token")
-        self.assertEqual(response.status_code, 500)
-        self.assertEqual(response.json()["status"], "error")
-        self.assertIn("IGDB timeout", response.json()["message"])
+@override_settings(DEPLOYED=True, IGDB_SYNC_ADMIN_TOKEN="test-admin-token")
+@patch("games.views.call_command")
+def test_production_sync_invalidation_after_sync(self, mock_call_command):
+	"""Regression: igdb_sync_production must invalidate ambient cache after sync."""
+	from django.core.cache import cache
+	cache.set("ggz_ambient_game_media", ["old-url"])
+	mock_call_command.return_value = None
+	self.client.post(reverse("igdb_sync_production"), HTTP_X_IGDB_SYNC_TOKEN="test-admin-token")
+	self.assertIsNone(cache.get("ggz_ambient_game_media"))
+
+
+@override_settings(DEPLOYED=True, IGDB_SYNC_ADMIN_TOKEN="test-admin-token")
+def test_production_sync_returns_error_on_command_failure(self):
+	"""Regression: igdb_sync_production must return error JSON when call_command fails."""
+	from unittest.mock import patch
+	with patch("games.views.call_command", side_effect=Exception("IGDB timeout")):
+		response = self.client.post(reverse("igdb_sync_production"), HTTP_X_IGDB_SYNC_TOKEN="test-admin-token")
+	self.assertEqual(response.status_code, 500)
+	self.assertEqual(response.json()["status"], "error")
+	self.assertIn("IGDB timeout", response.json()["message"])

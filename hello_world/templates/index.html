@@ -9,7 +9,7 @@
         {% if ambient_media %}
             <div class="ggz-hero-media" aria-hidden="true">
                 {% for media_url in ambient_media %}
-                    <img src="{{ media_url }}" alt=""{% if not forloop.first %} loading="lazy"{% endif %} referrerpolicy="no-referrer">
+                    <img src="{{ media_url }}" alt=""{% if not forloop.first %} loading="lazy"{% endif %} referrerpolicy="no-referrer" onerror="this.onerror=null; this.style.display='none'">
                 {% endfor %}
             </div>
         {% endif %}
