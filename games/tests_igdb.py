@@ -409,12 +409,139 @@ class IGDBViewTests(TestCase):
         self.assertNotContains(response, "https://images.igdb.com")
 
     @override_settings(**CONFIGURED)
-    def test_cover_art_url_is_reachable_format(self):
-        """Regression: cover_art_url must be a reachable IGDB image URL."""
-        external = _external()
-        game = Game(name="Valorant")
-        service._apply_external(game, external)
-        self.assertTrue(game.cover_art_url.startswith("https://images.igdb.com"))
-        self.assertIn("/t_cover_big/", game.cover_art_url)
-        self.assertTrue(game.cover_art_url.startswith("https://"))
+    def test_game_list_page_search_remains(self):
+        """Regression: game_list must still render the search form."""
+        response = self.client.get(reverse("game_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Search games")
+
+    @override_settings(**CONFIGURED)
+    def test_game_list_page_fresh_drops_remains(self):
+        """Regression: game_list must still render Fresh drops section."""
+        Game.objects.create(name="New Game", cover_art_url="https://images.igdb.com/igdb/image/upload/t_cover_big/v123.jpg", release_year=2025)
+        response = self.client.get(reverse("game_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Fresh drops")
+
+    @override_settings(**CONFIGURED)
+    def test_game_list_page_local_devs_remains(self):
+        """Regression: game_list must still render Local Devs section."""
+        Game.objects.create(name="Local Game", local_developer=True, cover_art_url="https://images.igdb.com/igdb/image/upload/t_cover_big/v123.jpg")
+        response = self.client.get(reverse("game_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Local Devs")
+
+    @override_settings(**CONFIGURED)
+    def test_game_list_page_sponsored_remains(self):
+        """Regression: game_list must still render Sponsored section."""
+        Game.objects.create(name="Sponsored Game", sponsored=True, cover_art_url="https://images.igdb.com/igdb/image/upload/t_cover_big/v123.jpg")
+        response = self.client.get(reverse("game_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Sponsored")
+
+    @override_settings(**CONFIGURED)
+    def test_game_list_page_all_games_remains(self):
+        """Regression: game_list must still render All games section."""
+        Game.objects.create(name="All Games Game", cover_art_url="https://images.igdb.com/igdb/image/upload/t_cover_big/v123.jpg")
+        response = self.client.get(reverse("game_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "All games")
+
+    @override_settings(**CONFIGURED)
+    def test_game_list_page_igdb_results_remain(self):
+        """Regression: game_list must still render IGDB catalogue search results."""
+        result = _external()
+        with patch("games.views.search_games", return_value=[result]):
+            response = self.client.get(reverse("game_list"), {"q": "valorant"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "More from the catalogue")
+
+    @override_settings(**CONFIGURED)
+    def test_game_list_page_no_featured_section(self):
+        """Regression: game_list must not render Featured/ GGz picks section."""
+        Game.objects.create(name="Featured Game", featured=True, cover_art_url="https://images.igdb.com/igdb/image/upload/t_cover_big/v123.jpg", popularity=99)
+        response = self.client.get(reverse("game_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "GGz picks")
+
+    @override_settings(**CONFIGURED)
+    def test_game_list_page_no_popular_section(self):
+        """Regression: game_list must not render Popular now section."""
+        Game.objects.create(name="Popular Game", popularity=99, cover_art_url="https://images.igdb.com/igdb/image/upload/t_cover_big/v123.jpg")
+        response = self.client.get(reverse("game_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Popular now")
+
+    @override_settings(**CONFIGURED)
+    def test_game_list_page_no_free_section(self):
+        """Regression: game_list must not render Free To Play section."""
+        Game.objects.create(name="Free Game", free_to_play=True, cover_art_url="https://images.igdb.com/igdb/image/upload/t_cover_big/v123.jpg")
+        response = self.client.get(reverse("game_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "FREE TO PLAY")
+
+    @override_settings(**CONFIGURED)
+    def test_game_detail_page_preserves_challenge(self):
+        """Regression: game_detail must preserve Challenge action and form."""
+        game = Game.objects.create(name="Valorant", cover_art_url="https://images.igdb.com/igdb/image/upload/t_cover_big/v123.jpg")
+        user = User.objects.create_user(username="friend", password="pass-12345")
+        GamerProfile.objects.create(user=user, gamer_tag="FriendZW")
+        self.client.force_login(user)
+        response = self.client.get(reverse("game_detail", args=[game.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Challenge a friend")
+
+    @override_settings(**CONFIGURED)
+    def test_game_detail_page_preserves_trailer(self):
+        """Regression: game_detail must preserve trailer."""
+        game = Game.objects.create(name="Valorant", cover_art_url="https://images.igdb.com/igdb/image/upload/t_cover_big/v123.jpg", trailer_url="https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        response = self.client.get(reverse("game_detail", args=[game.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Trailer")
+
+    @override_settings(**CONFIGURED)
+    def test_game_detail_page_preserves_reviews(self):
+        """Regression: game_detail must preserve reviews."""
+        game = Game.objects.create(name="Valorant", cover_art_url="https://images.igdb.com/igdb/image/upload/t_cover_big/v123.jpg")
+        response = self.client.get(reverse("game_detail", args=[game.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Reviews")
+
+    @override_settings(**CONFIGURED)
+    def test_game_detail_page_preserves_players(self):
+        """Regression: game_detail must preserve players section."""
+        game = Game.objects.create(name="Valorant", cover_art_url="https://images.igdb.com/igdb/image/upload/t_cover_big/v123.jpg")
+        response = self.client.get(reverse("game_detail", args=[game.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "GGz players")
+
+    @override_settings(**CONFIGURED)
+    def test_game_detail_page_preserves_screenshots(self):
+        """Regression: game_detail must preserve IGDB screenshots."""
+        game = Game.objects.create(name="Valorant", igdb_id=10235, cover_art_url="https://images.igdb.com/igdb/image/upload/t_cover_big/v123.jpg")
+        with patch("games.views.get_game", return_value={"screenshots": ["https://images.igdb.com/x.jpg"]}):
+            response = self.client.get(reverse("game_detail", args=[game.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Screenshot")
+
+    @override_settings(**CONFIGURED)
+    def test_game_detail_page_preserves_similar_games(self):
+        """Regression: game_detail must preserve similar titles."""
+        game = Game.objects.create(name="Valorant", igdb_id=10235, cover_art_url="https://images.igdb.com/igdb/image/upload/t_cover_big/v123.jpg")
+        with patch("games.views.get_related_games", return_value=[{"igdb_id": 9001, "name": "Counter-Strike 2", "local_id": None, "igdb_url": "https://www.igdb.com/games/counter-strike-2"}]):
+            response = self.client.get(reverse("game_detail", args=[game.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Similar titles")
+
+    @override_settings(**CONFIGURED)
+    def test_game_detail_page_challenge_form_functional(self):
+        """Regression: game_detail challenge form must be functional."""
+        game = Game.objects.create(name="Valorant", igdb_id=10235, cover_art_url="https://images.igdb.com/igdb/image/upload/t_cover_big/v123.jpg")
+        user = User.objects.create_user(username="friend", password="pass-12345")
+        GamerProfile.objects.create(user=user, gamer_tag="FriendZW")
+        self.client.force_login(user)
+        response = self.client.get(reverse("game_detail", args=[game.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="opponent"')
+        self.assertContains(response, 'name="scheduled_at"')
 

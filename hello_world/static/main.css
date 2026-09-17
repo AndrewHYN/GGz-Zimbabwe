@@ -3204,30 +3204,22 @@ a:hover { color: #a5b4fc; }
     margin: 0;
 }
 
-.game-trailer-community {
+.game-trailer-section {
     padding: 1.25rem;
 }
 
-.game-trailer-community-layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1.65fr) minmax(260px, 0.9fr);
-    gap: 1.25rem;
-    align-items: start;
+.game-trailer-section .section-header {
+    margin-bottom: 1rem;
 }
 
-.game-trailer-column,
-.game-community-panel {
-    min-width: 0;
+.trailer-container {
+    max-width: 900px;
+    margin: 0 auto;
 }
 
-.compact-header {
-    margin-bottom: 0.9rem;
-}
-
-.trailer-frame {
+.trailer-frame-wrap {
     position: relative;
     width: 100%;
-    max-width: 100%;
     aspect-ratio: 16 / 9;
     overflow: hidden;
     border-radius: var(--radius-xl);
@@ -3236,7 +3228,7 @@ a:hover { color: #a5b4fc; }
     box-shadow: var(--shadow-md);
 }
 
-.trailer-frame iframe {
+.trailer-frame-wrap iframe {
     width: 100%;
     height: 100%;
     border: 0;
@@ -3253,28 +3245,26 @@ a:hover { color: #a5b4fc; }
     color: var(--text-secondary);
 }
 
-.game-community-panel {
-    display: grid;
-    gap: 0.9rem;
-    padding: 1rem;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-xl);
-    background: rgba(15, 19, 24, 0.95);
-    min-height: 100%;
+.game-detail-community {
+    padding: 0;
 }
 
-.game-community-posts {
+.detail-activity {
     display: grid;
-    gap: 0.8rem;
+    gap: 1rem;
+    padding-top: 0.5rem;
 }
 
-.game-community-post {
-    display: grid;
-    gap: 0.5rem;
-    padding: 0.85rem 0.9rem;
+.detail-activity .store-section {
+    margin-top: 0;
+}
+
+.catalogue-panel {
     border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    background: rgba(255,255,255,0.02);
+    border-radius: calc(var(--radius-xl) + 4px);
+    padding: 1.25rem;
+    background: linear-gradient(135deg, rgba(17, 22, 28, 0.96), rgba(17, 22, 28, 0.86));
+    box-shadow: var(--shadow-lg);
 }
 
 .game-community-post-header {
@@ -3341,17 +3331,14 @@ a:hover { color: #a5b4fc; }
 }
 
 @media (max-width: 960px) {
-    .game-trailer-community-layout {
-        grid-template-columns: 1fr;
-    }
-}
-
-@media (max-width: 960px) {
     .detail-layout,
     .game-detail-hero {
         grid-template-columns: minmax(0, 1fr);
     }
 
+    .trailer-container {
+        max-width: 100%;
+    }
 }
 
 @media (max-width: 640px) {

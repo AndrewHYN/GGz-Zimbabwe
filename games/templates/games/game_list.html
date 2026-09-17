@@ -51,65 +51,6 @@
         </div>
     </form>
 
-    {% if featured_games %}
-    <section class="store-section featured-games-section" aria-label="Featured games">
-        <div class="section-header"><div><p class="eyebrow">Featured</p><h2>GGz picks</h2></div></div>
-        <div class="game-card-grid">
-            {% for game in featured_games %}{% include "games/_game_card.html" with game=game viewer_profile=viewer_profile %}{% endfor %}
-        </div>
-    </section>
-    {% endif %}
-
-    <section class="store-section popular-games-section">
-        <div class="section-header">
-            <div>
-                <p class="eyebrow">Popular Games</p>
-                <h2>Popular now</h2>
-            </div>
-            <a class="text-link" href="{% url 'game_list' %}?sort=popular">Browse all</a>
-        </div>
-        <div class="game-card-grid">
-            {% for game in popular_games %}
-                {% include "games/_game_card.html" with game=game viewer_profile=viewer_profile %}
-            {% empty %}
-                <div class="empty-card">No popular games yet.</div>
-            {% endfor %}
-        </div>
-    </section>
-
-    <section class="store-section free-games-section">
-        <div class="section-header">
-            <div>
-                <p class="eyebrow">Free To Play</p>
-                <h2>FREE TO PLAY</h2>
-            </div>
-            <a class="text-link" href="{% url 'game_list' %}?free=1">Browse free games</a>
-        </div>
-        <div class="game-card-grid compact-grid">
-            {% for game in free_games %}
-                {% include "games/_game_card.html" with game=game viewer_profile=viewer_profile %}
-            {% empty %}
-                <div class="empty-card">No free-to-play games yet.</div>
-            {% endfor %}
-        </div>
-    </section>
-
-    {% if categories %}
-    <section class="store-section compact-section">
-        <div class="section-header">
-            <div>
-                <p class="eyebrow">Categories</p>
-                <h2>Browse by genre</h2>
-            </div>
-        </div>
-        <div class="genre-list">
-            {% for category in categories|slice:":12" %}
-                <a href="{% url 'game_list' %}?genre={{ category|urlencode }}" class="genre-pill">{{ category }}</a>
-            {% endfor %}
-        </div>
-    </section>
-    {% endif %}
-
     {% if new_games %}
     <section class="store-section release-showcase" aria-labelledby="new-releases-title" data-release-carousel>
         <div class="section-header">
