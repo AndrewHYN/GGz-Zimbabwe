@@ -8,15 +8,10 @@ from django.http import HttpResponseForbidden, JsonResponse
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
-from django.views.decorators.http import require_POST
-from django.views.decorators.csrf import csrf_exempt
 from urllib.parse import urlencode
 from django.core.management import call_command
 from django.conf import settings
-from django.core.cache import cache
 
-import hmac
-import hashlib
 import os
 
 from marketplace.models import Listing
@@ -352,18 +347,4 @@ def igdb_sync_all(request):
 		return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
 
-@require_POST
-@csrf_exempt
-def igdb_sync_production(request):
-	if not settings.DEPLOYED:
-		return JsonResponse({"status": "error", "message": "Not available in this environment"}, status=403)
-	token = request.headers.get("X-IGDB-Sync-Token") or request.POST.get("token") or request.GET.get("token")
-	expected_token = getattr(settings, "IGDB_SYNC_ADMIN_TOKEN", None)
-	if not expected_token or not token or not hmac.compare_digest(str(token), str(expected_token)):
-		return JsonResponse({"status": "error", "message": "Unauthorized"}, status=401)
-	try:
-		call_command("sync_igdb", "--all")
-		cache.delete("ggz_ambient_game_media")
-		return JsonResponse({"status": "success", "message": "IGDB sync completed"})
-	except Exception as e:
-		return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
