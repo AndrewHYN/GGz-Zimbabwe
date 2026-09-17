@@ -330,3 +330,145 @@ class IGDBViewTests(TestCase):
             response = self.client.get(reverse("game_detail", args=[game.id]))
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "From the catalogue")
+
+    # -- Regression tests for cover_art_url pipeline --
+
+    @override_settings(**CONFIGURED)
+    def test_sync_game_updates_cover_art_url_even_when_already_set(self):
+        """Regression: cover_art_url must be refreshed from IGDB even if game already has a non-empty value."""
+        game = Game.objects.create(name="Valorant", igdb_id=10235, cover_art_url="https://broken.example.com/old.jpg")
+        with patch("games.services.igdb.get_game", return_value=_external()):
+            result = service.sync_game(game)
+
+        self.assertIsNotNone(result)
+        self.assertTrue(result.cover_art_url.startswith("https://images.igdb.com"))
+        self.assertNotEqual(result.cover_art_url, "https://broken.example.com/old.jpg")
+
+    @override_settings(**CONFIGURED)
+    def test_apply_external_always_sets_cover_art_url_when_external_has_one(self):
+        """Regression: _apply_external must set cover_art_url whenever external provides a valid cover_url."""
+        game = Game.objects.create(name="Valorant", igdb_id=10235, cover_art_url="https://stale.example.com/img.jpg")
+        external = _external()
+        service._apply_external(game, external)
+        self.assertTrue(game.cover_art_url.startswith("https://images.igdb.com"))
+
+    @override_settings(**CONFIGURED)
+    def test_apply_external_preserves_cover_art_url_when_external_has_none(self):
+        """Regression: _apply_external must NOT clear cover_art_url when external has no cover_url."""
+        game = Game.objects.create(name="Valorant", igdb_id=10235, cover_art_url="https://valid.example.com/img.jpg")
+        external = _external()
+        external["cover_url"] = ""
+        service._apply_external(game, external)
+        self.assertEqual(game.cover_art_url, "https://valid.example.com/img.jpg")
+
+    @override_settings(**CONFIGURED)
+    def test_import_overwrites_existing_broken_cover_art_url(self):
+        """Regression: import_game must overwrite a broken cover_art_url with a valid IGDB one."""
+        Game.objects.create(name="Valorant", igdb_id=10235, cover_art_url="https://broken.example.com/old.jpg")
+        with patch("games.services.igdb.get_game", return_value=_external()):
+            result = service.import_game(10235)
+
+        self.assertIsNotNone(result)
+        self.assertTrue(result.cover_art_url.startswith("https://images.igdb.com"))
+
+    @override_settings(**CONFIGURED)
+    def test_game_list_page_uses_valid_cover_art_urls(self):
+        """Regression: game_list must render with valid cover_art_url sources."""
+        Game.objects.create(name="Valorant", cover_art_url="https://images.igdb.com/igdb/image/upload/t_cover_big/v123.jpg", popularity=99, featured=True)
+        response = self.client.get(reverse("game_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "https://images.igdb.com")
+
+    @override_settings(**CONFIGURED)
+    def test_game_detail_page_uses_valid_cover_art_url(self):
+        """Regression: game_detail must render with valid cover_art_url source."""
+        game = Game.objects.create(name="Valorant", cover_art_url="https://images.igdb.com/igdb/image/upload/t_cover_big/v123.jpg")
+        response = self.client.get(reverse("game_detail", args=[game.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "https://images.igdb.com")
+        self.assertContains(response, "Valorant cover art")
+
+    @override_settings(**CONFIGURED)
+    def test_ambient_background_uses_valid_game_art(self):
+        """Regression: ambient background must use valid game cover_art_url sources."""
+        cache.clear()
+        Game.objects.create(name="Ambient Arena", cover_art_url="https://images.igdb.com/igdb/image/upload/t_cover_big/v123.jpg", popularity=99)
+        response = self.client.get(reverse("index"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "ggz-ambient-media")
+        self.assertContains(response, "https://images.igdb.com")
+
+    @override_settings(**CONFIGURED)
+    def test_ambient_background_fallback_when_no_valid_art(self):
+        """Regression: ambient background must still render when no games have valid cover_art_url."""
+        cache.clear()
+        Game.objects.create(name="No Art Game", cover_art_url="", popularity=99)
+        response = self.client.get(reverse("index"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "ggz-ambient-media")
+        self.assertNotContains(response, "https://images.igdb.com")
+
+    @override_settings(**CONFIGURED)
+    def test_cover_art_url_is_reachable_format(self):
+        """Regression: cover_art_url must be a reachable IGDB image URL."""
+        external = _external()
+        game = Game(name="Valorant")
+        service._apply_external(game, external)
+        self.assertTrue(game.cover_art_url.startswith("https://images.igdb.com"))
+        self.assertIn("/t_cover_big/", game.cover_art_url)
+        self.assertTrue(game.cover_art_url.startswith("https://"))
+
+    # -- Regression tests for igdb_sync_production endpoint --
+
+    @override_settings(DEPLOYED=False)
+    def test_production_sync_blocked_in_non_deployed_environment(self):
+        """Regression: igdb_sync_production must return 403 when DEPLOYED=False."""
+        self._login()
+        game = Game.objects.create(name="Valorant")
+        response = self.client.post(reverse("igdb_sync_production"), HTTP_X_IGDB_SYNC_TOKEN="secret")
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("Not available", response.json()["message"])
+
+    @override_settings(DEPLOYED=True)
+    def test_production_sync_requires_post(self):
+        """Regression: igdb_sync_production must reject non-POST requests."""
+        self._login()
+        response = self.client.get(reverse("igdb_sync_production"))
+        self.assertEqual(response.status_code, 405)
+
+    @override_settings(DEPLOYED=True)
+    def test_production_sync_rejects_missing_token(self):
+        """Regression: igdb_sync_production must reject requests without a token."""
+        self._login()
+        response = self.client.post(reverse("igdb_sync_production"))
+        self.assertEqual(response.status_code, 401)
+        self.assertIn("Unauthorized", response.json()["message"])
+
+    @override_settings(DEPLOYED=True)
+    def test_production_sync_rejects_wrong_token(self):
+        """Regression: igdb_sync_production must reject requests with wrong token."""
+        self._login()
+        response = self.client.post(reverse("igdb_sync_production"), HTTP_X_IGDB_SYNC_TOKEN="wrong-token")
+        self.assertEqual(response.status_code, 401)
+        self.assertIn("Unauthorized", response.json()["message"])
+
+    @override_settings(DEPLOYED=True, IGDB_SYNC_ADMIN_TOKEN="test-admin-token")
+    @patch("games.views.call_command")
+    def test_production_sync_accepts_valid_token(self, mock_call_command):
+        """Regression: igdb_sync_production must accept valid IGDB_SYNC_ADMIN_TOKEN."""
+        self._login()
+        mock_call_command.return_value = None
+        response = self.client.post(reverse("igdb_sync_production"), HTTP_X_IGDB_SYNC_TOKEN="test-admin-token")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "success")
+        mock_call_command.assert_called_once_with("sync_igdb", "--all")
+
+    @override_settings(DEPLOYED=True, IGDB_SYNC_ADMIN_TOKEN="test-admin-token")
+    def test_production_sync_returns_error_on_command_failure(self):
+        """Regression: igdb_sync_production must return error JSON when call_command fails."""
+        self._login()
+        with patch("games.views.call_command", side_effect=Exception("IGDB timeout")):
+            response = self.client.post(reverse("igdb_sync_production"), HTTP_X_IGDB_SYNC_TOKEN="test-admin-token")
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json()["status"], "error")
+        self.assertIn("IGDB timeout", response.json()["message"])

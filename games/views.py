@@ -12,6 +12,8 @@ from urllib.parse import urlencode
 from django.core.management import call_command
 from django.conf import settings
 
+import os
+
 from marketplace.models import Listing
 from accounts.models import Block, ExternalFeedItem, GamerProfile
 from accounts.views import _rate_limit_exceeded
@@ -338,6 +340,23 @@ def igdb_sync_all(request):
 	if not expected_token or token != expected_token:
 		return HttpResponseForbidden("Invalid token.")
 	
+	try:
+		call_command("sync_igdb", "--all")
+		return JsonResponse({"status": "success", "message": "IGDB sync completed"})
+	except Exception as e:
+		return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+
+@login_required
+def igdb_sync_production(request):
+	if not settings.DEPLOYED:
+		return JsonResponse({"status": "error", "message": "Not available in this environment"}, status=403)
+	if request.method != "POST":
+		return JsonResponse({"status": "error", "message": "POST required"}, status=405)
+	token = request.headers.get("X-IGDB-Sync-Token") or request.POST.get("token") or request.GET.get("token")
+	expected_token = getattr(settings, "IGDB_SYNC_ADMIN_TOKEN", None)
+	if not expected_token or not token or token != expected_token:
+		return JsonResponse({"status": "error", "message": "Unauthorized"}, status=401)
 	try:
 		call_command("sync_igdb", "--all")
 		return JsonResponse({"status": "success", "message": "IGDB sync completed"})

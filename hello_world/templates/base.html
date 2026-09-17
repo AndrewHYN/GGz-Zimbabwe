@@ -32,7 +32,7 @@
     {% if ambient_enabled %}<div class="ggz-ambient-media" aria-hidden="true">
         <div class="ggz-ambient-layer ggz-ambient-layer-one"></div>
         <div class="ggz-ambient-layer ggz-ambient-layer-two"></div>
-        {% for media_url in ambient_media %}<img class="ggz-ambient-image ggz-ambient-image-{{ forloop.counter }}" src="{{ media_url }}" alt=""{% if not forloop.first %} loading="lazy"{% endif %} referrerpolicy="no-referrer">{% endfor %}
+        {% for media_url in ambient_media %}<img class="ggz-ambient-image ggz-ambient-image-{{ forloop.counter }}" src="{{ media_url }}" alt=""{% if not forloop.first %} loading="lazy"{% endif %} referrerpolicy="no-referrer" onerror="this.onerror=null; this.style.display='none'">{% endfor %}
         <div class="ggz-ambient-vignette"></div>
     </div>{% endif %}
     <nav class="site-nav" id="primary-navigation" aria-label="Main navigation">

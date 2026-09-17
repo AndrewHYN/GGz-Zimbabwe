@@ -10,6 +10,7 @@ urlpatterns = [
     path("<int:game_id>/wishlist/", views.game_wishlist_toggle, name="game_wishlist_toggle"),
     path("import/<int:igdb_id>/", views.game_import, name="game_import"),
     path("igdb-sync/", views.igdb_sync_all, name="igdb_sync_all"),
+    path("igdb-sync/production/", views.igdb_sync_production, name="igdb_sync_production"),
     path("<int:game_id>/", views.game_detail, name="game_detail"),
     path("", views.game_list, name="game_list"),
 ]

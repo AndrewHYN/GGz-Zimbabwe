@@ -125,7 +125,8 @@ class Command(BaseCommand):
         return best_match if best_score >= 5 else None
 
     def _recover_game_covers(self, dry_run, force, stats):
-        """Recover game cover art from IGDB (requires IGDB sync) or local files."""
+        """Recover game cover art from IGDB sync."""
+        from games.services.igdb import sync_game
         self.stdout.write("Checking game covers...")
         games = Game.objects.all()
         stats["checked"] = games.count()
@@ -135,11 +136,20 @@ class Command(BaseCommand):
                 stats["skipped"] += 1
                 continue
 
-            # Try to find a matching file in static/media
-            # Game covers would typically be in static or from IGDB
-            stats["checked"] += 1
+            try:
+                updated = sync_game(game)
+                if updated:
+                    stats["updated"] += 1
+                    if not dry_run:
+                        self.stdout.write(f"  Synced cover for {game.name}: {updated.cover_art_url}")
+                    else:
+                        self.stdout.write(f"  Would sync cover for {game.name}: {updated.cover_art_url}")
+                else:
+                    stats["skipped"] += 1
+            except Exception:
+                stats["skipped"] += 1
 
-        self.stdout.write(f"  Games checked: {stats['checked']}, skipped: {stats['skipped']}")
+        self.stdout.write(f"  Games checked: {stats['checked']}, updated: {stats['updated']}, skipped: {stats['skipped']}")
 
     def _recover_profile_covers(self, dry_run, force, stats):
         """Recover profile cover images."""

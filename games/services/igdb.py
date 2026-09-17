@@ -415,7 +415,7 @@ def _apply_external(game, external):
     else:
         game.igdb_release_date = release_date or None
 
-    if not game.cover_art_url and external.get("cover_url"):
+    if external.get("cover_url"):
         game.cover_art_url = external.get("cover_url")
     if not game.description and external.get("summary"):
         game.description = external["summary"][:300]
