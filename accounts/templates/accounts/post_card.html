@@ -1,7 +1,7 @@
 <article class="post-card" data-post-card>
     <header class="post-header">
         <a class="post-author" href="{% url 'profile_detail' post.author.gamer_tag %}">
-            {% if post.author.avatar %}<span class="avatar avatar-post"><img src="{{ post.author.avatar.url }}" alt="{{ post.author.gamer_tag }} avatar"></span>{% else %}<span class="avatar avatar-post avatar-fallback">{{ post.author.gamer_tag|slice:":1"|upper }}</span>{% endif %}
+            {% if post.author.avatar %}<span class="avatar avatar-post"><img src="{{ post.author.avatar.url }}" alt="{{ post.author.gamer_tag }} avatar" onerror="this.onerror=null; this.outerHTML='<span class=\'avatar avatar-post avatar-fallback\'>{{ post.author.gamer_tag|slice:":1"|upper }}</span>'"></span>{% else %}<span class="avatar avatar-post avatar-fallback">{{ post.author.gamer_tag|slice:":1"|upper }}</span>{% endif %}
             <span><strong>{{ post.author.gamer_tag }}</strong><small>{{ post.created_at|timesince }} ago{% if post.game %} · {{ post.game.name }}{% endif %}</small></span>
         </a>
         <div class="post-menu-wrap">
@@ -29,7 +29,7 @@
     </header>
     {% if post.game %}<div class="post-context"><a href="{% url 'game_detail' post.game.id %}">🎮 {{ post.game.name }}</a></div>{% endif %}
     <p class="post-body">{{ post.body|linebreaksbr }}</p>
-    {% if post.image %}<div class="post-media-frame"><img class="post-image" src="{{ post.image.url }}" alt="Image shared by {{ post.author.gamer_tag }}"></div>{% endif %}
+    {% if post.image %}<div class="post-media-frame"><img class="post-image" src="{{ post.image.url }}" alt="Image shared by {{ post.author.gamer_tag }}" onerror="this.onerror=null; this.closest('.post-media-frame').remove()"></div>{% endif %}
     <footer class="post-footer">
         <form class="inline-action" method="post" action="{% url 'post_like' post.id %}" data-post-like-form>{% csrf_token %}<input type="hidden" name="next" value="/feed/"><button class="action-button like-button{% if post.id in liked_post_ids %} is-liked{% endif %}" type="submit" aria-label="Like post" title="Like" aria-pressed="{% if post.id in liked_post_ids %}true{% else %}false{% endif %}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 8.7c0 5.1-8.8 10.6-8.8 10.6S3.2 13.8 3.2 8.7A4.7 4.7 0 0 1 12 6.3a4.7 4.7 0 0 1 8.8 2.4Z"/></svg><span class="action-count">{{ post.likes.count }}</span></button></form>
         <a class="action-button action-button-link" href="{% url 'post_detail' post.id %}" aria-label="Comment on post" title="Comment"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5a7.5 7.5 0 0 1-8 7.5 8.6 8.6 0 0 1-3.4-.7L4 20l1.7-3.6A7.4 7.4 0 0 1 4 11.5 7.5 7.5 0 0 1 12 4a7.5 7.5 0 0 1 8 7.5Z"/></svg><span class="action-count">{{ post.comments.count }}</span></a>

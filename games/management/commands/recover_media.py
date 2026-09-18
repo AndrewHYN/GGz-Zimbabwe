@@ -1,15 +1,14 @@
 """
 Media Recovery Command
 
-Scans existing storage files and attempts to match them to database records
-that have empty media fields. Supports dry-run mode for safe testing.
+Scans local media files and attempts to match them to database records
+that have empty media fields. Uses local filesystem scan to avoid
+S3 HeadObject calls that trigger 403 on Supabase.
 """
 
-import os
 import re
 from pathlib import Path
 from django.core.management.base import BaseCommand, CommandError
-from django.db import transaction
 from django.conf import settings
 
 from games.models import Game
@@ -17,11 +16,10 @@ from accounts.models import GamerProfile, Post
 from tournaments.models import Tournament
 from events.models import Event, Organization
 from teams.models import Team
-from marketplace.models import ListingImage
 
 
 class Command(BaseCommand):
-    help = "Scan storage and recover missing media references"
+    help = "Scan local media files and recover missing media references"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -31,7 +29,10 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             "--content-type",
-            choices=["all", "games", "profiles", "tournaments", "events", "organizations", "teams", "posts"],
+            choices=[
+                "all", "games", "profiles", "tournaments",
+                "events", "organizations", "teams", "posts",
+            ],
             default="all",
             help="Content type to recover",
         )
@@ -49,7 +50,6 @@ class Command(BaseCommand):
         if dry_run:
             self.stdout.write(self.style.WARNING("DRY RUN MODE - No changes will be made"))
 
-        media_root = Path(settings.MEDIA_ROOT)
         results = {
             "games": {"checked": 0, "updated": 0, "skipped": 0},
             "profiles": {"checked": 0, "updated": 0, "skipped": 0},
@@ -62,70 +62,67 @@ class Command(BaseCommand):
 
         if content_type in ("all", "games"):
             self._recover_game_covers(dry_run, force, results["games"])
-
         if content_type in ("all", "profiles"):
             self._recover_profile_covers(dry_run, force, results["profiles"])
-
         if content_type in ("all", "tournaments"):
             self._recover_tournament_banners(dry_run, force, results["tournaments"])
-
         if content_type in ("all", "events"):
             self._recover_event_banners(dry_run, force, results["events"])
-
         if content_type in ("all", "organizations"):
             self._recover_organization_logos(dry_run, force, results["organizations"])
-
         if content_type in ("all", "teams"):
             self._recover_team_media(dry_run, force, results["teams"])
-
         if content_type in ("all", "posts"):
             self._recover_post_images(dry_run, force, results["posts"])
 
         self._print_summary(results, dry_run)
 
-    def _get_media_files(self, subdir):
-        """Get all files in a media subdirectory using the configured storage backend."""
-        from django.core.files.storage import default_storage
-        try:
-            # List files in the subdirectory using the storage backend
-            dirs, files = default_storage.listdir(subdir)
-            return [f"{subdir}/{f}" for f in files]
-        except Exception as e:
-            self.stdout.write(self.style.WARNING(f"  Could not list {subdir}: {e}"))
-            return []
+    def _get_local_files(self, subdir):
+        """List files under MEDIA_ROOT/subdir using local filesystem.
 
-    def _match_file_to_record(self, filename, candidates, key_fields):
-        """Try to match a filename to a record using fuzzy matching."""
-        # Handle both Path objects and strings
-        if hasattr(filename, 'name'):
-            filename_lower = filename.name.lower()
-        else:
-            filename_lower = filename.lower()
+        Returns list of relative paths as strings (e.g. 'tournaments/banner.jpg').
+        Avoids default_storage.listdir() which triggers HeadObject on S3.
+        """
+        target = Path(settings.MEDIA_ROOT) / subdir
+        if not target.is_dir():
+            self.stdout.write(self.style.WARNING(f"  Directory does not exist: {target}"))
+            return []
+        return [
+            f"{subdir}/{p.relative_to(target).as_posix()}"
+            for p in target.rglob("*")
+            if p.is_file()
+        ]
+
+    def _match_filename(self, needle, filenames):
+        """Fuzzy-match a search string against a list of filename strings.
+
+        Returns the best-matching filename string, or None.
+        Scoring: exact substring = 10, word-fragment (>3 chars) = 2.
+        Threshold: 5.
+        """
+        if not needle:
+            return None
+        needle_lower = needle.lower().strip()
+        words = [w for w in needle_lower.split() if len(w) > 3]
         best_match = None
         best_score = 0
 
-        for record in candidates:
+        for fname in filenames:
+            fname_lower = fname.lower()
             score = 0
-            for field in key_fields:
-                value = getattr(record, field, "")
-                if value:
-                    value_lower = str(value).lower()
-                    # Exact name match
-                    if value_lower in filename_lower:
-                        score += 10
-                    # Partial word match
-                    for word in value_lower.split():
-                        if len(word) > 3 and word in filename_lower:
-                            score += 2
-
+            if needle_lower in fname_lower:
+                score += 10
+            for word in words:
+                if word in fname_lower:
+                    score += 2
             if score > best_score:
                 best_score = score
-                best_match = record
+                best_match = fname
 
         return best_match if best_score >= 5 else None
 
     def _recover_game_covers(self, dry_run, force, stats):
-        """Recover game cover art from IGDB sync."""
+        """Recover game cover art via IGDB sync."""
         from games.services.igdb import sync_game
         self.stdout.write("Checking game covers...")
         games = Game.objects.all()
@@ -135,45 +132,29 @@ class Command(BaseCommand):
             if game.cover_art_url and not force:
                 stats["skipped"] += 1
                 continue
-
             try:
                 updated = sync_game(game)
                 if updated:
                     stats["updated"] += 1
-                    if not dry_run:
-                        self.stdout.write(f"  Synced cover for {game.name}: {updated.cover_art_url}")
-                    else:
-                        self.stdout.write(f"  Would sync cover for {game.name}: {updated.cover_art_url}")
+                    action = "Would sync" if dry_run else "Synced"
+                    self.stdout.write(f"  {action} cover for {game.name}: {updated.cover_art_url}")
                 else:
                     stats["skipped"] += 1
             except Exception:
                 stats["skipped"] += 1
 
-        self.stdout.write(f"  Games checked: {stats['checked']}, updated: {stats['updated']}, skipped: {stats['skipped']}")
-
     def _recover_profile_covers(self, dry_run, force, stats):
-        """Recover profile cover images."""
+        """Recover profile cover/avatar images from media/covers/."""
         self.stdout.write("Checking profile covers...")
         profiles = GamerProfile.objects.all()
         stats["checked"] = profiles.count()
 
-        cover_files = self._get_media_files("covers")
-        if not cover_files:
-            self.stdout.write("  No cover files found in media/covers/")
-            stats["skipped"] = stats["checked"]
-            return
-
+        cover_files = self._get_local_files("covers")
         for profile in profiles:
             if profile.cover and not force:
                 stats["skipped"] += 1
                 continue
-
-            # Try to match by gamer_tag
-            match = self._match_file_to_record(
-                "",
-                cover_files,
-                ["gamer_tag"]
-            )
+            match = self._match_filename(profile.gamer_tag, cover_files)
             if match:
                 if not dry_run:
                     profile.cover.name = match
@@ -183,30 +164,20 @@ class Command(BaseCommand):
             else:
                 stats["skipped"] += 1
 
-        self.stdout.write(f"  Profiles checked: {stats['checked']}, updated: {stats['updated']}, skipped: {stats['skipped']}")
-
     def _recover_tournament_banners(self, dry_run, force, stats):
-        """Recover tournament banners."""
+        """Recover tournament banners from media/tournaments/."""
         self.stdout.write("Checking tournament banners...")
         tournaments = Tournament.objects.all()
         stats["checked"] = tournaments.count()
 
-        banner_files = self._get_media_files("tournaments")
-        if not banner_files:
-            self.stdout.write("  No banner files found in media/tournaments/")
-            stats["skipped"] = stats["checked"]
-            return
-
+        banner_files = self._get_local_files("tournaments")
         for tournament in tournaments:
             if tournament.banner and not force:
                 stats["skipped"] += 1
                 continue
-
-            match = self._match_file_to_record(
-                tournament.name,
-                banner_files,
-                ["name", "slug"]
-            )
+            match = self._match_filename(tournament.name, banner_files)
+            if not match:
+                match = self._match_filename(tournament.slug, banner_files)
             if match:
                 if not dry_run:
                     tournament.banner.name = match
@@ -216,65 +187,41 @@ class Command(BaseCommand):
             else:
                 stats["skipped"] += 1
 
-        self.stdout.write(f"  Tournaments checked: {stats['checked']}, updated: {stats['updated']}, skipped: {stats['skipped']}")
-
     def _recover_event_banners(self, dry_run, force, stats):
-        """Recover event banners."""
+        """Recover event banners from media/events/."""
         self.stdout.write("Checking event banners...")
         events = Event.objects.all()
         stats["checked"] = events.count()
 
-        # Check if there are event banner files
-        event_files = self._get_media_files("events")
-        if not event_files:
-            self.stdout.write("  No banner files found in media/events/")
-            stats["skipped"] = stats["checked"]
-            return
-
+        event_files = self._get_local_files("events")
         for event in events:
             if event.banner and not force:
                 stats["skipped"] += 1
                 continue
-
-            match = self._match_file_to_record(
-                event.name,
-                event_files,
-                ["name", "slug"]
-            )
+            match = self._match_filename(event.name, event_files)
             if match:
-                rel_path = match.relative_to(settings.MEDIA_ROOT)
                 if not dry_run:
-                    event.banner.name = str(rel_path)
+                    event.banner.name = match
                     event.save(update_fields=["banner"])
                 stats["updated"] += 1
-                self.stdout.write(f"  Updated banner for {event.name}: {rel_path}")
+                self.stdout.write(f"  Updated banner for {event.name}: {match}")
             else:
                 stats["skipped"] += 1
 
-        self.stdout.write(f"  Events checked: {stats['checked']}, updated: {stats['updated']}, skipped: {stats['skipped']}")
-
     def _recover_organization_logos(self, dry_run, force, stats):
-        """Recover organization logos."""
+        """Recover organization logos from media/organizations/."""
         self.stdout.write("Checking organization logos...")
         orgs = Organization.objects.all()
         stats["checked"] = orgs.count()
 
-        logo_files = self._get_media_files("organizations/logos")
-        if not logo_files:
-            self.stdout.write("  No logo files found in media/organizations/logos/")
-            stats["skipped"] = stats["checked"]
-            return
-
+        logo_files = self._get_local_files("organizations")
         for org in orgs:
             if org.logo and not force:
                 stats["skipped"] += 1
                 continue
-
-            match = self._match_file_to_record(
-                org.name,
-                logo_files,
-                ["name", "slug"]
-            )
+            match = self._match_filename(org.name, logo_files)
+            if not match:
+                match = self._match_filename(org.slug, logo_files)
             if match:
                 if not dry_run:
                     org.logo.name = match
@@ -284,22 +231,20 @@ class Command(BaseCommand):
             else:
                 stats["skipped"] += 1
 
-        self.stdout.write(f"  Organizations checked: {stats['checked']}, updated: {stats['updated']}, skipped: {stats['skipped']}")
-
     def _recover_team_media(self, dry_run, force, stats):
-        """Recover team logos and banners."""
+        """Recover team logos and banners from media/teams/."""
         self.stdout.write("Checking team media...")
         teams = Team.objects.all()
         stats["checked"] = teams.count()
 
-        logo_files = self._get_media_files("teams/logos")
-        banner_files = self._get_media_files("teams/banners")
+        logo_files = self._get_local_files("teams")
+        banner_files = self._get_local_files("teams")
 
         for team in teams:
-            if team.logo and not force:
-                stats["skipped"] += 1
-            else:
-                match = self._match_file_to_record(team.name, logo_files, ["name", "slug"])
+            if not (team.logo and not force):
+                match = self._match_filename(team.name, logo_files)
+                if not match:
+                    match = self._match_filename(team.slug, logo_files)
                 if match:
                     if not dry_run:
                         team.logo.name = match
@@ -308,11 +253,13 @@ class Command(BaseCommand):
                     self.stdout.write(f"  Updated logo for {team.name}: {match}")
                 else:
                     stats["skipped"] += 1
-
-            if team.banner and not force:
-                stats["skipped"] += 1
             else:
-                match = self._match_file_to_record(team.name, banner_files, ["name", "slug"])
+                stats["skipped"] += 1
+
+            if not (team.banner and not force):
+                match = self._match_filename(team.name, banner_files)
+                if not match:
+                    match = self._match_filename(team.slug, banner_files)
                 if match:
                     if not dry_run:
                         team.banner.name = match
@@ -321,32 +268,24 @@ class Command(BaseCommand):
                     self.stdout.write(f"  Updated banner for {team.name}: {match}")
                 else:
                     stats["skipped"] += 1
-
-        self.stdout.write(f"  Teams checked: {stats['checked']}, updated: {stats['updated']}, skipped: {stats['skipped']}")
+            else:
+                stats["skipped"] += 1
 
     def _recover_post_images(self, dry_run, force, stats):
-        """Recover post images."""
+        """Recover post images from media/posts/."""
         self.stdout.write("Checking post images...")
         posts = Post.objects.all()
         stats["checked"] = posts.count()
 
-        post_files = self._get_media_files("posts")
-        if not post_files:
-            self.stdout.write("  No image files found in media/posts/")
-            stats["skipped"] = stats["checked"]
-            return
-
+        post_files = self._get_local_files("posts")
         for post in posts:
             if post.image and not force:
                 stats["skipped"] += 1
                 continue
-
-            # Match by post ID or author
-            match = self._match_file_to_record(
-                str(post.id),
-                post_files,
-                ["id", "author__gamer_tag"]
-            )
+            search_key = str(post.id)
+            if hasattr(post, "author") and post.author:
+                search_key = post.author.gamer_tag
+            match = self._match_filename(search_key, post_files)
             if match:
                 if not dry_run:
                     post.image.name = match
@@ -355,8 +294,6 @@ class Command(BaseCommand):
                 self.stdout.write(f"  Updated image for post {post.id}: {match}")
             else:
                 stats["skipped"] += 1
-
-        self.stdout.write(f"  Posts checked: {stats['checked']}, updated: {stats['updated']}, skipped: {stats['skipped']}")
 
     def _print_summary(self, results, dry_run):
         self.stdout.write("\n" + "=" * 50)

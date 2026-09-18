@@ -400,6 +400,10 @@ html[data-theme="light"] .theme-icon-day { display: none; }
     background: var(--bg-3);
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
+.organization-card-logo.media-fallback {
+    min-height: auto;
+    max-height: 120px;
+}
 
 /* Organization public profile logo */
 .organization-public-logo {
@@ -451,6 +455,9 @@ html[data-theme="light"] .theme-icon-day { display: none; }
     justify-content: center;
     background: var(--bg-3);
 }
+.team-banner-wrapper.media-fallback {
+    min-height: auto;
+}
 
 /* Team logo wrapper */
 .team-logo-wrapper {
@@ -477,6 +484,11 @@ html[data-theme="light"] .theme-icon-day { display: none; }
     justify-content: center;
     background: var(--bg-3);
     border-radius: var(--radius-xl);
+}
+.team-logo-wrapper.media-fallback {
+    min-height: auto;
+    max-height: 100px;
+    max-width: 100px;
 }
 
 /* Team header content */
@@ -516,6 +528,10 @@ html[data-theme="light"] .theme-icon-day { display: none; }
     justify-content: center;
     background: var(--bg-3);
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.team-card-logo.media-fallback {
+    min-height: auto;
+    max-height: 100px;
 }
 
 /* Button & utility fixes */

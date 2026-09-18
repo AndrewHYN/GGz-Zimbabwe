@@ -9,7 +9,7 @@
         </div>
         <div class="profile-identity-content">
             <div class="profile-avatar-wrap">
-                {% if profile.avatar %}<img class="profile-avatar" src="{{ profile.avatar.url }}" alt="{{ profile.gamer_tag }} avatar">{% else %}<span class="profile-avatar profile-avatar-fallback">{{ profile.gamer_tag|slice:":1"|upper }}</span>{% endif %}
+                {% if profile.avatar %}<img class="profile-avatar" src="{{ profile.avatar.url }}" alt="{{ profile.gamer_tag }} avatar" onerror="this.onerror=null; this.outerHTML='<span class=\'profile-avatar profile-avatar-fallback\'>{{ profile.gamer_tag|slice:":1"|upper }}</span>'">{% else %}<span class="profile-avatar profile-avatar-fallback">{{ profile.gamer_tag|slice:":1"|upper }}</span>{% endif %}
                 <span class="presence-ring presence-{{ presence.status }}" data-presence-indicator aria-hidden="true"></span>
             </div>
             <div class="profile-heading">

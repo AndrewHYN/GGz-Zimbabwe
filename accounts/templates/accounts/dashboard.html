@@ -19,7 +19,7 @@
     <div class="dashboard-grid">
         <section class="dashboard-summary panel-card">
             {% if profile.avatar %}
-                <span class="avatar avatar-profile"><img src="{{ profile.avatar.url }}" alt="{{ profile.gamer_tag }} avatar"></span>
+                <span class="avatar avatar-profile"><img src="{{ profile.avatar.url }}" alt="{{ profile.gamer_tag }} avatar" onerror="this.onerror=null; this.outerHTML='<span class=\'avatar avatar-profile avatar-fallback\'>{{ profile.gamer_tag|slice:":1"|upper }}</span>'"></span>
             {% else %}
                 <span class="avatar avatar-profile avatar-fallback">{{ profile.gamer_tag|slice:":1"|upper }}</span>
             {% endif %}

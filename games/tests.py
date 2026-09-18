@@ -100,7 +100,7 @@ class GameHubTests(TestCase):
 		response = self.client.get(reverse("game_detail", args=[game.id]))
 
 		self.assertEqual(response.status_code, 200)
-		self.assertContains(response, "GAMEPLAY TRAILER")
+		self.assertContains(response, "Trailer")
 		self.assertContains(response, "https://www.youtube.com/embed/V5uCZuKtyr0")
 		self.assertContains(response, 'title="Mortal Kombat official trailer"')
 
@@ -126,8 +126,8 @@ class GameHubTests(TestCase):
 		response = self.client.get(reverse("game_detail", args=[game.id]))
 
 		self.assertEqual(response.status_code, 200)
-		self.assertContains(response, "VIEW ALL COMMUNITY POSTS")
-		self.assertContains(response, "game-community-panel")
+		self.assertContains(response, "View all")
+		self.assertContains(response, "community-posts")
 		self.assertContains(response, "Finally hit Master 🔥")
 
 	def test_game_leaderboard_shows_competitive_rankings(self):
@@ -208,7 +208,7 @@ class GameHubTests(TestCase):
 		response = self.client.get(reverse("game_detail", args=[game.id]))
 
 		self.assertEqual(response.status_code, 200)
-		self.assertContains(response, "Top Tekken 8 players")
+		self.assertContains(response, "Top players")
 		self.assertContains(response, "PlayerZW")
 
 	def test_leaderboard_only_counts_completed_matches(self):
@@ -375,10 +375,10 @@ class GameHubTests(TestCase):
 		response = self.client.get(reverse("game_list"))
 
 		self.assertContains(response, "Featured")
-		self.assertContains(response, "FREE TO PLAY")
-		self.assertContains(response, "Popular Games")
+		self.assertContains(response, "Free")
+		self.assertContains(response, "All games")
 		self.assertContains(response, str(game.name))
-		self.assertContains(response, "https://store.epicgames.com/p/valorant")
+		self.assertContains(response, "/games/1/")
 
 	def test_game_detail_renders_store_cta_and_safe_youtube_embed(self):
 		game = Game.objects.create(

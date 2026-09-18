@@ -40,8 +40,8 @@
                 {% for event in page %}
                     <a href="{% url 'event_detail' event.id %}" class="event-card">
                         {% if event.banner %}
-                        <div class="event-card-banner" style="background-image: url('{{ event.banner.url }}');">
-                            <img src="{{ event.banner.url }}" alt="" loading="lazy">
+                        <div class="event-card-banner">
+                            <img src="{{ event.banner.url }}" alt="{{ event.name }} banner" loading="lazy" onerror="this.onerror=null; this.outerHTML='<div class=&quot;media-fallback event-banner&quot;>Banner unavailable</div>'">
                         </div>
                         {% else %}
                         <div class="event-card-banner media-fallback event-banner">Banner unavailable</div>
@@ -151,6 +151,10 @@
         align-items: center;
         justify-content: center;
         background: var(--bg-3);
+    }
+    .event-card-banner.media-fallback {
+        min-height: auto;
+        max-height: 140px;
     }
 
     .event-card .card-body {

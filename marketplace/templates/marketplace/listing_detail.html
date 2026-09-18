@@ -6,7 +6,7 @@
     {% if messages %}<div class="flash-stack">{% for message in messages %}<div class="flash flash-{{ message.tags }}">{{ message }}</div>{% endfor %}</div>{% endif %}
     <section class="listing-detail">
         <div class="listing-gallery">
-            {% for image in listing.images.all %}<img class="listing-detail-image" src="{{ image.image.url }}" alt="{{ listing.title }}">{% empty %}<div class="listing-detail-image listing-image-fallback">GGz</div>{% endfor %}
+            {% for image in listing.images.all %}<img class="listing-detail-image" src="{{ image.image.url }}" alt="{{ listing.title }}" onerror="this.onerror=null; this.outerHTML='<div class=\'listing-detail-image listing-image-fallback\'>GGz</div>'">{% empty %}<div class="listing-detail-image listing-image-fallback">GGz</div>{% endfor %}
         </div>
         <div>
             <p class="eyebrow">{{ listing.category }} · {{ listing.status }}</p>

@@ -84,7 +84,7 @@
                 <article class="game-card feature-card">
                     <a href="{% url 'game_detail' game.id %}">
                         {% if game.cover_art_url %}
-                            <img class="game-cover" src="{{ game.cover_art_url }}" alt="{{ game.name }} cover">
+                            <img class="game-cover" src="{{ game.cover_art_url }}" alt="{{ game.name }} cover" onerror="this.onerror=null; this.outerHTML='<div class=\'game-cover-fallback\'>{{ game.name|slice:":1"|upper }}</div>'">
                         {% else %}
                             <div class="game-cover-fallback">{{ game.name|slice:":1"|upper }}</div>
                         {% endif %}

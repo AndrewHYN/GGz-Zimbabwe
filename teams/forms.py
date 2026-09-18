@@ -1,6 +1,8 @@
 from django import forms
 from django.utils.text import slugify
 
+from hello_world.utils import _validated_image
+
 from .models import Team
 
 
@@ -13,7 +15,7 @@ class TeamForm(forms.ModelForm):
 
     class Meta:
         model = Team
-        fields = ("name", "tag", "description", "game")
+        fields = ("name", "tag", "description", "game", "logo", "banner")
         widgets = {"description": forms.Textarea(attrs={"rows": 5})}
 
     def clean_name(self):
@@ -25,3 +27,15 @@ class TeamForm(forms.ModelForm):
         if teams.exists():
             raise forms.ValidationError("A team with this name already exists.")
         return name
+
+    def clean_logo(self):
+        logo = self.cleaned_data.get("logo")
+        if logo:
+            _validated_image(logo)
+        return logo
+
+    def clean_banner(self):
+        banner = self.cleaned_data.get("banner")
+        if banner:
+            _validated_image(banner)
+        return banner

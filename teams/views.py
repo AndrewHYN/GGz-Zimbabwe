@@ -99,7 +99,7 @@ def team_invitation_action(request, invitation_id, action):
 
 @login_required
 def team_create(request):
-    form = TeamForm(request.POST or None)
+    form = TeamForm(request.POST or None, request.FILES or None)
     if form.is_valid():
         team = form.save(commit=False)
         team.owner = get_object_or_404(GamerProfile, user=request.user)
@@ -117,7 +117,7 @@ def team_edit(request, slug):
     profile = get_object_or_404(GamerProfile, user=request.user)
     if not _is_team_manager(profile, team):
         return HttpResponseForbidden("You are not authorized to manage this team.")
-    form = TeamForm(request.POST or None, instance=team)
+    form = TeamForm(request.POST or None, request.FILES or None, instance=team)
     if form.is_valid():
         team = form.save(commit=False)
         team.slug = slugify(team.name)
