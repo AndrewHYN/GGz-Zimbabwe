@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -17,21 +17,38 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      await fetch("/api/csrf/", { credentials: "include" });
+
+      const csrfToken = document.cookie
+        .split('; ')
+        .find((c) => c.startsWith('csrftoken='))
+        ?.split('=')[1] || '';
+
+      const formData = new URLSearchParams();
+      formData.append("username", username);
+      formData.append("password", password);
+      formData.append("csrfmiddlewaretoken", csrfToken);
+
       const res = await fetch("/accounts/login/", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
         credentials: "include",
-        body: JSON.stringify({ email, password }),
+        body: formData.toString(),
+        redirect: "manual",
       });
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setError(data?.detail || data?.message || "Invalid credentials. Please try again.");
-        setLoading(false);
+      if (res.type === "opaqueredirect" || res.status === 0) {
+        router.push("/dashboard");
         return;
       }
 
-      router.push("/dashboard");
+      if (res.ok || res.status === 302) {
+        router.push("/dashboard");
+        return;
+      }
+
+      setError("Invalid credentials. Please try again.");
+      setLoading(false);
     } catch {
       setError("Something went wrong. Please try again.");
       setLoading(false);
@@ -51,14 +68,14 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="email" className="block text-sm font-medium mb-1">
-              Email or Username
+            <label htmlFor="username" className="block text-sm font-medium mb-1">
+              Username
             </label>
             <input
-              id="email"
+              id="username"
               type="text"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               required
               className="w-full px-3 py-2 bg-ggz-bg-2 border border-ggz-border rounded-[var(--radius-lg)] text-sm focus:outline-none focus:ring-2 focus:ring-ggz-accent"
             />

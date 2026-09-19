@@ -48,6 +48,7 @@ urlpatterns = [
     path("radar/locations/<int:location_id>/reviews/create/", account_views.radar_location_review_create, name="radar_location_review_create"),
     path("radar/locations/<int:location_id>/reviews/<int:review_id>/delete/", account_views.radar_location_review_delete, name="radar_location_review_delete"),
     # Next.js frontend API endpoints
+    path("api/csrf/", api_views.api_csrf_token, name="api_csrf_token"),
     path("api/me/", api_views.api_me, name="api_me"),
     path("api/games/", api_views.api_games_list, name="api_games_list"),
     path("api/games/<int:game_id>/", api_views.api_game_detail, name="api_game_detail"),

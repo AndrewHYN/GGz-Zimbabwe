@@ -57,8 +57,8 @@ export default async function TournamentsPage({
   searchParams: Promise<{ status?: string }>;
 }) {
   const params = await searchParams;
-  const statusFilter = STATUS_OPTIONS.includes(params.status as any)
-    ? params.status!
+  const statusFilter = (STATUS_OPTIONS as readonly string[]).includes(params.status as string)
+    ? (params.status as typeof STATUS_OPTIONS[number])
     : "all";
 
   const res = await fetch(

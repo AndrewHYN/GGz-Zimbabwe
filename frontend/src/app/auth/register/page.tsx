@@ -9,8 +9,8 @@ export default function RegisterPage() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [gamerTag, setGamerTag] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [password1, setPassword1] = useState("");
+  const [password2, setPassword2] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -18,7 +18,7 @@ export default function RegisterPage() {
     e.preventDefault();
     setError("");
 
-    if (password !== confirmPassword) {
+    if (password1 !== password2) {
       setError("Passwords do not match.");
       return;
     }
@@ -26,27 +26,41 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const res = await fetch("/accounts/signup/", {
+      await fetch("/api/csrf/", { credentials: "include" });
+
+      const csrfToken = document.cookie
+        .split('; ')
+        .find((c) => c.startsWith('csrftoken='))
+        ?.split('=')[1] || '';
+
+      const formData = new URLSearchParams();
+      formData.append("username", username);
+      formData.append("email", email);
+      formData.append("gamer_tag", gamerTag);
+      formData.append("password1", password1);
+      formData.append("password2", password2);
+      formData.append("csrfmiddlewaretoken", csrfToken);
+
+      const res = await fetch("/profiles/signup/", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
         credentials: "include",
-        body: JSON.stringify({
-          username,
-          email,
-          gamer_tag: gamerTag,
-          password,
-          password_confirm: confirmPassword,
-        }),
+        body: formData.toString(),
+        redirect: "manual",
       });
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setError(data?.detail || data?.message || "Registration failed. Please try again.");
-        setLoading(false);
+      if (res.type === "opaqueredirect" || res.status === 0) {
+        router.push("/dashboard");
         return;
       }
 
-      router.push("/dashboard");
+      if (res.ok || res.status === 302) {
+        router.push("/dashboard");
+        return;
+      }
+
+      setError("Registration failed. Please try again.");
+      setLoading(false);
     } catch {
       setError("Something went wrong. Please try again.");
       setLoading(false);
@@ -108,28 +122,28 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium mb-1">
+            <label htmlFor="password1" className="block text-sm font-medium mb-1">
               Password
             </label>
             <input
-              id="password"
+              id="password1"
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              value={password1}
+              onChange={(e) => setPassword1(e.target.value)}
               required
               className="w-full px-3 py-2 bg-ggz-bg-2 border border-ggz-border rounded-[var(--radius-lg)] text-sm focus:outline-none focus:ring-2 focus:ring-ggz-accent"
             />
           </div>
 
           <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium mb-1">
+            <label htmlFor="password2" className="block text-sm font-medium mb-1">
               Confirm Password
             </label>
             <input
-              id="confirmPassword"
+              id="password2"
               type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              value={password2}
+              onChange={(e) => setPassword2(e.target.value)}
               required
               className="w-full px-3 py-2 bg-ggz-bg-2 border border-ggz-border rounded-[var(--radius-lg)] text-sm focus:outline-none focus:ring-2 focus:ring-ggz-accent"
             />

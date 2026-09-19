@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -40,6 +40,43 @@ function useClickOutside(ref: React.RefObject<HTMLElement | null>, handler: () =
   }, [ref, handler]);
 }
 
+function NavDropdown({
+  ref,
+  open,
+  children,
+}: {
+  ref: React.RefObject<HTMLDivElement | null>;
+  open: boolean;
+  children: React.ReactNode;
+}) {
+  if (!open) return null;
+  return (
+    <div
+      ref={ref}
+      className="absolute left-0 top-full mt-1 min-w-[220px] rounded-[var(--radius-md)] border border-ggz-border bg-ggz-bg-1 p-1 shadow-lg animate-fade-in"
+    >
+      {children}
+    </div>
+  );
+}
+
+function DropdownLink({ href, icon: Icon, label, pathname }: { href: string; icon: React.ComponentType<{ className?: string }>; label: string; pathname: string }) {
+  const active = pathname === href;
+  return (
+    <Link
+      href={href}
+      className={`flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm transition-colors ${
+        active
+          ? "bg-ggz-surface text-ggz-amber"
+          : "text-ggz-text-secondary hover:bg-ggz-surface hover:text-ggz-text-primary"
+      }`}
+    >
+      <Icon className="h-4 w-4 shrink-0" />
+      {label}
+    </Link>
+  );
+}
+
 export default function Navigation() {
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
@@ -48,32 +85,47 @@ export default function Navigation() {
   const [discoverOpen, setDiscoverOpen] = useState(false);
   const [communityOpen, setCommunityOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("ggz-theme") as "light" | "dark" | null;
+      return stored || "dark";
+    }
+    return "dark";
+  });
   const [searchQuery, setSearchQuery] = useState("");
 
   const discoverRef = useRef<HTMLDivElement>(null);
   const communityRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
-  useClickOutside(discoverRef, () => setDiscoverOpen(false));
-  useClickOutside(communityRef, () => setCommunityOpen(false));
-  useClickOutside(profileRef, () => setProfileOpen(false));
+  useClickOutside(discoverRef, useCallback(() => setDiscoverOpen(false), []));
+  useClickOutside(communityRef, useCallback(() => setCommunityOpen(false), []));
+  useClickOutside(profileRef, useCallback(() => setProfileOpen(false), []));
 
   useEffect(() => {
-    fetch("/api/profiles/me/", { credentials: "include" })
+    fetch("/api/me/", { credentials: "include", headers: { "X-Requested-With": "XMLHttpRequest" } })
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => setUser(data))
+      .then((data) => {
+        if (data?.authenticated) {
+          setUser({
+            id: data.user.id,
+            username: data.user.username,
+            displayName: data.profile?.gamer_tag || data.user.username,
+            avatar: data.profile?.avatar || undefined,
+          });
+        } else {
+          setUser(null);
+        }
+      })
       .catch(() => setUser(null))
       .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
-    const stored = localStorage.getItem("ggz-theme") as "light" | "dark" | null;
-    const initial = stored || "dark";
-    setTheme(initial);
-    document.documentElement.dataset.theme = initial;
-  }, []);
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setMobileOpen(false);
     setDiscoverOpen(false);
@@ -97,43 +149,6 @@ export default function Navigation() {
 
   function isActive(pattern: string) {
     return pathname === pattern || pathname.startsWith(pattern + "/");
-  }
-
-  function NavDropdown({
-    ref,
-    open,
-    children,
-  }: {
-    ref: React.RefObject<HTMLDivElement | null>;
-    open: boolean;
-    children: React.ReactNode;
-  }) {
-    if (!open) return null;
-    return (
-      <div
-        ref={ref}
-        className="absolute left-0 top-full mt-1 min-w-[220px] rounded-[var(--radius-md)] border border-ggz-border bg-ggz-bg-1 p-1 shadow-lg animate-fade-in"
-      >
-        {children}
-      </div>
-    );
-  }
-
-  function DropdownLink({ href, icon: Icon, label }: { href: string; icon: React.ComponentType<{ className?: string }>; label: string }) {
-    const active = pathname === href;
-    return (
-      <Link
-        href={href}
-        className={`flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm transition-colors ${
-          active
-            ? "bg-ggz-surface text-ggz-amber"
-            : "text-ggz-text-secondary hover:bg-ggz-surface hover:text-ggz-text-primary"
-        }`}
-      >
-        <Icon className="h-4 w-4 shrink-0" />
-        {label}
-      </Link>
-    );
   }
 
   return (
@@ -162,10 +177,10 @@ export default function Navigation() {
                 <ChevronDownIcon className={`h-3.5 w-3.5 transition-transform ${discoverOpen ? "rotate-180" : ""}`} />
               </button>
               <NavDropdown ref={discoverRef} open={discoverOpen}>
-                <DropdownLink href="/" icon={HomeIcon} label="Home" />
-                <DropdownLink href="/players/find" icon={UsersIcon} label="Find Players" />
-                <DropdownLink href="/rankings" icon={TrophyIcon} label="Rankings" />
-                <DropdownLink href="/nearby" icon={SearchIcon} label="Nearby Gaming" />
+                <DropdownLink href="/" pathname={pathname} icon={HomeIcon} label="Home" />
+                <DropdownLink href="/gamers" pathname={pathname} icon={UsersIcon} label="Find Players" />
+                <DropdownLink href="/leaderboards" pathname={pathname} icon={TrophyIcon} label="Rankings" />
+                <DropdownLink href="/discover" pathname={pathname} icon={SearchIcon} label="Nearby Gaming" />
               </NavDropdown>
             </div>
 
@@ -222,9 +237,9 @@ export default function Navigation() {
                 <ChevronDownIcon className={`h-3.5 w-3.5 transition-transform ${communityOpen ? "rotate-180" : ""}`} />
               </button>
               <NavDropdown ref={communityRef} open={communityOpen}>
-                <DropdownLink href="/community/feed" icon={MessageIcon} label="Community Feed" />
-                <DropdownLink href="/teams" icon={UsersIcon} label="Teams" />
-                <DropdownLink href="/events" icon={CalendarIcon} label="Events" />
+                <DropdownLink href="/feed" pathname={pathname} icon={MessageIcon} label="Community Feed" />
+                <DropdownLink href="/teams" pathname={pathname} icon={UsersIcon} label="Teams" />
+                <DropdownLink href="/events" pathname={pathname} icon={CalendarIcon} label="Events" />
               </NavDropdown>
             </div>
           </div>
@@ -303,18 +318,17 @@ export default function Navigation() {
                         <p className="text-sm font-medium text-ggz-text-primary">{user.displayName || user.username}</p>
                         <p className="text-xs text-ggz-text-muted">@{user.username}</p>
                       </div>
-                      <DropdownLink href="/dashboard" icon={HomeIcon} label="Dashboard" />
-                      <DropdownLink href={`/profiles/${user.username}`} icon={UsersIcon} label="My Profile" />
-                      <DropdownLink href="/teams" icon={UsersIcon} label="Teams" />
-                      <DropdownLink href="/messages" icon={MessageIcon} label="Messages" />
-                      <DropdownLink href="/settings" icon={GamepadIcon} label="Settings" />
+                      <DropdownLink href="/dashboard" pathname={pathname} icon={HomeIcon} label="Dashboard" />
+                      <DropdownLink href={`/profiles/${user.displayName || user.username}`} pathname={pathname} icon={UsersIcon} label="My Profile" />
+                      <DropdownLink href="/teams" pathname={pathname} icon={UsersIcon} label="Teams" />
+                      <DropdownLink href="/messages" pathname={pathname} icon={MessageIcon} label="Messages" />
+                      <DropdownLink href="/accounts/security/" pathname={pathname} icon={GamepadIcon} label="Settings" />
                       <div className="my-1 border-t border-ggz-border" />
-                      <Link
-                        href="/logout"
-                        className="flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm text-red-400 hover:bg-ggz-surface transition-colors"
-                      >
-                        Log out
-                      </Link>
+                      <form method="post" action="/accounts/logout/">
+                        <button type="submit" className="flex w-full items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm text-red-400 hover:bg-ggz-surface transition-colors">
+                          Log out
+                        </button>
+                      </form>
                     </div>
                   </div>
                 </>
@@ -369,9 +383,9 @@ export default function Navigation() {
               </Link>
 
               <Link
-                href="/players/find"
+                href="/gamers"
                 className={`flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm transition-colors ${
-                  pathname === "/players/find" ? "bg-ggz-surface text-ggz-amber" : "text-ggz-text-secondary hover:bg-ggz-surface hover:text-ggz-text-primary"
+                  pathname === "/gamers" ? "bg-ggz-surface text-ggz-amber" : "text-ggz-text-secondary hover:bg-ggz-surface hover:text-ggz-text-primary"
                 }`}
               >
                 <UsersIcon className="h-4 w-4" />
@@ -379,9 +393,9 @@ export default function Navigation() {
               </Link>
 
               <Link
-                href="/rankings"
+                href="/leaderboards"
                 className={`flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm transition-colors ${
-                  pathname === "/rankings" ? "bg-ggz-surface text-ggz-amber" : "text-ggz-text-secondary hover:bg-ggz-surface hover:text-ggz-text-primary"
+                  pathname === "/leaderboards" ? "bg-ggz-surface text-ggz-amber" : "text-ggz-text-secondary hover:bg-ggz-surface hover:text-ggz-text-primary"
                 }`}
               >
                 <TrophyIcon className="h-4 w-4" />
@@ -389,9 +403,9 @@ export default function Navigation() {
               </Link>
 
               <Link
-                href="/nearby"
+                href="/discover"
                 className={`flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm transition-colors ${
-                  pathname === "/nearby" ? "bg-ggz-surface text-ggz-amber" : "text-ggz-text-secondary hover:bg-ggz-surface hover:text-ggz-text-primary"
+                  pathname === "/discover" ? "bg-ggz-surface text-ggz-amber" : "text-ggz-text-secondary hover:bg-ggz-surface hover:text-ggz-text-primary"
                 }`}
               >
                 <SearchIcon className="h-4 w-4" />
@@ -429,9 +443,9 @@ export default function Navigation() {
               </Link>
 
               <Link
-                href="/community/feed"
+                href="/feed"
                 className={`flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm transition-colors ${
-                  pathname === "/community/feed" ? "text-ggz-amber" : "text-ggz-text-secondary hover:bg-ggz-surface hover:text-ggz-text-primary"
+                  pathname === "/feed" ? "text-ggz-amber" : "text-ggz-text-secondary hover:bg-ggz-surface hover:text-ggz-text-primary"
                 }`}
               >
                 <MessageIcon className="h-4 w-4" />
@@ -483,24 +497,23 @@ export default function Navigation() {
                   Notifications
                 </Link>
                 <Link
-                  href="/settings"
+                  href="/accounts/security/"
                   className="flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm text-ggz-text-secondary hover:bg-ggz-surface hover:text-ggz-text-primary transition-colors"
                 >
                   <GamepadIcon className="h-4 w-4" />
                   Settings
                 </Link>
-                <Link
-                  href="/logout"
-                  className="flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm text-red-400 hover:bg-ggz-surface transition-colors"
-                >
-                  Log out
-                </Link>
+                <form method="post" action="/accounts/logout/">
+                  <button type="submit" className="flex w-full items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm text-red-400 hover:bg-ggz-surface transition-colors">
+                    Log out
+                  </button>
+                </form>
               </div>
             )}
 
             {!loading && !user && (
               <div className="border-t border-ggz-border pt-3">
-                <Link href="/login" className="block">
+                <Link href="/auth/login" className="block">
                   <Button variant="primary" size="sm" className="w-full">
                     Log In
                   </Button>

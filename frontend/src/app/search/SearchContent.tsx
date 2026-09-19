@@ -35,10 +35,10 @@ export default function SearchContent() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(true);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!query) {
       setResults([]);
-      setLoading(false);
       return;
     }
 

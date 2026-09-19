@@ -24,9 +24,13 @@ fi
 
 echo "database configured: yes"
 echo "backend detected: PostgreSQL"
-echo "installing dependencies"
+echo "installing backend dependencies"
 python -m pip install -r requirements.txt
 echo "migration command starting"
 python manage.py migrate --noinput
 echo "collectstatic command starting"
 python manage.py collectstatic --noinput
+echo "installing frontend dependencies"
+cd frontend && npm install
+echo "building frontend"
+npx next build

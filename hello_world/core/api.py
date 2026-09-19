@@ -1,6 +1,5 @@
-import json
-from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
+from django.middleware.csrf import get_token
 from django.views.decorators.http import require_GET
 
 from accounts.models import GamerProfile, Notification, Post
@@ -11,15 +10,31 @@ from teams.models import Team
 from tournaments.models import Tournament
 
 
+def _serialize_file_field(field):
+    if not field:
+        return None
+    if hasattr(field, 'url'):
+        return field.url
+    return str(field)
+
+
 @require_GET
-@login_required(login_url='/accounts/login/')
+def api_csrf_token(request):
+    get_token(request)
+    return JsonResponse({'ok': True})
+
+
+@require_GET
 def api_me(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({'authenticated': False}, status=401)
+
     user = request.user
     try:
         profile = GamerProfile.objects.get(user=user)
         profile_data = {
             'gamer_tag': profile.gamer_tag,
-            'avatar': profile.avatar,
+            'avatar': _serialize_file_field(profile.avatar),
         }
     except GamerProfile.DoesNotExist:
         profile_data = {
@@ -46,16 +61,15 @@ def api_games_list(request):
         data.append({
             'id': game.id,
             'name': game.name,
-            'slug': game.slug,
-            'cover_art_url': getattr(game, 'cover_art_url', None),
-            'genre': getattr(game, 'genre', None),
-            'platform': getattr(game, 'platform', None),
-            'developer': getattr(game, 'developer', None),
-            'description': getattr(game, 'description', None),
-            'release_year': getattr(game, 'release_year', None),
-            'player_count': getattr(game, 'player_count', None),
-            'free_to_play': getattr(game, 'free_to_play', False),
-            'featured': getattr(game, 'featured', False),
+            'cover_art_url': game.cover_art_url or None,
+            'genre': game.genre or None,
+            'platform': game.platform or None,
+            'developer': game.developer or None,
+            'description': game.description or None,
+            'release_year': game.release_year,
+            'player_count': game.player_count,
+            'free_to_play': game.free_to_play,
+            'featured': game.featured,
         })
     return JsonResponse(data, safe=False)
 
@@ -70,61 +84,60 @@ def api_game_detail(request, game_id):
     data = {
         'id': game.id,
         'name': game.name,
-        'slug': game.slug,
-        'cover_art_url': getattr(game, 'cover_art_url', None),
-        'genre': getattr(game, 'genre', None),
-        'platform': getattr(game, 'platform', None),
-        'developer': getattr(game, 'developer', None),
-        'description': getattr(game, 'description', None),
-        'release_year': getattr(game, 'release_year', None),
-        'player_count': getattr(game, 'player_count', None),
-        'free_to_play': getattr(game, 'free_to_play', False),
-        'featured': getattr(game, 'featured', False),
-        'steam_url': getattr(game, 'steam_url', None),
-        'epic_url': getattr(game, 'epic_url', None),
-        'store_url': getattr(game, 'store_url', None),
-        'trailer_url': getattr(game, 'trailer_url', None),
-        'igdb_rating': getattr(game, 'igdb_rating', None),
+        'cover_art_url': game.cover_art_url or None,
+        'genre': game.genre or None,
+        'platform': game.platform or None,
+        'developer': game.developer or None,
+        'description': game.description or None,
+        'release_year': game.release_year,
+        'player_count': game.player_count,
+        'free_to_play': game.free_to_play,
+        'featured': game.featured,
+        'steam_url': game.steam_url or None,
+        'epic_url': game.epic_url or None,
+        'store_url': game.store_url or None,
+        'trailer_url': game.trailer_url or None,
+        'igdb_rating': float(game.igdb_rating) if game.igdb_rating else None,
     }
     return JsonResponse(data)
 
 
 @require_GET
 def api_tournaments_list(request):
-    tournaments = Tournament.objects.all()
+    tournaments = Tournament.objects.select_related('game').all()
     data = []
     for t in tournaments:
         data.append({
             'id': t.id,
             'name': t.name,
             'slug': t.slug,
-            'game_name': getattr(t, 'game_name', None),
-            'format': getattr(t, 'format', None),
-            'status': getattr(t, 'status', None),
+            'game_name': t.game.name if t.game else None,
+            'format': t.format,
+            'status': t.status,
             'start_date': t.start_date.isoformat() if t.start_date else None,
-            'location': getattr(t, 'location', None),
-            'mode': getattr(t, 'mode', None),
-            'max_participants': getattr(t, 'max_participants', None),
+            'location': t.location or None,
+            'mode': t.mode,
+            'max_participants': t.max_participants,
         })
     return JsonResponse(data, safe=False)
 
 
 @require_GET
 def api_events_list(request):
-    events = Event.objects.all()
+    events = Event.objects.select_related('game', 'organization').all()
     data = []
     for e in events:
         data.append({
             'id': e.id,
             'name': e.name,
-            'description': getattr(e, 'description', None),
+            'description': e.description or None,
             'start_date': e.start_date.isoformat() if e.start_date else None,
-            'location': getattr(e, 'location', None),
-            'mode': getattr(e, 'mode', None),
-            'status': getattr(e, 'status', None),
-            'banner': getattr(e, 'banner', None),
-            'game_name': getattr(e, 'game_name', None),
-            'organization_name': getattr(e, 'organization_name', None),
+            'location': e.location or None,
+            'mode': e.mode,
+            'status': e.status,
+            'banner': _serialize_file_field(e.banner),
+            'game_name': e.game.name if e.game else None,
+            'organization_name': e.organization.name if e.organization else None,
         })
     return JsonResponse(data, safe=False)
 
@@ -137,11 +150,11 @@ def api_teams_list(request):
         data.append({
             'id': team.id,
             'name': team.name,
-            'tag': getattr(team, 'tag', None),
+            'tag': team.tag,
             'slug': team.slug,
-            'description': getattr(team, 'description', None),
-            'location': getattr(team, 'location', None),
-            'status': getattr(team, 'status', None),
+            'description': team.description or None,
+            'location': team.location or None,
+            'status': team.status,
             'member_count': team.memberships.count(),
         })
     return JsonResponse(data, safe=False)
@@ -149,21 +162,21 @@ def api_teams_list(request):
 
 @require_GET
 def api_marketplace_list(request):
-    listings = Listing.objects.all()
+    listings = Listing.objects.select_related('seller', 'game').all()
     data = []
     for listing in listings:
         data.append({
             'id': listing.id,
             'title': listing.title,
-            'description': getattr(listing, 'description', None),
-            'category': getattr(listing, 'category', None),
-            'price': str(listing.price) if hasattr(listing, 'price') and listing.price else None,
-            'condition': getattr(listing, 'condition', None),
-            'location': getattr(listing, 'location', None),
-            'platform': getattr(listing, 'platform', None),
-            'status': getattr(listing, 'status', None),
-            'seller_name': listing.seller.gamer_tag if hasattr(listing, 'seller') and listing.seller else None,
-            'game_name': getattr(listing, 'game_name', None),
+            'description': listing.description or None,
+            'category': listing.category,
+            'price': str(listing.price),
+            'condition': listing.condition,
+            'location': listing.location,
+            'platform': listing.platform or None,
+            'status': listing.status,
+            'seller_name': listing.seller.gamer_tag if listing.seller else None,
+            'game_name': listing.game.name if listing.game else None,
             'created_at': listing.created_at.isoformat() if listing.created_at else None,
         })
     return JsonResponse(data, safe=False)
@@ -186,16 +199,15 @@ def api_search(request):
         {
             'id': g.id,
             'name': g.name,
-            'slug': g.slug,
-            'cover_art_url': getattr(g, 'cover_art_url', None),
-            'genre': getattr(g, 'genre', None),
-            'platform': getattr(g, 'platform', None),
-            'developer': getattr(g, 'developer', None),
-            'description': getattr(g, 'description', None),
-            'release_year': getattr(g, 'release_year', None),
-            'player_count': getattr(g, 'player_count', None),
-            'free_to_play': getattr(g, 'free_to_play', False),
-            'featured': getattr(g, 'featured', False),
+            'cover_art_url': g.cover_art_url or None,
+            'genre': g.genre or None,
+            'platform': g.platform or None,
+            'developer': g.developer or None,
+            'description': g.description or None,
+            'release_year': g.release_year,
+            'player_count': g.player_count,
+            'free_to_play': g.free_to_play,
+            'featured': g.featured,
         }
         for g in games
     ]
@@ -205,10 +217,10 @@ def api_search(request):
         {
             'id': gp.id,
             'gamer_tag': gp.gamer_tag,
-            'avatar': gp.avatar,
-            'bio': getattr(gp, 'bio', None),
-            'location': getattr(gp, 'location', None),
-            'platform': getattr(gp, 'platform', None),
+            'avatar': _serialize_file_field(gp.avatar),
+            'bio': gp.bio or None,
+            'location': gp.location or None,
+            'platform': gp.platform or None,
         }
         for gp in gamers
     ]
@@ -218,46 +230,46 @@ def api_search(request):
         {
             'id': t.id,
             'name': t.name,
-            'tag': getattr(t, 'tag', None),
+            'tag': t.tag,
             'slug': t.slug,
-            'description': getattr(t, 'description', None),
-            'location': getattr(t, 'location', None),
-            'status': getattr(t, 'status', None),
+            'description': t.description or None,
+            'location': t.location or None,
+            'status': t.status,
             'member_count': t.memberships.count(),
         }
         for t in teams
     ]
 
-    tournaments = Tournament.objects.filter(name__icontains=q)
+    tournaments = Tournament.objects.filter(name__icontains=q).select_related('game')
     tournaments_data = [
         {
             'id': t.id,
             'name': t.name,
             'slug': t.slug,
-            'game_name': getattr(t, 'game_name', None),
-            'format': getattr(t, 'format', None),
-            'status': getattr(t, 'status', None),
+            'game_name': t.game.name if t.game else None,
+            'format': t.format,
+            'status': t.status,
             'start_date': t.start_date.isoformat() if t.start_date else None,
-            'location': getattr(t, 'location', None),
-            'mode': getattr(t, 'mode', None),
-            'max_participants': getattr(t, 'max_participants', None),
+            'location': t.location or None,
+            'mode': t.mode,
+            'max_participants': t.max_participants,
         }
         for t in tournaments
     ]
 
-    events = Event.objects.filter(name__icontains=q)
+    events = Event.objects.filter(name__icontains=q).select_related('game', 'organization')
     events_data = [
         {
             'id': e.id,
             'name': e.name,
-            'description': getattr(e, 'description', None),
+            'description': e.description or None,
             'start_date': e.start_date.isoformat() if e.start_date else None,
-            'location': getattr(e, 'location', None),
-            'mode': getattr(e, 'mode', None),
-            'status': getattr(e, 'status', None),
-            'banner': getattr(e, 'banner', None),
-            'game_name': getattr(e, 'game_name', None),
-            'organization_name': getattr(e, 'organization_name', None),
+            'location': e.location or None,
+            'mode': e.mode,
+            'status': e.status,
+            'banner': _serialize_file_field(e.banner),
+            'game_name': e.game.name if e.game else None,
+            'organization_name': e.organization.name if e.organization else None,
         }
         for e in events
     ]
@@ -272,17 +284,27 @@ def api_search(request):
 
 
 @require_GET
-@login_required(login_url='/accounts/login/')
 def api_notifications_list(request):
-    notifications = Notification.objects.filter(user=request.user).order_by('-created_at')
+    if not request.user.is_authenticated:
+        return JsonResponse({'authenticated': False}, status=401)
+
+    try:
+        profile = GamerProfile.objects.get(user=request.user)
+    except GamerProfile.DoesNotExist:
+        return JsonResponse([], safe=False)
+
+    notifications = Notification.objects.filter(
+        recipient=profile
+    ).select_related('actor').order_by('-created_at')
+
     data = []
     for n in notifications:
         data.append({
             'id': n.id,
-            'actor': n.actor.gamer_tag if hasattr(n, 'actor') and n.actor else None,
-            'verb': n.verb,
-            'target_type': getattr(n, 'target_type', None),
-            'target_id': getattr(n, 'target_id', None),
+            'actor': n.actor.gamer_tag if n.actor else None,
+            'notification_type': n.notification_type,
+            'message': n.message,
+            'target_url': n.target_url or None,
             'is_read': n.is_read,
             'created_at': n.created_at.isoformat() if n.created_at else None,
         })
@@ -290,27 +312,24 @@ def api_notifications_list(request):
 
 
 @require_GET
-@login_required(login_url='/accounts/login/')
 def api_feed_list(request):
-    posts = Post.objects.select_related('author').all()
+    if not request.user.is_authenticated:
+        return JsonResponse({'authenticated': False}, status=401)
+
+    posts = Post.objects.select_related('author', 'author__user', 'game').prefetch_related('likes', 'comments').all()
+
     data = []
     for post in posts:
-        try:
-            profile = GamerProfile.objects.get(user=post.author)
-            author_data = {
-                'gamer_tag': profile.gamer_tag,
-                'avatar': profile.avatar,
-            }
-        except GamerProfile.DoesNotExist:
-            author_data = {
-                'gamer_tag': post.author.username,
-                'avatar': None,
-            }
+        profile = post.author
+        author_data = {
+            'gamer_tag': profile.gamer_tag,
+            'avatar': _serialize_file_field(profile.avatar),
+        }
 
         data.append({
             'id': post.id,
             'author': author_data,
-            'content': post.content,
+            'content': post.body,
             'created_at': post.created_at.isoformat() if post.created_at else None,
             'like_count': post.likes.count(),
             'comment_count': post.comments.count(),
@@ -319,26 +338,37 @@ def api_feed_list(request):
 
 
 @require_GET
-@login_required(login_url='/accounts/login/')
 def api_conversations_list(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({'authenticated': False}, status=401)
+
+    try:
+        profile = GamerProfile.objects.get(user=request.user)
+    except GamerProfile.DoesNotExist:
+        return JsonResponse([], safe=False)
+
     from accounts.models import ConversationParticipant
 
-    participants = ConversationParticipant.objects.filter(user=request.user)
+    participants = ConversationParticipant.objects.filter(
+        profile=profile
+    ).select_related('conversation')
+
     data = []
     for p in participants:
         conversation = p.conversation
-        other_participants = ConversationParticipant.objects.filter(
+        other_links = ConversationParticipant.objects.filter(
             conversation=conversation
-        ).exclude(user=request.user)
+        ).select_related('profile', 'profile__user').exclude(profile=profile)
+
         data.append({
             'id': conversation.id,
             'participants': [
                 {
-                    'id': op.user.id,
-                    'username': op.user.username,
-                    'gamer_tag': op.user.gamer_tag if hasattr(op.user, 'gamer_tag') else None,
+                    'id': link.profile.user.id,
+                    'username': link.profile.user.username,
+                    'gamer_tag': link.profile.gamer_tag,
                 }
-                for op in other_participants
+                for link in other_links
             ],
         })
     return JsonResponse(data, safe=False)
@@ -346,15 +376,15 @@ def api_conversations_list(request):
 
 @require_GET
 def api_gamers_list(request):
-    gamers = GamerProfile.objects.all()
+    gamers = GamerProfile.objects.select_related('user').all()
     data = []
     for gp in gamers:
         data.append({
             'id': gp.id,
             'gamer_tag': gp.gamer_tag,
-            'avatar': gp.avatar,
-            'bio': getattr(gp, 'bio', None),
-            'location': getattr(gp, 'location', None),
-            'platform': getattr(gp, 'platform', None),
+            'avatar': _serialize_file_field(gp.avatar),
+            'bio': gp.bio or None,
+            'location': gp.location or None,
+            'platform': gp.platform or None,
         })
     return JsonResponse(data, safe=False)
