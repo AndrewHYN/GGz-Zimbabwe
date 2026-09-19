@@ -1,5 +1,7 @@
+"use client";
+
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 
 interface ProfileData {
   id: number;
@@ -16,16 +18,16 @@ interface ProfileData {
 }
 
 interface ProfilePageProps {
-  params: { gamerTag: string };
+  params: Promise<{ gamerTag: string }>;
 }
 
 export default function ProfilePage({ params }: ProfilePageProps) {
+  const { gamerTag } = use(params);
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
-  const gamerTag = params.gamerTag;
 
   useEffect(() => {
-    fetch(`/api/profiles/detail/${gamerTag}/`, {
+    fetch(`/api/profiles/detail/${encodeURIComponent(gamerTag)}/`, {
       credentials: "include",
       headers: {
         "X-Requested-With": "XMLHttpRequest",
@@ -60,13 +62,15 @@ export default function ProfilePage({ params }: ProfilePageProps) {
     <div className="max-w-[1536px] mx-auto px-4 py-8">
       <div className="bg-ggz-bg-1 border border-ggz-border rounded-[var(--radius-lg)] p-6 space-y-6">
         <div className="flex items-center gap-3">
-          <Image
-            src={profile.avatar ?? "/placeholder.svg"}
-            alt={profile.gamer_tag}
-            className="w-20 h-20 rounded-full object-cover border border-ggz-fill"
-            fill
-            sizes="200px"
-          />
+          <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full">
+            <Image
+              src={profile.avatar ?? "/placeholder.svg"}
+              alt={profile.gamer_tag}
+              className="object-cover"
+              fill
+              sizes="80px"
+            />
+          </div>
           <div>
             <h1 className="text-2xl font-bold text-ggz-text-primary">{profile.gamer_tag}</h1>
             <p className="text-ggz-text-secondary">{profile.follower_count} followers</p>
