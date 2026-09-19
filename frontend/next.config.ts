@@ -24,6 +24,10 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "*.googleusercontent.com",
       },
+      {
+        protocol: "http",
+        hostname: "localhost",
+      },
     ],
   },
   async rewrites() {
@@ -48,6 +52,22 @@ const nextConfig: NextConfig = {
       {
         source: "/static/:path*",
         destination: `${backendUrl}/static/:path*`,
+      },
+      {
+        source: "/privacy",
+        destination: `${backendUrl}/privacy/`,
+      },
+      {
+        source: "/terms",
+        destination: `${backendUrl}/terms/`,
+      },
+      {
+        source: "/cookies",
+        destination: `${backendUrl}/cookies/`,
+      },
+      {
+        source: "/refund",
+        destination: `${backendUrl}/refund/`,
       },
     ];
   },

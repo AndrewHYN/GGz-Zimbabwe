@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { SearchIcon, FilterIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/Badge";
-import { GameArtwork } from "@/components/ui/Avatar";
+import { GameArtwork } from "@/components/ui/GameArtwork";
 
 const GENRES = ["All", "Action", "RPG", "Sports", "Strategy", "Shooter", "Adventure", "Simulation", "Fighting", "Racing"];
 const PLATFORMS = ["All", "PC", "PlayStation", "Xbox", "Nintendo", "Mobile"];

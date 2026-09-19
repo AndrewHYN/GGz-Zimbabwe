@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import Image from "next/image";
 
 interface AvatarProps {
   src?: string | null;
@@ -27,37 +27,15 @@ export function Avatar({ src, alt, size = "md", fallback, className = "" }: Avat
   }
 
   return (
-    <img
-      src={src}
-      alt={alt}
-      className={`${sizes[size]} rounded-full object-cover flex-shrink-0 ${className}`}
-      loading="lazy"
-    />
-  );
-}
-
-interface GameArtworkProps {
-  src: string | null;
-  alt: string;
-  className?: string;
-  priority?: boolean;
-}
-
-export function GameArtwork({ src, alt, className = "", priority = false }: GameArtworkProps) {
-  if (!src) {
-    return (
-      <div className={`bg-ggz-bg-2 flex items-center justify-center ${className}`}>
-        <span className="text-ggz-text-muted text-sm font-medium">No artwork</span>
-      </div>
-    );
-  }
-
-  return (
-    <img
-      src={src}
-      alt={alt}
-      className={`object-cover ${className}`}
-      loading={priority ? "eager" : "lazy"}
-    />
+    <div className={`${sizes[size]} relative rounded-full overflow-hidden flex-shrink-0 ${className}`}>
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        className="object-cover"
+        sizes="80px"
+        unoptimized
+      />
+    </div>
   );
 }

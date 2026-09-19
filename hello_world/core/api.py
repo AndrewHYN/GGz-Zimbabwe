@@ -19,6 +19,34 @@ def _serialize_file_field(field):
 
 
 @require_GET
+def api_profile_detail(request, gamer_tag):
+    from accounts.models import GamerProfile
+    from django.shortcuts import get_object_or_404
+    
+    profile = get_object_or_404(GamerProfile, gamer_tag=gamer_tag)
+    viewer = getattr(request.user, "gamer_profile", None) if request.user.is_authenticated else None
+    
+    data = {
+        "id": profile.id,
+        "gamer_tag": profile.gamer_tag,
+        "avatar": _serialize_file_field(profile.avatar),
+        "bio": profile.bio,
+        "location": profile.location,
+        "platform": profile.platform,
+        "follower_count": profile.followers.count(),
+        "following_count": profile.following.count(),
+        "is_following": False,
+        "followers": [],
+        "following": [],
+    }
+    
+    if viewer and viewer != profile:
+        data["is_following"] = profile.followers.filter(id=viewer.id).exists()
+    
+    return JsonResponse(data)
+
+
+@require_GET
 def api_csrf_token(request):
     get_token(request)
     return JsonResponse({'ok': True})

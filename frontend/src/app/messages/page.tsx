@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 interface Participant {
   username: string;
@@ -126,10 +127,12 @@ export default function MessagesPage() {
                     : "hover:bg-ggz-bg-2"
                 }`}
               >
-                <img
+                <Image
                   src={conv.other_participant.avatar_url}
                   alt={conv.other_participant.username}
-                  className="w-9 h-9 rounded-full bg-ggz-border shrink-0"
+                  className="w-9 h-9 rounded-full bg-ggz-border object-cover shrink-0"
+                  fill
+                  sizes="36px"
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">

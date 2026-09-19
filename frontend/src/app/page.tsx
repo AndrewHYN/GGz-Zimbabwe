@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   GamepadIcon,
   TrophyIcon,
@@ -68,7 +69,7 @@ const quickLinks = [
     description: "Join tournaments and prove your skills.",
   },
   {
-    href: "/players",
+    href: "/gamers",
     icon: UsersIcon,
     label: "Find Players",
     description: "Connect with other gamers and form teams.",
@@ -86,7 +87,7 @@ const quickLinks = [
     description: "Stay up to date with upcoming events.",
   },
   {
-    href: "/community",
+    href: "/feed",
     icon: UsersIcon,
     label: "Community",
     description: "Join the conversation and share content.",
@@ -160,10 +161,12 @@ export default async function Home() {
                 >
                   <div className="relative aspect-[16/9] bg-ggz-bg-2">
                     {game.cover_image ? (
-                      <img
+                      <Image
                         src={game.cover_image}
                         alt={game.name}
                         className="w-full h-full object-cover"
+                        fill
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                       />
                     ) : (
                       <div className="flex items-center justify-center w-full h-full">

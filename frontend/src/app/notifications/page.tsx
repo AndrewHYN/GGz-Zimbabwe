@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 interface Notification {
   id: string;
@@ -99,11 +100,13 @@ export default function NotificationsPage() {
                   : "border-ggz-amber/40 bg-ggz-amber/5"
               }`}
             >
-              <img
-                src={n.actor.avatar_url}
-                alt={n.actor.username}
-                className="w-9 h-9 rounded-full bg-ggz-border shrink-0"
-              />
+<Image
+                  src={n.actor.avatar_url}
+                  alt={n.actor.username}
+                  className="w-9 h-9 rounded-full bg-ggz-border object-cover shrink-0"
+                  fill
+                  sizes="36px"
+                />
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-ggz-text-secondary">
                   <span className="font-semibold text-ggz-text-primary">

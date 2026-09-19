@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 interface Profile {
   gamer_tag?: string;
@@ -9,6 +10,7 @@ interface Profile {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -23,10 +25,10 @@ export default function DashboardPage() {
       })
       .then((data) => setProfile(data))
       .catch(() => {
-        window.location.href = "/auth/login";
+        router.push("/auth/login");
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [router]);
 
   if (loading) {
     return (

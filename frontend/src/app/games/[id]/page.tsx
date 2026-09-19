@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
-import { GameArtwork } from "@/components/ui/Avatar";
-import { StarIcon, ExternalLinkIcon, HeartIcon } from "@/components/icons";
+import { GameArtwork } from "@/components/ui/GameArtwork";
+import { StarIcon, ExternalLinkIcon } from "@/components/icons";
 
 interface StoreLink {
   name: string;

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 interface Post {
   id: string;
@@ -17,7 +17,6 @@ interface Post {
 }
 
 export default function FeedPage() {
-  const router = useRouter();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(false);
@@ -94,10 +93,12 @@ export default function FeedPage() {
               className="block bg-ggz-bg-1 border border-ggz-border rounded-[var(--radius-lg)] p-5 hover:border-ggz-amber/40 transition"
             >
               <div className="flex items-start gap-3">
-                <img
+                <Image
                   src={post.author.avatar_url}
                   alt={post.author.username}
-                  className="w-10 h-10 rounded-full bg-ggz-border"
+                  className="w-10 h-10 rounded-full bg-ggz-border object-cover"
+                  fill
+                  sizes="40px"
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">

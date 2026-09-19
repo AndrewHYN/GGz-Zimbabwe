@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   SearchIcon,
   BellIcon,
@@ -79,6 +79,7 @@ function DropdownLink({ href, icon: Icon, label, pathname }: { href: string; ico
 
 export default function Navigation() {
   const pathname = usePathname();
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -143,7 +144,29 @@ export default function Navigation() {
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     if (searchQuery.trim()) {
-      window.location.href = `/search?q=${encodeURIComponent(searchQuery.trim())}`;
+      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  }
+
+  function getCsrfToken(): string {
+    if (typeof document === "undefined") return "";
+    const match = document.cookie.match(/csrftoken=([^;]+)/);
+    return match ? match[1] : "";
+  }
+
+  async function handleLogout() {
+    try {
+      await fetch("/accounts/logout/", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "X-CSRFToken": getCsrfToken(),
+          "X-Requested-With": "XMLHttpRequest",
+        },
+      });
+      router.push("/");
+    } catch {
+      router.push("/");
     }
   }
 
@@ -308,12 +331,7 @@ export default function Navigation() {
                       <ChevronDownIcon className={`hidden sm:block h-3.5 w-3.5 text-ggz-text-secondary transition-transform ${profileOpen ? "rotate-180" : ""}`} />
                     </button>
 
-                    <div
-                      ref={profileRef}
-                      className={`absolute right-0 top-full mt-1 min-w-[200px] rounded-[var(--radius-md)] border border-ggz-border bg-ggz-bg-1 p-1 shadow-lg ${
-                        profileOpen ? "animate-fade-in" : "hidden"
-                      }`}
-                    >
+                    <NavDropdown ref={profileRef} open={profileOpen}>
                       <div className="border-b border-ggz-border px-3 py-2 mb-1">
                         <p className="text-sm font-medium text-ggz-text-primary">{user.displayName || user.username}</p>
                         <p className="text-xs text-ggz-text-muted">@{user.username}</p>
@@ -324,16 +342,18 @@ export default function Navigation() {
                       <DropdownLink href="/messages" pathname={pathname} icon={MessageIcon} label="Messages" />
                       <DropdownLink href="/accounts/security/" pathname={pathname} icon={GamepadIcon} label="Settings" />
                       <div className="my-1 border-t border-ggz-border" />
-                      <form method="post" action="/accounts/logout/">
-                        <button type="submit" className="flex w-full items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm text-red-400 hover:bg-ggz-surface transition-colors">
-                          Log out
-                        </button>
-                      </form>
-                    </div>
+                      <button
+                        type="button"
+                        onClick={handleLogout}
+                        className="flex w-full items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm text-red-400 hover:bg-ggz-surface transition-colors"
+                      >
+                        Log out
+                      </button>
+                    </NavDropdown>
                   </div>
                 </>
               ) : (
-                <Link href="/login">
+                <Link href="/auth/login">
                   <Button variant="primary" size="sm">
                     Log In
                   </Button>
@@ -503,11 +523,13 @@ export default function Navigation() {
                   <GamepadIcon className="h-4 w-4" />
                   Settings
                 </Link>
-                <form method="post" action="/accounts/logout/">
-                  <button type="submit" className="flex w-full items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm text-red-400 hover:bg-ggz-surface transition-colors">
-                    Log out
-                  </button>
-                </form>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="flex w-full items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm text-red-400 hover:bg-ggz-surface transition-colors"
+                >
+                  Log out
+                </button>
               </div>
             )}
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 
 interface Gamer {
   id: number;
@@ -62,10 +63,12 @@ export default function GamersPage() {
               >
                 <div className="flex items-center gap-3 mb-3">
                   {gamer.avatar ? (
-                    <img
+                    <Image
                       src={gamer.avatar}
                       alt={gamer.gamer_tag}
                       className="w-10 h-10 rounded-full object-cover"
+                      fill
+                      sizes="40px"
                     />
                   ) : (
                     <div className="w-10 h-10 rounded-full bg-ggz-amber/20 flex items-center justify-center text-ggz-amber font-bold text-lg">
