@@ -1,34 +1,49 @@
 import type { NextConfig } from "next";
 
+const backendUrl = process.env.NEXT_PUBLIC_DJANGO_URL || "http://localhost:8000";
+const remotePatterns: NonNullable<NextConfig["images"]>["remotePatterns"] = [
+  {
+    protocol: "https",
+    hostname: "*.supabase.co",
+    pathname: "/storage/v1/object/public/**",
+  },
+  {
+    protocol: "https",
+    hostname: "images.igdb.com",
+  },
+  {
+    protocol: "https",
+    hostname: "cdn.discordapp.com",
+  },
+  {
+    protocol: "https",
+    hostname: "*.googleapis.com",
+  },
+  {
+    protocol: "https",
+    hostname: "*.googleusercontent.com",
+  },
+  {
+    protocol: "http",
+    hostname: "localhost",
+  },
+];
+
+try {
+  const parsedBackend = new URL(backendUrl);
+  if (parsedBackend.hostname !== "localhost") {
+    remotePatterns.push({
+      protocol: parsedBackend.protocol === "https:" ? "https" : "http",
+      hostname: parsedBackend.hostname,
+      port: parsedBackend.port,
+      pathname: "/**",
+    });
+  }
+}
+
 const nextConfig: NextConfig = {
   images: {
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "*.supabase.co",
-        pathname: "/storage/v1/object/public/**",
-      },
-      {
-        protocol: "https",
-        hostname: "images.igdb.com",
-      },
-      {
-        protocol: "https",
-        hostname: "cdn.discordapp.com",
-      },
-      {
-        protocol: "https",
-        hostname: "*.googleapis.com",
-      },
-      {
-        protocol: "https",
-        hostname: "*.googleusercontent.com",
-      },
-      {
-        protocol: "http",
-        hostname: "localhost",
-      },
-    ],
+    remotePatterns,
   },
   async rewrites() {
     const backendUrl = process.env.NEXT_PUBLIC_DJANGO_URL || "http://localhost:8000";
