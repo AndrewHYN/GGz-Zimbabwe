@@ -26,6 +26,7 @@ from accounts import views as account_views
 from tournaments import views as tournament_views
 from events import views as event_views
 from hello_world.core import views as core_views
+from hello_world.core import api as api_views
 
 urlpatterns = [
     path("", core_views.index, name="index"),
@@ -46,6 +47,19 @@ urlpatterns = [
     path("radar/locations/<int:location_id>/rate/", account_views.radar_location_rating_create, name="radar_location_rating_create"),
     path("radar/locations/<int:location_id>/reviews/create/", account_views.radar_location_review_create, name="radar_location_review_create"),
     path("radar/locations/<int:location_id>/reviews/<int:review_id>/delete/", account_views.radar_location_review_delete, name="radar_location_review_delete"),
+    # Next.js frontend API endpoints
+    path("api/me/", api_views.api_me, name="api_me"),
+    path("api/games/", api_views.api_games_list, name="api_games_list"),
+    path("api/games/<int:game_id>/", api_views.api_game_detail, name="api_game_detail"),
+    path("api/tournaments/", api_views.api_tournaments_list, name="api_tournaments_list"),
+    path("api/events/", api_views.api_events_list, name="api_events_list"),
+    path("api/teams/", api_views.api_teams_list, name="api_teams_list"),
+    path("api/marketplace/", api_views.api_marketplace_list, name="api_marketplace_list"),
+    path("api/search/", api_views.api_search, name="api_search"),
+    path("api/notifications/", api_views.api_notifications_list, name="api_notifications_list"),
+    path("api/feed/", api_views.api_feed_list, name="api_feed_list"),
+    path("api/messages/", api_views.api_conversations_list, name="api_conversations_list"),
+    path("api/profiles/gamers/", api_views.api_gamers_list, name="api_gamers_list"),
     path("admin/", admin.site.urls),
     path("profiles/", include("accounts.urls")),
     path("games/", include("games.urls")),
