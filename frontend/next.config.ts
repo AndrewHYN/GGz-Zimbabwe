@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const backendUrl = process.env.NEXT_PUBLIC_DJANGO_URL || "http://localhost:8000";
-const remotePatterns: NonNullable<NextConfig["images"]>["remotePatterns"] = [
+const remotePatterns: NonNullable<NonNullable<NextConfig["images"]>["remotePatterns"]> = [
   {
     protocol: "https",
     hostname: "*.supabase.co",
