@@ -1,3 +1,5 @@
+const API_BASE = process.env.NEXT_PUBLIC_DJANGO_URL || "http://localhost:8000";
+
 import Link from "next/link";
 import { SearchIcon, FilterIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/Badge";
@@ -36,7 +38,7 @@ async function getGames(searchParams: SearchParams) {
   if (searchParams.sort) params.set("sort", searchParams.sort);
   if (searchParams.q) params.set("q", searchParams.q);
 
-  const url = `${process.env.NEXT_PUBLIC_DJANGO_URL}/games/?format=json&${params.toString()}`;
+  const url = `${API_BASE}/games/?format=json&${params.toString()}`;
 
   try {
     const res = await fetch(url, { next: { revalidate: 60 } });

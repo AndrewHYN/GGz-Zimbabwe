@@ -1,6 +1,10 @@
+const API_BASE = process.env.NEXT_PUBLIC_DJANGO_URL || "http://localhost:8000";
+
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Marketplace - GG2",
@@ -53,7 +57,7 @@ export default async function MarketplacePage({
   const category = typeof params.category === "string" ? params.category : "All";
   const condition = typeof params.condition === "string" ? params.condition : "All";
 
-  const apiUrl = new URL(`${process.env.NEXT_PUBLIC_DJANGO_URL}/marketplace/`);
+  const apiUrl = new URL(`${API_BASE}/marketplace/`);
   apiUrl.searchParams.set("format", "json");
   if (category !== "All") apiUrl.searchParams.set("category", category);
   if (condition !== "All") apiUrl.searchParams.set("condition", condition);

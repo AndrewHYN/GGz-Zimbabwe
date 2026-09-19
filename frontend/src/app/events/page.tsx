@@ -1,3 +1,5 @@
+const API_BASE = process.env.NEXT_PUBLIC_DJANGO_URL || "http://localhost:8000";
+
 import Link from "next/link";
 import Image from "next/image";
 
@@ -26,18 +28,26 @@ function formatDate(dateStr: string) {
   });
 }
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
-  title: "Events | GG2",
+  title: "Events | GGz",
   description: "Browse upcoming gaming events.",
 };
 
 export default async function EventsPage() {
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_DJANGO_URL}/events/?format=json`,
-    { cache: "no-store" }
-  );
-  const data = await res.json();
-  const events: Event[] = data.results ?? data;
+  let events: Event[] = [];
+  try {
+    const res = await fetch(`${API_BASE}/events/?format=json`, {
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const data = await res.json();
+      events = data.results ?? data;
+    }
+  } catch {
+    // Render an empty state when the Django API is unavailable.
+  }
 
   return (
     <div className="max-w-[1536px] mx-auto px-4 py-8">

@@ -1,3 +1,5 @@
+const API_BASE = process.env.NEXT_PUBLIC_DJANGO_URL || "http://localhost:8000";
+
 import Link from "next/link";
 
 const STATUS_OPTIONS = ["all", "upcoming", "active", "completed"] as const;
@@ -46,8 +48,10 @@ function formatDate(dateStr: string) {
   });
 }
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
-  title: "Tournaments | GG2",
+  title: "Tournaments | GGz",
   description: "Browse and join gaming tournaments.",
 };
 
@@ -61,12 +65,18 @@ export default async function TournamentsPage({
     ? (params.status as typeof STATUS_OPTIONS[number])
     : "all";
 
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_DJANGO_URL}/tournaments/?format=json`,
-    { cache: "no-store" }
-  );
-  const data = await res.json();
-  let tournaments: Tournament[] = data.results ?? data;
+  let tournaments: Tournament[] = [];
+  try {
+    const res = await fetch(`${API_BASE}/tournaments/?format=json`, {
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const data = await res.json();
+      tournaments = data.results ?? data;
+    }
+  } catch {
+    // Render an empty state when the Django API is unavailable.
+  }
 
   if (statusFilter !== "all") {
     tournaments = tournaments.filter(
