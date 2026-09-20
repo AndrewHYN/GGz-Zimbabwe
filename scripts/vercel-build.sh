@@ -8,6 +8,7 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
 fi
 
 database_scheme="${DATABASE_URL%%:*}"
+echo "debug db scheme: ${database_scheme}"
 if [[ "${database_scheme,,}" == "sqlite" ]]; then
     echo "database configured: yes"
     echo "backend detected: SQLite"
