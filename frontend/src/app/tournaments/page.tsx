@@ -149,7 +149,7 @@ export default async function TournamentsPage({
               </div>
 
               <div className="mt-4 space-y-1 text-sm text-ggz-text-secondary">
-                <p>{formatDate(t.start_date)}</p>
+                <p>{t.start_date ? formatDate(t.start_date) : "Date TBD"}</p>
                 <p>Up to {t.max_participants} participants</p>
                 {t.location && <p>{t.location}</p>}
                 {t.mode && <p className="capitalize">{t.mode} tournament</p>}
