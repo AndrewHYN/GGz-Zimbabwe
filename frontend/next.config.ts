@@ -29,16 +29,20 @@ const remotePatterns: NonNullable<NonNullable<NextConfig["images"]>["remotePatte
   },
 ];
 
+let parsedBackend: URL | undefined;
 try {
-  const parsedBackend = new URL(backendUrl);
-  if (parsedBackend.hostname !== "localhost") {
-    remotePatterns.push({
-      protocol: parsedBackend.protocol === "https:" ? "https" : "http",
-      hostname: parsedBackend.hostname,
-      port: parsedBackend.port,
-      pathname: "/**",
-    });
-  }
+  parsedBackend = new URL(backendUrl);
+} catch {
+  parsedBackend = undefined;
+}
+
+if (parsedBackend && parsedBackend.hostname !== "localhost") {
+  remotePatterns.push({
+    protocol: parsedBackend.protocol === "https:" ? "https" : "http",
+    hostname: parsedBackend.hostname,
+    port: parsedBackend.port || undefined,
+    pathname: "/**",
+  });
 }
 
 const nextConfig: NextConfig = {
