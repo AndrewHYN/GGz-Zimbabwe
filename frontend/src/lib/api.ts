@@ -94,7 +94,7 @@ class ApiClient {
     return this.request<T>(endpoint, { method: "DELETE" });
   }
 
-  async checkAuth(): Promise<{ authenticated: boolean; user?: { id: number; username: string; email: string }; profile?: { gamer_tag: string; avatar: string | null } }> {
+  async checkAuth(): Promise<{ authenticated: boolean; user?: { id: number; username: string; email: string }; profile?: { gamer_tag: string | null; avatar: string | null } }> {
     try {
       const data = await this.get<{ authenticated: boolean; user?: { id: number; username: string; email: string }; profile?: { gamer_tag: string | null; avatar: string | null } }>("/api/me/");
       return data;
