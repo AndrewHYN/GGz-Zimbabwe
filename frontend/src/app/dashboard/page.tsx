@@ -15,7 +15,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/profiles/me/", {
+    fetch("/api/me/", {
       credentials: "include",
       headers: { "X-Requested-With": "XMLHttpRequest" },
     })
