@@ -8,7 +8,8 @@ interface Team {
   slug: string;
   member_count: number;
   wins: number;
-  losses: number;
+  losses?: number;
+  status: string;
 }
 
 async function fetchTeams(): Promise<Team[]> {
