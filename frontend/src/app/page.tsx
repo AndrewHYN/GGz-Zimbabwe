@@ -17,7 +17,7 @@ interface HomeGame {
   name: string;
   genre?: string;
   platform?: string;
-  cover_image?: string;
+  cover_art_url?: string;
   slug?: string;
 }
 
@@ -33,7 +33,7 @@ interface HomeTournament {
 
 async function getGames(): Promise<HomeGame[]> {
   try {
-    const res = await fetch(`${API_BASE}/games/?format=json`, {
+    const res = await fetch(`${API_BASE}/api/games/`, {
       next: { revalidate: 60 },
     });
     if (!res.ok) return [];
@@ -46,7 +46,7 @@ async function getGames(): Promise<HomeGame[]> {
 
 async function getTournaments(): Promise<HomeTournament[]> {
   try {
-    const res = await fetch(`${API_BASE}/tournaments/?format=json`, {
+    const res = await fetch(`${API_BASE}/api/tournaments/`, {
       next: { revalidate: 60 },
     });
     if (!res.ok) return [];
@@ -162,9 +162,9 @@ export default async function Home() {
                   className="group block bg-ggz-bg-1 border border-ggz-border rounded-[var(--radius-lg)] overflow-hidden hover:border-ggz-border-strong transition-all"
                 >
                   <div className="relative aspect-[16/9] bg-ggz-bg-2">
-                    {game.cover_image ? (
+                    {game.cover_art_url ? (
                       <Image
-                        src={game.cover_image}
+                        src={game.cover_art_url}
                         alt={game.name}
                         className="w-full h-full object-cover"
                         fill
