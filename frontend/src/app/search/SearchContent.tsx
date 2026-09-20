@@ -50,7 +50,42 @@ export default function SearchContent() {
         });
         if (res.ok) {
           const data = await res.json();
-          setResults(data.results || data);
+          const flattened: SearchResult[] = [
+            ...(data.games ?? []).map((g: { id: number; name: string }) => ({
+              id: g.id,
+              name: g.name,
+              type: "game" as const,
+            })),
+            ...(data.gamers ?? []).map(
+              (u: { id: number; gamer_tag: string }) => ({
+                id: u.id,
+                username: u.gamer_tag,
+                type: "gamer" as const,
+              })
+            ),
+            ...(data.teams ?? []).map(
+              (t: { id: number; name: string; slug: string }) => ({
+                id: t.id,
+                name: t.name,
+                slug: t.slug,
+                type: "team" as const,
+              })
+            ),
+            ...(data.tournaments ?? []).map(
+              (t: { id: number; name: string; slug: string }) => ({
+                id: t.id,
+                name: t.name,
+                slug: t.slug,
+                type: "tournament" as const,
+              })
+            ),
+            ...(data.events ?? []).map((e: { id: number; name: string }) => ({
+              id: e.id,
+              name: e.name,
+              type: "event" as const,
+            })),
+          ];
+          setResults(flattened);
         } else {
           setResults([]);
         }
