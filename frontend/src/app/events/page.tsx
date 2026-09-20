@@ -12,12 +12,13 @@ const MODE_COLORS: Record<string, string> = {
 interface Event {
   id: number;
   name: string;
-  date: string;
-  location: string;
+  start_date: string | null;
+  location: string | null;
   mode: string;
-  banner_image: string | null;
-  organizer: { id: number; name: string };
-  rsvp_count: number;
+  status: string;
+  banner: string | null;
+  game_name: string | null;
+  organization_name: string | null;
 }
 
 function formatDate(dateStr: string) {
@@ -38,7 +39,7 @@ export const metadata = {
 export default async function EventsPage() {
   let events: Event[] = [];
   try {
-    const res = await fetch(`${API_BASE}/events/?format=json`, {
+    const res = await fetch(`${API_BASE}/api/events/`, {
       cache: "no-store",
     });
     if (res.ok) {
@@ -69,9 +70,9 @@ export default async function EventsPage() {
               className="group overflow-hidden rounded-[var(--radius-lg)] border border-ggz-border bg-ggz-bg-1 transition-colors hover:border-ggz-amber/40"
             >
               <div className="relative h-44 w-full bg-zinc-800">
-                {e.banner_image ? (
+                {e.banner ? (
                   <Image
-                    src={e.banner_image}
+                    src={e.banner}
                     alt={e.name}
                     fill
                     className="object-cover"
@@ -98,14 +99,14 @@ export default async function EventsPage() {
                 </div>
 
                 <div className="mt-3 space-y-1 text-sm text-ggz-text-secondary">
-                  <p>{formatDate(e.date)}</p>
+                  <p>{e.start_date ? formatDate(e.start_date) : "Date TBD"}</p>
                   {e.location && <p>{e.location}</p>}
                   <p className="text-ggz-text-muted">
-                    {e.organizer?.name ?? "Unknown organizer"}
+                    {e.organization_name ?? "Community event"}
                   </p>
+                  {e.game_name && <p>{e.game_name}</p>}
                   <p>
-                    <span className="text-ggz-amber">{e.rsvp_count}</span>{" "}
-                    attending
+                    <span className="text-ggz-amber">{e.status}</span>
                   </p>
                 </div>
               </div>
