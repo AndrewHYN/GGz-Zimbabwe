@@ -7,13 +7,14 @@ import Image from "next/image";
 interface Notification {
   id: string;
   actor: {
-    username: string;
-    avatar_url: string;
+    gamer_tag: string;
+    avatar: string;
   };
-  verb: string;
+  notification_type: string;
+  message: string;
   target: string;
   created_at: string;
-  read: boolean;
+  is_read: boolean;
 }
 
 export default function NotificationsPage() {
@@ -33,7 +34,7 @@ export default function NotificationsPage() {
           return;
         }
         const data = await res.json();
-        setNotifications(data.results ?? data);
+        setNotifications(Array.isArray(data) ? data : (data.results ?? data));
       } catch {
         setAuthError(true);
       } finally {
@@ -44,7 +45,7 @@ export default function NotificationsPage() {
   }, []);
 
   useEffect(() => {
-    if (authError) router.push("/login");
+    if (authError) router.push("/auth/login");
   }, [authError, router]);
 
   async function markAllRead() {
@@ -101,8 +102,8 @@ export default function NotificationsPage() {
               }`}
             >
 <Image
-                  src={n.actor.avatar_url}
-                  alt={n.actor.username}
+                  src={n.actor.avatar}
+                  alt={n.actor.gamer_tag}
                   className="w-9 h-9 rounded-full bg-ggz-border object-cover shrink-0"
                   fill
                   sizes="36px"
@@ -110,9 +111,9 @@ export default function NotificationsPage() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-ggz-text-secondary">
                   <span className="font-semibold text-ggz-text-primary">
-                    {n.actor.username}
+                    {n.actor.gamer_tag}
                   </span>{" "}
-                  {n.verb}
+                  {n.notification_type}
                   {n.target && (
                     <>
                       {" "}
@@ -126,7 +127,7 @@ export default function NotificationsPage() {
                   {new Date(n.created_at).toLocaleDateString()}
                 </span>
               </div>
-              {!n.read && (
+              {!n.is_read && (
                 <span className="w-2.5 h-2.5 rounded-full bg-ggz-amber shrink-0 mt-1" />
               )}
             </div>

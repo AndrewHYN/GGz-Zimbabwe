@@ -1,8 +1,8 @@
 from django.http import JsonResponse
 from django.middleware.csrf import get_token
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_GET, require_http_methods
 
-from accounts.models import GamerProfile, Notification, Post
+from accounts.models import GamerProfile, Notification, Post, Conversation, Message, ConversationParticipant
 from events.models import Event
 from games.models import Game
 from marketplace.models import Listing
@@ -441,3 +441,53 @@ def api_gamers_list(request):
             'platform': gp.platform or None,
         })
     return JsonResponse(data, safe=False)
+
+
+@require_GET
+def api_notifications_mark_all_read(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({"authenticated": False}, status=401)
+    try:
+        profile = GamerProfile.objects.get(user=request.user)
+    except GamerProfile.DoesNotExist:
+        return JsonResponse({"ok": False}, status=404)
+    Notification.objects.filter(recipient=profile, is_read=False).update(is_read=True)
+    return JsonResponse({"ok": True})
+
+
+@require_http_methods(["GET", "POST"])
+def api_conversation_detail(request, conversation_id):
+    if not request.user.is_authenticated:
+        return JsonResponse({"authenticated": False}, status=401)
+    try:
+        profile = GamerProfile.objects.get(user=request.user)
+        conversation = Conversation.objects.get(id=conversation_id)
+    except (GamerProfile.DoesNotExist, Conversation.DoesNotExist):
+        return JsonResponse({"error": "Not found"}, status=404)
+    if request.method == "POST":
+        import json
+        try:
+            body = json.loads(request.body)
+            content = body.get("content", "").strip()
+        except (json.JSONDecodeError, AttributeError):
+            content = ""
+        if not content:
+            return JsonResponse({"error": "Content is required"}, status=400)
+        other = next((p.profile for p in ConversationParticipant.objects.filter(conversation=conversation).exclude(profile=profile)), None)
+        if not other:
+            return JsonResponse({"error": "No other participant"}, status=404)
+        message = Message.objects.create(conversation=conversation, sender=profile, recipient=other, content=content)
+        return JsonResponse({"id": message.id, "sender": profile.gamer_tag, "content": message.content, "created_at": message.created_at.isoformat() if message.created_at else None})
+    participants = list(ConversationParticipant.objects.filter(conversation=conversation).select_related("profile", "profile__user"))
+    other = next((p.profile for p in participants if p.profile != profile), None)
+    data = {
+        "id": conversation.id,
+        "other_participant": {
+            "id": other.user.id if other and other.user else None,
+            "username": other.user.username if other and other.user else None,
+            "gamer_tag": other.gamer_tag if other else None,
+            "avatar": _serialize_file_field(other.avatar) if other else None,
+        },
+        "messages": [],
+    }
+    return JsonResponse(data)

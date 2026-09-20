@@ -33,7 +33,7 @@ export default function FeedPage() {
           return;
         }
         const data = await res.json();
-        setPosts(data.results ?? data);
+        setResults(Array.isArray(data) ? data : (data.results ?? data));
       } catch {
         setAuthError(true);
       } finally {
@@ -62,7 +62,7 @@ export default function FeedPage() {
             You need to be logged in to view the feed.
           </p>
           <Link
-            href="/login"
+            href="/auth/login"
             className="inline-block bg-ggz-amber text-black font-semibold px-6 py-2 rounded-[var(--radius-lg)] hover:opacity-90 transition"
           >
             Log In
@@ -94,8 +94,8 @@ export default function FeedPage() {
             >
               <div className="flex items-start gap-3">
                 <Image
-                  src={post.author.avatar_url}
-                  alt={post.author.username}
+                  src={post.author.avatar}
+                  alt={post.author.gamer_tag}
                   className="w-10 h-10 rounded-full bg-ggz-border object-cover"
                   fill
                   sizes="40px"
@@ -103,7 +103,7 @@ export default function FeedPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-semibold text-ggz-text-primary">
-                      {post.author.username}
+                      {post.author.gamer_tag}
                     </span>
                     <span className="text-xs text-ggz-text-muted">
                       {new Date(post.created_at).toLocaleDateString()}

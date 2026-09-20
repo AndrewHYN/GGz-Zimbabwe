@@ -57,7 +57,7 @@ export default function MessagesPage() {
   }, []);
 
   useEffect(() => {
-    if (authError) router.push("/login");
+    if (authError) router.push("/auth/login");
   }, [authError, router]);
 
   useEffect(() => {
@@ -128,7 +128,7 @@ export default function MessagesPage() {
                 }`}
               >
                 <Image
-                  src={conv.other_participant.avatar_url}
+                  src={conv.other_participant.avatar}
                   alt={conv.other_participant.username}
                   className="w-9 h-9 rounded-full bg-ggz-border object-cover shrink-0"
                   fill
