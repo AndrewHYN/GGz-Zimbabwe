@@ -19,6 +19,7 @@ const SORT_OPTIONS = [
 interface Game {
   id: number;
   name: string;
+  developer?: string | null;
   genre: string;
   platform: string;
   release_year: number | null;
@@ -37,7 +38,7 @@ interface SearchParams {
 
 async function getGames(searchParams: SearchParams) {
   try {
-    const res = await fetch(\`${API_BASE}/api/games/\`, { next: { revalidate: 60 } });
+    const res = await fetch(`${API_BASE}/api/games/`, { next: { revalidate: 60 } });
     if (!res.ok) return [];
     const data = await res.json();
     let games = (data.results ?? data) as Game[];
