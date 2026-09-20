@@ -10,15 +10,19 @@ interface StoreLink {
 
 interface Game {
   id: number;
-  title: string;
+  name: string;
   description: string;
   genre: string;
   platform: string;
-  year: number;
+  release_year: number | null;
   developer: string;
-  igdb_rating?: number;
-  artwork_url?: string;
-  store_links?: StoreLink[];
+  igdb_rating?: number | null;
+  cover_art_url?: string | null;
+  player_count?: number | null;
+  free_to_play?: boolean;
+  steam_url?: string | null;
+  epic_url?: string | null;
+  store_url?: string | null;
 }
 
 export default async function GamePage({
@@ -32,7 +36,7 @@ export default async function GamePage({
 
   try {
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_DJANGO_URL || "http://localhost:8000"}/games/${id}/?format=json`
+      `${process.env.NEXT_PUBLIC_DJANGO_URL || "http://localhost:8000"}/api/games/${id}/`
     );
     if (!res.ok) {
       throw new Error("Game not found");
@@ -69,30 +73,30 @@ export default async function GamePage({
       <div className="rounded-[var(--radius-lg)] overflow-hidden mb-8">
         <div className="aspect-[21/9] hidden md:block">
           <GameArtwork
-            src={game.artwork_url ?? null}
-            alt={game.title}
+            src={game.cover_art_url ?? null}
+            alt={game.name}
             className="w-full h-full object-cover"
           />
         </div>
         <div className="aspect-[16/9] block md:hidden">
           <GameArtwork
-            src={game.artwork_url ?? null}
-            alt={game.title}
+            src={game.cover_art_url ?? null}
+            alt={game.name}
             className="w-full h-full object-cover"
           />
         </div>
       </div>
 
-      <h1 className="text-3xl font-bold mb-4">{game.title}</h1>
+      <h1 className="text-3xl font-bold mb-4">{game.name}</h1>
 
       <div className="flex flex-wrap gap-2 mb-6">
         {game.genre && <Badge>{game.genre}</Badge>}
         {game.platform && <Badge>{game.platform}</Badge>}
-        {game.year && <Badge>{game.year}</Badge>}
+        {game.release_year && <Badge>{game.release_year}</Badge>}
         {game.developer && <Badge>{game.developer}</Badge>}
       </div>
 
-      <p className="text-ggz-text leading-relaxed mb-8">{game.description}</p>
+      <p className="text-ggz-text leading-relaxed mb-8">{game.description || "No description available."}</p>
 
       {game.igdb_rating != null && (
         <div className="flex items-center gap-2 mb-8">
@@ -102,19 +106,23 @@ export default async function GamePage({
         </div>
       )}
 
-      {game.store_links && game.store_links.length > 0 && (
+      {(game.steam_url || game.epic_url || game.store_url) && (
         <div className="mb-8">
-          <h2 className="text-xl font-semibold mb-4">Store Links</h2>
+          <h2 className="text-xl font-semibold mb-4">Get the Game</h2>
           <div className="flex flex-wrap gap-3">
-            {game.store_links.map((link) => (
+            {[
+              ["Steam", game.steam_url],
+              ["Epic Games", game.epic_url],
+              ["Store", game.store_url],
+            ].filter((entry): entry is [string, string] => Boolean(entry[1])).map(([name, url]) => (
               <a
-                key={link.name}
-                href={link.url}
+                key={name}
+                href={url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-4 py-2 bg-ggz-surface border border-ggz-border rounded-[var(--radius-md)] hover:bg-ggz-surface-hover transition-colors"
               >
-                {link.name}
+                {name}
                 <ExternalLinkIcon className="w-4 h-4" />
               </a>
             ))}
