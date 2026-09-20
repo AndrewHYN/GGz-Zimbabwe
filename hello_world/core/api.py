@@ -132,7 +132,7 @@ def api_game_detail(request, game_id):
 
 @require_GET
 def api_tournaments_list(request):
-    tournaments = Tournament.objects.select_related('game').all()
+    tournaments = Tournament.objects.select_related('game', 'organizer').prefetch_related('registrations').all()
     data = []
     for t in tournaments:
         data.append({
@@ -143,16 +143,21 @@ def api_tournaments_list(request):
             'format': t.format,
             'status': t.status,
             'start_date': t.start_date.isoformat() if t.start_date else None,
+            'registration_deadline': t.registration_deadline.isoformat() if t.registration_deadline else None,
             'location': t.location or None,
             'mode': t.mode,
+            'entry_type': t.entry_type,
             'max_participants': t.max_participants,
+            'participant_count': t.registrations.filter(status='Registered').count(),
+            'prize_description': t.prize_description or None,
+            'organizer_name': t.organizer.gamer_tag if t.organizer else None,
         })
     return JsonResponse(data, safe=False)
 
 
 @require_GET
 def api_events_list(request):
-    events = Event.objects.select_related('game', 'organization').all()
+    events = Event.objects.select_related('game', 'organization').prefetch_related('rsvps').all()
     data = []
     for e in events:
         data.append({
@@ -161,18 +166,24 @@ def api_events_list(request):
             'description': e.description or None,
             'start_date': e.start_date.isoformat() if e.start_date else None,
             'location': e.location or None,
+            'city': e.city or None,
+            'province': e.province or None,
+            'country': e.country or None,
             'mode': e.mode,
             'status': e.status,
             'banner': _serialize_file_field(e.banner),
             'game_name': e.game.name if e.game else None,
             'organization_name': e.organization.name if e.organization else None,
+            'organizer_name': e.organizer.gamer_tag if e.organizer else None,
+            'rsvp_count': e.rsvps.count(),
+            'capacity': e.capacity,
         })
     return JsonResponse(data, safe=False)
 
 
 @require_GET
 def api_teams_list(request):
-    teams = Team.objects.all()
+    teams = Team.objects.select_related('game', 'owner').prefetch_related('memberships').all()
     data = []
     for team in teams:
         data.append({
@@ -183,7 +194,13 @@ def api_teams_list(request):
             'description': team.description or None,
             'location': team.location or None,
             'status': team.status,
+            'game_name': team.game.name if team.game else None,
+            'logo': _serialize_file_field(team.logo),
             'member_count': team.memberships.count(),
+            'wins': team.wins,
+            'losses': team.losses,
+            'matches_played': team.matches_played,
+            'win_rate': team.win_rate,
         })
     return JsonResponse(data, safe=False)
 
