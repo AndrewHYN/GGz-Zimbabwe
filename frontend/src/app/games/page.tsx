@@ -18,12 +18,14 @@ const SORT_OPTIONS = [
 
 interface Game {
   id: number;
-  title: string;
+  name: string;
   genre: string;
   platform: string;
-  year: number | null;
-  rating: number | null;
-  artwork_url: string | null;
+  release_year: number | null;
+  igdb_rating: number | null;
+  cover_art_url: string | null;
+  player_count: number | null;
+  featured: boolean;
 }
 
 interface SearchParams {
@@ -34,19 +36,53 @@ interface SearchParams {
 }
 
 async function getGames(searchParams: SearchParams) {
-  const params = new URLSearchParams();
-  if (searchParams.genre && searchParams.genre !== "All") params.set("genre", searchParams.genre);
-  if (searchParams.platform && searchParams.platform !== "All") params.set("platform", searchParams.platform);
-  if (searchParams.sort) params.set("sort", searchParams.sort);
-  if (searchParams.q) params.set("q", searchParams.q);
-
-  const url = `${API_BASE}/games/?format=json&${params.toString()}`;
-
   try {
-    const res = await fetch(url, { next: { revalidate: 60 } });
+    const res = await fetch(\`${API_BASE}/api/games/\`, { next: { revalidate: 60 } });
     if (!res.ok) return [];
     const data = await res.json();
-    return (data.results ?? data) as Game[];
+    let games = (data.results ?? data) as Game[];
+
+    if (searchParams.q) {
+      const query = searchParams.q.toLowerCase();
+      games = games.filter((game) =>
+        [game.name, game.genre, game.platform, game.developer]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(query))
+      );
+    }
+
+    if (searchParams.genre && searchParams.genre !== "All") {
+      games = games.filter((game) =>
+        game.genre?.toLowerCase().includes(searchParams.genre!.toLowerCase())
+      );
+    }
+
+    if (searchParams.platform && searchParams.platform !== "All") {
+      games = games.filter((game) =>
+        game.platform?.toLowerCase().includes(searchParams.platform!.toLowerCase())
+      );
+    }
+
+    switch (searchParams.sort) {
+      case "name":
+        games.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case "newest":
+        games.sort((a, b) => (b.release_year ?? 0) - (a.release_year ?? 0));
+        break;
+      case "rating":
+        games.sort((a, b) => (b.igdb_rating ?? 0) - (a.igdb_rating ?? 0));
+        break;
+      default:
+        games.sort(
+          (a, b) =>
+            Number(b.featured) - Number(a.featured) ||
+            (b.player_count ?? 0) - (a.player_count ?? 0)
+        );
+        break;
+    }
+
+    return games;
   } catch {
     return [];
   }
@@ -167,12 +203,12 @@ export default async function GamesPage({
               className="bg-ggz-bg-1 border border-ggz-border rounded-[var(--radius-lg)] overflow-hidden hover:border-ggz-border-strong transition-all"
             >
               <GameArtwork
-                src={game.artwork_url}
-                alt={game.title}
+                src={game.cover_art_url}
+                alt={game.name}
                 className="aspect-[16/10] w-full"
               />
               <div className="p-3">
-                <h2 className="font-semibold truncate">{game.title}</h2>
+                <h2 className="font-semibold truncate">{game.name}</h2>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {game.genre && (
                     <Badge className="text-xs">{game.genre}</Badge>
@@ -181,8 +217,8 @@ export default async function GamesPage({
                     <Badge className="text-xs">{game.platform}</Badge>
                   )}
                 </div>
-                {game.year && (
-                  <p className="text-xs text-ggz-text-2 mt-2">{game.year}</p>
+                {game.release_year && (
+                  <p className="text-xs text-ggz-text-2 mt-2">{game.release_year}</p>
                 )}
               </div>
             </Link>
