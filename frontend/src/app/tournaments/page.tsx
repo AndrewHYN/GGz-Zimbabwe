@@ -2,42 +2,43 @@ const API_BASE = process.env.NEXT_PUBLIC_DJANGO_URL || "http://localhost:8000";
 
 import Link from "next/link";
 
-const STATUS_OPTIONS = ["all", "upcoming", "active", "completed"] as const;
+const STATUS_OPTIONS = ["all", "registration", "live", "completed"] as const;
 
 const STATUS_COLORS: Record<string, string> = {
-  upcoming: "bg-ggz-amber/20 text-ggz-amber",
-  active: "bg-emerald-500/20 text-emerald-400",
-  completed: "bg-zinc-500/20 text-zinc-400",
+  "Registration Open": "bg-ggz-amber/20 text-ggz-amber",
+  Live: "bg-emerald-500/20 text-emerald-400",
+  Completed: "bg-zinc-500/20 text-zinc-400",
 };
 
 const FORMAT_COLORS: Record<string, string> = {
-  single_elimination: "bg-purple-500/15 text-purple-400",
-  double_elimination: "bg-purple-500/15 text-purple-400",
-  round_robin: "bg-blue-500/15 text-blue-400",
-  swiss: "bg-teal-500/15 text-teal-400",
-  free_for_all: "bg-orange-500/15 text-orange-400",
+  "1v1": "bg-purple-500/15 text-purple-400",
+  "2v2": "bg-purple-500/15 text-purple-400",
+  "3v3": "bg-blue-500/15 text-blue-400",
+  "4v4": "bg-teal-500/15 text-teal-400",
+  "5v5": "bg-orange-500/15 text-orange-400",
+  "Free For All": "bg-red-500/15 text-red-400",
 };
 
 const FORMAT_LABELS: Record<string, string> = {
-  single_elimination: "Single Elimination",
-  double_elimination: "Double Elimination",
-  round_robin: "Round Robin",
-  swiss: "Swiss",
-  free_for_all: "Free for All",
+  "1v1": "1v1",
+  "2v2": "2v2",
+  "3v3": "3v3",
+  "4v4": "4v4",
+  "5v5": "5v5",
+  "Free For All": "Free for All",
 };
 
 interface Tournament {
   id: number;
   slug: string;
   name: string;
-  game: { id: number; name: string };
+  game_name: string | null;
   format: string;
   status: string;
-  start_date: string;
-  end_date: string;
-  participant_count: number;
-  prize_pool: string | null;
-  prize_currency: string | null;
+  start_date: string | null;
+  location: string | null;
+  mode: string;
+  max_participants: number;
 }
 
 function formatDate(dateStr: string) {
@@ -67,7 +68,7 @@ export default async function TournamentsPage({
 
   let tournaments: Tournament[] = [];
   try {
-    const res = await fetch(`${API_BASE}/tournaments/?format=json`, {
+    const res = await fetch(`${API_BASE}/api/tournaments/`, {
       cache: "no-store",
     });
     if (res.ok) {
@@ -79,9 +80,11 @@ export default async function TournamentsPage({
   }
 
   if (statusFilter !== "all") {
-    tournaments = tournaments.filter(
-      (t: Tournament) => t.status === statusFilter
-    );
+    tournaments = tournaments.filter((t: Tournament) => {
+      if (statusFilter === "registration") return t.status === "Registration Open";
+      if (statusFilter === "live") return t.status === "Live";
+      return t.status === "Completed";
+    });
   }
 
   return (
@@ -104,7 +107,7 @@ export default async function TournamentsPage({
                 : "bg-ggz-bg-1 text-ggz-text-muted hover:text-ggz-text-primary border border-ggz-border"
             }`}
           >
-            {s.charAt(0).toUpperCase() + s.slice(1)}
+            {s === "registration" ? "Registration Open" : s.charAt(0).toUpperCase() + s.slice(1)}
           </Link>
         ))}
       </div>
@@ -122,7 +125,7 @@ export default async function TournamentsPage({
               className="group rounded-[var(--radius-lg)] border border-ggz-border bg-ggz-bg-1 p-5 transition-colors hover:border-ggz-amber/40"
             >
               <p className="text-xs text-ggz-text-muted uppercase tracking-wide">
-                {t.game.name}
+                {t.game_name || "Unknown game"}
               </p>
               <h2 className="mt-1 font-semibold text-ggz-text-primary group-hover:text-ggz-amber transition-colors">
                 {t.name}
@@ -147,12 +150,9 @@ export default async function TournamentsPage({
 
               <div className="mt-4 space-y-1 text-sm text-ggz-text-secondary">
                 <p>{formatDate(t.start_date)}</p>
-                <p>{t.participant_count} participants</p>
-                {t.prize_pool && (
-                  <p className="text-ggz-amber">
-                    Prize: {t.prize_currency} {t.prize_pool}
-                  </p>
-                )}
+                <p>Up to {t.max_participants} participants</p>
+                {t.location && <p>{t.location}</p>}
+                {t.mode && <p className="capitalize">{t.mode} tournament</p>}
               </div>
             </Link>
           ))}
