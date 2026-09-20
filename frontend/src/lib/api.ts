@@ -96,7 +96,7 @@ class ApiClient {
 
   async checkAuth(): Promise<{ authenticated: boolean; user?: { id: number; username: string; email: string }; profile?: { gamer_tag: string; avatar: string | null } }> {
     try {
-      const data = await this.get<{ authenticated: boolean; user?: { id: number; username: string; email: string }; profile?: { gamer_tag: string; avatar: string | null } }>("/api/profiles/me/");
+      const data = await this.get<{ authenticated: boolean; user?: { id: number; username: string; email: string }; profile?: { gamer_tag: string | null; avatar: string | null } }>("/api/me/");
       return data;
     } catch {
       return { authenticated: false };
