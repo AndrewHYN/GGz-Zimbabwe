@@ -190,9 +190,14 @@ def api_teams_list(request):
 
 @require_GET
 def api_marketplace_list(request):
-    listings = Listing.objects.select_related('seller', 'game').all()
+    listings = (
+        Listing.objects.select_related('seller', 'game')
+        .prefetch_related('images', 'saves')
+        .filter(status__in=('Available', 'Reserved'))
+    )
     data = []
     for listing in listings:
+        first_image = next(iter(listing.images.all()), None)
         data.append({
             'id': listing.id,
             'title': listing.title,
@@ -204,6 +209,9 @@ def api_marketplace_list(request):
             'platform': listing.platform or None,
             'status': listing.status,
             'seller_name': listing.seller.gamer_tag if listing.seller else None,
+            'seller_avatar': _serialize_file_field(listing.seller.avatar) if listing.seller else None,
+            'image': _serialize_file_field(first_image.image) if first_image else None,
+            'save_count': listing.saves.count(),
             'game_name': listing.game.name if listing.game else None,
             'created_at': listing.created_at.isoformat() if listing.created_at else None,
         })
