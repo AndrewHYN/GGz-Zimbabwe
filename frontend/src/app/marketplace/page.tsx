@@ -57,7 +57,7 @@ export default async function MarketplacePage({
   const category = typeof params.category === "string" ? params.category : "All";
   const condition = typeof params.condition === "string" ? params.condition : "All";
 
-  const apiUrl = new URL(`${API_BASE}/marketplace/`);
+  const apiUrl = new URL(`${API_BASE}/api/marketplace/`);
   apiUrl.searchParams.set("format", "json");
   if (category !== "All") apiUrl.searchParams.set("category", category);
   if (condition !== "All") apiUrl.searchParams.set("condition", condition);
