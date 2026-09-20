@@ -4,7 +4,7 @@ interface Team {
   id: string;
   name: string;
   tag: string;
-  game: string;
+  game_name?: string | null;
   slug: string;
   member_count: number;
   wins: number;
@@ -13,7 +13,7 @@ interface Team {
 
 async function fetchTeams(): Promise<Team[]> {
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_DJANGO_URL}/teams/?format=json`,
+    `${process.env.NEXT_PUBLIC_DJANGO_URL || "http://localhost:8000"}/api/teams/`,
     { cache: "no-store" }
   );
   if (!res.ok) return [];
@@ -59,14 +59,11 @@ export default async function TeamsPage() {
                 </span>
               </div>
               <p className="text-sm text-ggz-text-secondary mb-2">
-                {team.game}
+                {team.game_name || "Any game"}
               </p>
               <div className="flex gap-4 text-sm text-ggz-text-muted">
                 <span>{team.member_count} member{team.member_count !== 1 && "s"}</span>
-                <span>
-                  <span className="text-green-400">{team.wins}W</span>{" "}
-                  <span className="text-red-400">{team.losses}L</span>
-                </span>
+                <span>{team.status}</span>
               </div>
             </Link>
           ))}
