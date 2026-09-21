@@ -2,7 +2,7 @@ from django.http import JsonResponse
 from django.middleware.csrf import get_token
 from django.db.models import Count
 from django.utils import timezone
-from django.views.decorators.http import require_GET, require_http_methods
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from accounts.models import GamerProfile, Notification, Post, Conversation, Message, ConversationParticipant
 from events.models import Event
@@ -704,3 +704,8 @@ def api_conversation_detail(request, conversation_id):
         "messages": [],
     }
     return JsonResponse(data)
+
+
+@require_POST
+def api_conversation_send_message(request, conversation_id):
+    return api_conversation_detail(request, conversation_id)
