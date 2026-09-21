@@ -72,8 +72,6 @@ export default function DiscoverPage() {
         <RadarMap points={mapPoints} />
 
         <div className="rounded-2xl border border-ggz-border bg-ggz-bg-1 p-4">
-        
-        <div className="rounded-2xl border border-ggz-border bg-ggz-bg-1 p-4">
           <div className="mb-3"><h2 className="font-semibold text-ggz-text-primary">Radar results</h2><p className="text-xs text-ggz-text-muted">{loading ? "Loading…" : items.length + " results"}</p></div>
           <div className="max-h-[470px] space-y-2 overflow-y-auto">
             {items.map((item, index) => (
