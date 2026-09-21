@@ -1,5 +1,6 @@
 "use client";
 
+import RadarMap from "@/components/maps/RadarMap";
 import { useEffect, useMemo, useState } from "react";
 
 interface MapItem {
@@ -53,6 +54,7 @@ export default function DiscoverPage() {
   }, [query]);
 
   const items = useMemo(() => [...data.locations, ...data.venues, ...data.events, ...data.tournaments, ...data.organizations].slice(0, 60), [data]);
+  const mapPoints = useMemo(() => items.filter((item) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude)), [items]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
@@ -67,21 +69,10 @@ export default function DiscoverPage() {
       </div>
 
       <div className="mt-5 grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
-        <div className="min-h-[520px] rounded-2xl border border-ggz-border bg-[radial-gradient(circle_at_20%_20%,rgba(245,158,11,0.12),transparent_25%),radial-gradient(circle_at_75%_30%,rgba(139,92,246,0.14),transparent_28%),linear-gradient(135deg,#0e1720,#0a0e14)] p-6">
-          <div className="grid h-full min-h-[468px] place-items-center rounded-xl border border-white/5 bg-black/10 p-8 text-center">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ggz-amber">Map data connected</p>
-              <p className="mt-3 max-w-md text-sm leading-6 text-ggz-text-secondary">Coordinates, hotspots, venues, events and organizations are coming from GGz&apos;s existing Radar backend. The production Google Maps layer can be mounted here without changing the underlying data model.</p>
-              <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <div className="rounded-xl border border-ggz-border bg-ggz-bg-2 p-4"><p className="text-2xl font-bold text-ggz-text-primary">{data.hotspots.length}</p><p className="text-xs text-ggz-text-muted">Hotspots</p></div>
-                <div className="rounded-xl border border-ggz-border bg-ggz-bg-2 p-4"><p className="text-2xl font-bold text-ggz-text-primary">{data.venues.length + data.locations.length}</p><p className="text-xs text-ggz-text-muted">Gaming places</p></div>
-                <div className="rounded-xl border border-ggz-border bg-ggz-bg-2 p-4"><p className="text-2xl font-bold text-ggz-text-primary">{data.events.length}</p><p className="text-xs text-ggz-text-muted">Events</p></div>
-                <div className="rounded-xl border border-ggz-border bg-ggz-bg-2 p-4"><p className="text-2xl font-bold text-ggz-text-primary">{data.tournaments.length}</p><p className="text-xs text-ggz-text-muted">Tournaments</p></div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <RadarMap points={mapPoints} />
 
+        <div className="rounded-2xl border border-ggz-border bg-ggz-bg-1 p-4">
+        
         <div className="rounded-2xl border border-ggz-border bg-ggz-bg-1 p-4">
           <div className="mb-3"><h2 className="font-semibold text-ggz-text-primary">Radar results</h2><p className="text-xs text-ggz-text-muted">{loading ? "Loading…" : items.length + " results"}</p></div>
           <div className="max-h-[470px] space-y-2 overflow-y-auto">
