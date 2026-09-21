@@ -76,7 +76,7 @@ export default function NotificationsPage() {
         <h1 className="text-2xl font-bold text-ggz-text-primary">
           Notifications
         </h1>
-        {notifications.some((n) => !n.read) && (
+        {notifications.some((n) => !n.is_read) && (
           <button
             onClick={markAllRead}
             className="bg-ggz-amber text-black font-semibold px-5 py-2 rounded-[var(--radius-lg)] hover:opacity-90 transition"
@@ -96,7 +96,7 @@ export default function NotificationsPage() {
             <div
               key={n.id}
               className={`bg-ggz-bg-1 border rounded-[var(--radius-lg)] p-4 flex items-start gap-3 transition ${
-                n.read
+                n.is_read
                   ? "border-ggz-border"
                   : "border-ggz-amber/40 bg-ggz-amber/5"
               }`}

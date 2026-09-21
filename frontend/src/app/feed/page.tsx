@@ -7,8 +7,8 @@ import Image from "next/image";
 interface Post {
   id: string;
   author: {
-    username: string;
-    avatar_url: string;
+    gamer_tag: string;
+    avatar: string;
   };
   content: string;
   created_at: string;
@@ -33,7 +33,7 @@ export default function FeedPage() {
           return;
         }
         const data = await res.json();
-        setResults(Array.isArray(data) ? data : (data.results ?? data));
+        setPosts(Array.isArray(data) ? data : (data.results ?? data));
       } catch {
         setAuthError(true);
       } finally {

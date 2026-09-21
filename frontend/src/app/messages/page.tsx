@@ -6,7 +6,7 @@ import Image from "next/image";
 
 interface Participant {
   username: string;
-  avatar_url: string;
+  avatar: string;
 }
 
 interface Message {
