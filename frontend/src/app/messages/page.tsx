@@ -61,19 +61,27 @@ export default function MessagesPage() {
 
   useEffect(() => {
     if (selectedId == null) return;
-    setDetailLoading(true);
+    let cancelled = false;
     fetch("/api/messages/" + selectedId + "/", { credentials: "include" })
       .then((res) => {
+        if (cancelled) return null;
         if (!res.ok) throw new Error("Conversation unavailable");
         return res.json();
       })
       .then((detail) => {
-        setConversations((items) =>
-          items.map((item) => item.id === selectedId ? { ...item, ...detail, messages: detail.messages ?? [] } : item)
-        );
+        if (!cancelled && detail) {
+          setConversations((items) =>
+            items.map((item) => item.id === selectedId ? { ...item, ...detail, messages: detail.messages ?? [] } : item)
+          );
+        }
       })
       .catch(() => {})
-      .finally(() => setDetailLoading(false));
+      .finally(() => {
+        if (!cancelled) setDetailLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedId]);
 
   useEffect(() => {
@@ -128,7 +136,7 @@ export default function MessagesPage() {
             {conversations.length === 0 ? (
               <div className="p-6 text-sm text-ggz-text-secondary">No conversations yet. Open a gamer profile to start a conversation.</div>
             ) : conversations.map((conversation) => (
-              <button key={conversation.id} onClick={() => setSelectedId(conversation.id)} className={"flex w-full items-center gap-3 border-b border-ggz-border/70 px-4 py-3 text-left transition " + (selectedId === conversation.id ? "bg-ggz-amber/10" : "hover:bg-ggz-bg-2")}>
+              <button key={conversation.id} onClick={() => { setDetailLoading(true); setSelectedId(conversation.id); }} className={"flex w-full items-center gap-3 border-b border-ggz-border/70 px-4 py-3 text-left transition " + (selectedId === conversation.id ? "bg-ggz-amber/10" : "hover:bg-ggz-bg-2")}>
                 <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-ggz-bg-2">
                   {conversation.other_participant.avatar ? <Image src={conversation.other_participant.avatar} alt="" fill sizes="40px" className="object-cover" /> : <div className="flex h-full w-full items-center justify-center text-xs font-bold text-ggz-amber">{(conversation.other_participant.gamer_tag || "G").slice(0, 1).toUpperCase()}</div>}
                 </div>

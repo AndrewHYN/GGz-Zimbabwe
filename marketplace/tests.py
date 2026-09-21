@@ -23,6 +23,55 @@ class MarketplaceTests(TestCase):
 		self.assertContains(response, "Gaming PC")
 		self.assertContains(self.client.get(reverse("listing_detail", args=[self.listing.id])), "SellerZW")
 
+	def test_marketplace_api_respects_category_and_condition_filters(self):
+		Listing.objects.create(seller=self.seller, title="Pro Headset", description="Audio", category="Headsets", price=60, condition="New", location="Harare")
+		Listing.objects.create(seller=self.seller, title="Old Chair", description="Worn", category="Gaming Chairs", price=20, condition="Fair", location="Bulawayo")
+		Listing.objects.create(seller=self.seller, title="Sold GPU", description="Gone", category="GPUs", price=300, condition="Good", location="Harare", status="Sold")
+		url = reverse("api_marketplace_list")
+
+		response = self.client.get(url)
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual({item["title"] for item in response.json()}, {"Gaming PC", "Pro Headset", "Old Chair"})
+
+		response = self.client.get(url, {"category": "Headsets"})
+		self.assertEqual([item["title"] for item in response.json()], ["Pro Headset"])
+
+		response = self.client.get(url, {"condition": "Fair"})
+		self.assertEqual([item["title"] for item in response.json()], ["Old Chair"])
+
+		response = self.client.get(url, {"category": "Gaming", "condition": "Good"})
+		self.assertEqual([item["title"] for item in response.json()], ["Gaming PC"])
+
+		response = self.client.get(url, {"category": "No Such Category"})
+		self.assertEqual(response.json(), [])
+
+	def test_marketplace_detail_api_returns_seller_and_save_state(self):
+		response = self.client.get(reverse("api_marketplace_detail", args=(self.listing.id,)))
+		self.assertEqual(response.status_code, 200)
+		payload = response.json()
+		self.assertEqual(payload["title"], "Gaming PC")
+		self.assertEqual(payload["seller"]["gamer_tag"], "SellerZW")
+		self.assertFalse(payload["is_owner"])
+		self.assertFalse(payload["is_saved"])
+		self.assertEqual(self.client.get(reverse("api_marketplace_detail", args=(999999,))).status_code, 404)
+		self.client.login(username="seller", password="pass-12345")
+		payload = self.client.get(reverse("api_marketplace_detail", args=(self.listing.id,))).json()
+		self.assertTrue(payload["is_owner"])
+
+	def test_marketplace_api_save_report_and_contact(self):
+		self.client.login(username="buyer", password="pass-12345")
+		save = self.client.post(reverse("api_marketplace_save", args=(self.listing.id,)), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertTrue(save.json()["saved"])
+		self.assertTrue(SavedListing.objects.filter(user=self.buyer, listing=self.listing).exists())
+		unsave = self.client.post(reverse("api_marketplace_save", args=(self.listing.id,)), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertFalse(unsave.json()["saved"])
+		report = self.client.post(reverse("api_marketplace_report", args=(self.listing.id,)), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertTrue(report.json()["ok"])
+		self.assertTrue(Report.objects.filter(reported_listing_id=self.listing.id).exists())
+		contact = self.client.post(reverse("api_marketplace_contact", args=(self.listing.id,)), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertTrue(contact.json()["ok"])
+		self.assertTrue(MessageRequest.objects.filter(sender=self.buyer, recipient=self.seller, status="Pending").exists())
+
 	def test_owner_can_mark_sold_but_other_user_cannot_edit(self):
 		self.client.login(username="buyer", password="pass-12345")
 		self.assertEqual(self.client.get(reverse("listing_edit", args=[self.listing.id])).status_code, 404)

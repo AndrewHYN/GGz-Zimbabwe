@@ -243,6 +243,12 @@ def api_marketplace_list(request):
         .prefetch_related('images', 'saves')
         .filter(status__in=('Available', 'Reserved'))
     )
+    category = request.GET.get('category', '').strip()
+    if category:
+        listings = listings.filter(category__icontains=category)
+    condition = request.GET.get('condition', '').strip()
+    if condition:
+        listings = listings.filter(condition__icontains=condition)
     data = []
     for listing in listings:
         first_image = next(iter(listing.images.all()), None)
@@ -678,44 +684,6 @@ def api_leaderboards(request):
             for index, profile in enumerate(profiles, start=1)
         ],
     })
-@require_http_methods(["GET", "POST"])
-def api_conversation_detail(request, conversation_id):
-    if not request.user.is_authenticated:
-        return JsonResponse({"authenticated": False}, status=401)
-    try:
-        profile = GamerProfile.objects.get(user=request.user)
-        conversation = Conversation.objects.get(id=conversation_id)
-    except (GamerProfile.DoesNotExist, Conversation.DoesNotExist):
-        return JsonResponse({"error": "Not found"}, status=404)
-    if request.method == "POST":
-        import json
-        try:
-            body = json.loads(request.body)
-            content = body.get("content", "").strip()
-        except (json.JSONDecodeError, AttributeError):
-            content = ""
-        if not content:
-            return JsonResponse({"error": "Content is required"}, status=400)
-        other = next((p.profile for p in ConversationParticipant.objects.filter(conversation=conversation).exclude(profile=profile)), None)
-        if not other:
-            return JsonResponse({"error": "No other participant"}, status=404)
-        message = Message.objects.create(conversation=conversation, sender=profile, recipient=other, content=content)
-        return JsonResponse({"id": message.id, "sender": profile.gamer_tag, "content": message.content, "created_at": message.created_at.isoformat() if message.created_at else None})
-    participants = list(ConversationParticipant.objects.filter(conversation=conversation).select_related("profile", "profile__user"))
-    other = next((p.profile for p in participants if p.profile != profile), None)
-    data = {
-        "id": conversation.id,
-        "other_participant": {
-            "id": other.user.id if other and other.user else None,
-            "username": other.user.username if other and other.user else None,
-            "gamer_tag": other.gamer_tag if other else None,
-            "avatar": _serialize_file_field(other.avatar) if other else None,
-        },
-        "messages": [],
-    }
-    return JsonResponse(data)
-
-
 @require_POST
 def api_conversation_send_message(request, conversation_id):
     return api_conversation_detail(request, conversation_id)
@@ -779,3 +747,425 @@ def api_profile_game_add(request, gamer_tag):
 def api_profile_game_remove(request, gamer_tag, game_id):
     from accounts.views import profile_game_remove
     return profile_game_remove(request, gamer_tag, game_id)
+
+
+@require_GET
+def api_tournament_detail(request, slug):
+    from tournaments.models import TournamentRegistration
+
+    try:
+        tournament = (
+            Tournament.objects.select_related('game', 'organizer')
+            .prefetch_related('registrations__player')
+            .get(slug=slug)
+        )
+    except Tournament.DoesNotExist:
+        return JsonResponse({'error': 'Tournament not found'}, status=404)
+    viewer = getattr(request.user, 'gamer_profile', None) if request.user.is_authenticated else None
+    registration = None
+    if viewer:
+        registration = TournamentRegistration.objects.filter(tournament=tournament, player=viewer).first()
+    participants = [
+        {
+            'gamer_tag': reg.player.gamer_tag,
+            'avatar': _serialize_file_field(reg.player.avatar),
+            'status': reg.status,
+        }
+        for reg in tournament.registrations.select_related('player').filter(status='Registered').order_by('joined_at')
+    ]
+    matches = [
+        {
+            'id': match.id,
+            'round': match.round,
+            'status': match.status,
+            'score': match.score or None,
+            'player_one': match.player_one.gamer_tag if match.player_one else None,
+            'player_two': match.player_two.gamer_tag if match.player_two else None,
+            'winner': match.winner.gamer_tag if match.winner else None,
+        }
+        for match in tournament.matches.select_related('player_one', 'player_two', 'winner').order_by('round', 'id')
+    ]
+    registered_count = tournament.registrations.filter(status='Registered').count()
+    return JsonResponse({
+        'id': tournament.id,
+        'name': tournament.name,
+        'slug': tournament.slug,
+        'description': tournament.description or None,
+        'rules': tournament.rules or None,
+        'format': tournament.format,
+        'status': tournament.status,
+        'mode': tournament.mode,
+        'entry_type': tournament.entry_type,
+        'prize_description': tournament.prize_description or None,
+        'game_name': tournament.game.name if tournament.game else None,
+        'location': tournament.location or None,
+        'city': tournament.city or None,
+        'province': tournament.province or None,
+        'country': tournament.country or None,
+        'start_date': tournament.start_date.isoformat() if tournament.start_date else None,
+        'registration_deadline': tournament.registration_deadline.isoformat() if tournament.registration_deadline else None,
+        'max_participants': tournament.max_participants,
+        'participant_count': registered_count,
+        'organizer': {
+            'gamer_tag': tournament.organizer.gamer_tag if tournament.organizer else None,
+            'avatar': _serialize_file_field(tournament.organizer.avatar) if tournament.organizer else None,
+        },
+        'is_organizer': bool(viewer and tournament.organizer_id == viewer.id),
+        'registration_status': registration.status if registration else None,
+        'participants': participants,
+        'matches': matches,
+    })
+
+
+@require_POST
+def api_tournament_register(request, slug):
+    from tournaments.views import tournament_register
+    return tournament_register(request, slug)
+
+
+@require_POST
+def api_tournament_leave(request, slug):
+    from tournaments.views import tournament_leave
+    return tournament_leave(request, slug)
+
+
+@require_GET
+def api_event_detail(request, event_id):
+    try:
+        event = (
+            Event.objects.select_related('organizer', 'game', 'organization')
+            .prefetch_related('rsvps__attendee')
+            .get(id=event_id)
+        )
+    except Event.DoesNotExist:
+        return JsonResponse({'error': 'Event not found'}, status=404)
+    profile = getattr(request.user, 'gamer_profile', None) if request.user.is_authenticated else None
+    rsvp_count = event.rsvps.count()
+    return JsonResponse({
+        'id': event.id,
+        'name': event.name,
+        'description': event.description or None,
+        'start_date': event.start_date.isoformat() if event.start_date else None,
+        'location': event.location or None,
+        'city': event.city or None,
+        'province': event.province or None,
+        'country': event.country or None,
+        'mode': event.mode,
+        'status': event.status,
+        'banner': _serialize_file_field(event.banner),
+        'capacity': event.capacity,
+        'rsvp_count': rsvp_count,
+        'spots_remaining': None if not event.capacity else max(event.capacity - rsvp_count, 0),
+        'game_name': event.game.name if event.game else None,
+        'organization_name': event.organization.name if event.organization else None,
+        'organizer': {
+            'gamer_tag': event.organizer.gamer_tag if event.organizer else None,
+            'avatar': _serialize_file_field(event.organizer.avatar) if event.organizer else None,
+        },
+        'is_organizer': bool(profile and event.organizer_id == profile.id),
+        'is_rsvped': bool(profile and event.rsvps.filter(attendee=profile).exists()),
+        'attendees': [
+            {'gamer_tag': rsvp.attendee.gamer_tag, 'avatar': _serialize_file_field(rsvp.attendee.avatar)}
+            for rsvp in event.rsvps.select_related('attendee')[:50]
+        ],
+    })
+
+
+@require_POST
+def api_event_rsvp(request, event_id):
+    from events.views import event_rsvp
+    return event_rsvp(request, event_id)
+
+
+@require_POST
+def api_event_leave(request, event_id):
+    from events.views import event_leave
+    return event_leave(request, event_id)
+
+
+@require_GET
+def api_team_detail(request, slug):
+    from teams.models import TeamMembership
+
+    try:
+        team = Team.objects.select_related('owner', 'game').prefetch_related('memberships__player__user').get(slug=slug)
+    except Team.DoesNotExist:
+        return JsonResponse({'error': 'Team not found'}, status=404)
+    viewer = getattr(request.user, 'gamer_profile', None) if request.user.is_authenticated else None
+    roster = [
+        {
+            'gamer_tag': membership.player.gamer_tag,
+            'avatar': _serialize_file_field(membership.player.avatar),
+            'role': membership.role,
+            'is_owner': membership.player_id == team.owner_id,
+        }
+        for membership in team.memberships.select_related('player').order_by('role', 'player__gamer_tag')
+    ]
+    viewer_role = next((entry['role'] for entry in roster if viewer and entry['gamer_tag'] == viewer.gamer_tag), None)
+    is_manager = bool(
+        viewer
+        and (team.owner_id == viewer.id or TeamMembership.objects.filter(team=team, player=viewer, role='Captain').exists())
+    )
+    return JsonResponse({
+        'id': team.id,
+        'name': team.name,
+        'tag': team.tag,
+        'slug': team.slug,
+        'description': team.description or None,
+        'location': team.location or None,
+        'status': team.status,
+        'game_name': team.game.name if team.game else None,
+        'logo': _serialize_file_field(team.logo),
+        'banner': _serialize_file_field(team.banner),
+        'owner_gamer_tag': team.owner.gamer_tag if team.owner else None,
+        'member_count': team.memberships.count(),
+        'wins': team.wins,
+        'losses': team.losses,
+        'matches_played': team.matches_played,
+        'win_rate': team.win_rate,
+        'roster': roster,
+        'viewer_role': viewer_role,
+        'is_manager': is_manager,
+        'is_member': viewer_role is not None,
+    })
+
+
+@require_POST
+def api_team_create(request):
+    from django.utils.text import slugify
+    from teams.forms import TeamForm
+    from teams.models import TeamMembership
+
+    if not request.user.is_authenticated:
+        return JsonResponse({'authenticated': False}, status=401)
+    try:
+        profile = GamerProfile.objects.get(user=request.user)
+    except GamerProfile.DoesNotExist:
+        return JsonResponse({'error': 'Profile not found'}, status=404)
+    form = TeamForm(request.POST, request.FILES or None)
+    if not form.is_valid():
+        return JsonResponse({'ok': False, 'errors': form.errors.get_json_data()}, status=400)
+    team = form.save(commit=False)
+    team.owner = profile
+    team.slug = slugify(team.name)
+    team.save()
+    TeamMembership.objects.create(team=team, player=profile, role='Captain')
+    return JsonResponse({'ok': True, 'slug': team.slug, 'id': team.id}, status=201)
+
+
+@require_POST
+def api_marketplace_save(request, listing_id):
+    from marketplace.views import listing_save
+    return listing_save(request, listing_id)
+
+
+@require_POST
+def api_marketplace_report(request, listing_id):
+    from marketplace.views import listing_report
+    return listing_report(request, listing_id)
+
+
+@require_POST
+def api_marketplace_contact(request, listing_id):
+    from marketplace.views import contact_seller
+    return contact_seller(request, listing_id)
+
+
+@require_GET
+def api_marketplace_detail(request, listing_id):
+    from marketplace.models import SavedListing
+
+    try:
+        listing = (
+            Listing.objects.select_related('seller__user', 'game')
+            .prefetch_related('images')
+            .get(id=listing_id)
+        )
+    except Listing.DoesNotExist:
+        return JsonResponse({'error': 'Listing not found'}, status=404)
+    viewer = getattr(request.user, 'gamer_profile', None) if request.user.is_authenticated else None
+    return JsonResponse({
+        'id': listing.id,
+        'title': listing.title,
+        'description': listing.description or None,
+        'category': listing.category,
+        'price': str(listing.price),
+        'condition': listing.condition,
+        'location': listing.location,
+        'platform': listing.platform or None,
+        'status': listing.status,
+        'game_name': listing.game.name if listing.game else None,
+        'created_at': listing.created_at.isoformat() if listing.created_at else None,
+        'images': [_serialize_file_field(image.image) for image in listing.images.all()],
+        'seller': {
+            'gamer_tag': listing.seller.gamer_tag if listing.seller else None,
+            'avatar': _serialize_file_field(listing.seller.avatar) if listing.seller else None,
+        },
+        'is_owner': bool(viewer and listing.seller_id == viewer.id),
+        'is_saved': bool(viewer and SavedListing.objects.filter(user=viewer, listing=listing).exists()),
+        'save_count': listing.saves.count(),
+    })
+
+
+@require_GET
+def api_feed_detail(request, post_id):
+    from accounts.models import PostLike, PostSave
+    from accounts.views import _visible_posts
+
+    viewer = getattr(request.user, 'gamer_profile', None) if request.user.is_authenticated else None
+    post = _visible_posts(viewer).select_related('author', 'author__user', 'game').filter(id=post_id).first()
+    if post is None:
+        return JsonResponse({'error': 'Post not found'}, status=404)
+    comments = [
+        {
+            'id': comment.id,
+            'author': {
+                'gamer_tag': comment.author.gamer_tag,
+                'avatar': _serialize_file_field(comment.author.avatar),
+            },
+            'body': comment.body,
+            'created_at': comment.created_at.isoformat() if comment.created_at else None,
+        }
+        for comment in post.comments.select_related('author').order_by('created_at')
+    ]
+    return JsonResponse({
+        'id': post.id,
+        'author': {
+            'gamer_tag': post.author.gamer_tag,
+            'avatar': _serialize_file_field(post.author.avatar),
+        },
+        'content': post.body,
+        'created_at': post.created_at.isoformat() if post.created_at else None,
+        'like_count': post.likes.count(),
+        'comment_count': post.comments.count(),
+        'liked': bool(viewer and PostLike.objects.filter(post=post, user=viewer).exists()),
+        'saved': bool(viewer and PostSave.objects.filter(post=post, user=viewer).exists()),
+        'image': _serialize_file_field(post.image),
+        'game': post.game.name if post.game else None,
+        'comments': comments,
+    })
+
+
+@require_POST
+def api_feed_comment_create(request, post_id):
+    import json
+
+    from accounts.models import Comment
+    from accounts.views import _notify, _visible_posts
+
+    if not request.user.is_authenticated:
+        return JsonResponse({'authenticated': False}, status=401)
+    viewer = getattr(request.user, 'gamer_profile', None)
+    if viewer is None:
+        return JsonResponse({'error': 'Profile not found'}, status=404)
+    post = _visible_posts(viewer).filter(id=post_id).first()
+    if post is None:
+        return JsonResponse({'error': 'Post not found'}, status=404)
+    try:
+        payload = json.loads(request.body)
+        body = str(payload.get('body', '')).strip()
+    except (json.JSONDecodeError, TypeError, AttributeError):
+        body = ''
+    if not body:
+        return JsonResponse({'ok': False, 'error': 'Comment text is required.'}, status=400)
+    if len(body) > 1000:
+        return JsonResponse({'ok': False, 'error': 'Comments are limited to 1000 characters.'}, status=400)
+    comment = Comment.objects.create(post=post, author=viewer, body=body)
+    if post.author != viewer:
+        _notify(post.author, viewer, 'comment', f'{viewer.gamer_tag} commented on your post', f'/feed/posts/{post.id}/')
+    return JsonResponse({
+        'ok': True,
+        'comment': {
+            'id': comment.id,
+            'author': {'gamer_tag': viewer.gamer_tag, 'avatar': _serialize_file_field(viewer.avatar)},
+            'body': comment.body,
+            'created_at': comment.created_at.isoformat() if comment.created_at else None,
+        },
+        'comment_count': post.comments.count(),
+    }, status=201)
+
+
+@require_POST
+def api_presence_update(request):
+    import json
+
+    from accounts.models import GamerPresence
+
+    if not request.user.is_authenticated:
+        return JsonResponse({'authenticated': False}, status=401)
+    try:
+        profile = GamerProfile.objects.get(user=request.user)
+    except GamerProfile.DoesNotExist:
+        return JsonResponse({'error': 'Profile not found'}, status=404)
+    try:
+        payload = json.loads(request.body)
+    except (json.JSONDecodeError, TypeError, AttributeError):
+        return JsonResponse({'ok': False, 'error': 'Invalid request.'}, status=400)
+    presence, _ = GamerPresence.objects.get_or_create(profile=profile)
+    presence.show_online_status = bool(payload.get('show_online_status', presence.show_online_status))
+    presence.show_last_seen = bool(payload.get('show_last_seen', presence.show_last_seen))
+    presence.save(update_fields=('show_online_status', 'show_last_seen', 'updated_at'))
+    return JsonResponse({'ok': True, 'show_online_status': presence.show_online_status, 'show_last_seen': presence.show_last_seen})
+
+
+@require_GET
+def api_data_export(request):
+    from accounts.models import Block
+
+    if not request.user.is_authenticated:
+        return JsonResponse({'authenticated': False}, status=401)
+    try:
+        profile = GamerProfile.objects.get(user=request.user)
+    except GamerProfile.DoesNotExist:
+        return JsonResponse({'error': 'Profile not found'}, status=404)
+    data = {
+        'user': {'username': request.user.username, 'email': request.user.email, 'date_joined': request.user.date_joined.isoformat()},
+        'profile': {'gamer_tag': profile.gamer_tag, 'bio': profile.bio, 'location': profile.location, 'platform': profile.platform, 'rank': profile.get_rank_display(), 'availability': profile.get_availability_display(), 'matches_played': profile.matches_played, 'match_wins': profile.match_wins, 'tournament_wins': profile.tournament_wins, 'respect_points': profile.respect_points, 'created_at': profile.created_at.isoformat()},
+        'posts': list(Post.objects.filter(author=profile).values('id', 'body', 'game_id', 'created_at')),
+        'connections': {
+            'followers': list(profile.followers.values_list('follower__gamer_tag', flat=True)),
+            'following': list(profile.following.values_list('following__gamer_tag', flat=True)),
+            'friends': sorted(
+                set(profile.friendships_as_one.values_list('profile_two__gamer_tag', flat=True))
+                | set(profile.friendships_as_two.values_list('profile_one__gamer_tag', flat=True))
+            ),
+        },
+        'blocks': list(Block.objects.filter(blocker=profile).values_list('blocked__gamer_tag', flat=True)),
+        'listings': list(Listing.objects.filter(seller=profile).values('id', 'title', 'description', 'price', 'status', 'created_at')),
+    }
+    response = JsonResponse(data, json_dumps_params={'indent': 2, 'default': str})
+    response['Content-Disposition'] = f'attachment; filename="ggz-data-export-{request.user.username}.json"'
+    return response
+
+
+@require_GET
+def api_security_overview(request):
+    from accounts.models import GamerPresence, SocialIdentity
+    from accounts.views import _provider_is_configured
+
+    if not request.user.is_authenticated:
+        return JsonResponse({'authenticated': False}, status=401)
+    try:
+        profile = GamerProfile.objects.get(user=request.user)
+    except GamerProfile.DoesNotExist:
+        return JsonResponse({'error': 'Profile not found'}, status=404)
+    providers = []
+    for provider in ('google', 'apple', 'discord'):
+        identity = SocialIdentity.objects.filter(user=request.user, provider=provider).first()
+        providers.append({
+            'provider': provider,
+            'name': provider.title(),
+            'connected': bool(identity),
+            'display_name': identity.display_name if identity else '',
+            'available': _provider_is_configured(provider),
+        })
+    presence, _ = GamerPresence.objects.get_or_create(profile=profile)
+    return JsonResponse({
+        'username': request.user.username,
+        'email': request.user.email,
+        'providers': providers,
+        'presence': {
+            'show_online_status': presence.show_online_status,
+            'show_last_seen': presence.show_last_seen,
+        },
+    })

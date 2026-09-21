@@ -47,6 +47,24 @@ export default function NotificationsPage() {
       .finally(() => setLoading(false));
   }, [router]);
 
+  async function markOneRead(id: number) {
+    try {
+      if (!csrfToken()) await fetch("/api/csrf/", { credentials: "include" });
+      const res = await fetch("/api/notifications/" + id + "/read/", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "X-CSRFToken": csrfToken(),
+          "X-Requested-With": "XMLHttpRequest",
+        },
+      });
+      if (!res.ok) throw new Error("Failed");
+      setNotifications((items) => items.map((item) => (item.id === id ? { ...item, is_read: true } : item)));
+    } catch {
+      // Keep the unread state so the user can retry.
+    }
+  }
+
   async function markAllRead() {
     if (marking) return;
     setMarking(true);
@@ -113,7 +131,18 @@ export default function NotificationsPage() {
                   <p className="text-sm leading-6 text-ggz-text-secondary">{item.message || item.notification_type}</p>
                   <p className="mt-1 text-xs text-ggz-text-muted">{item.actor.gamer_tag} · {timeLabel(item.created_at)}</p>
                 </div>
-                {!item.is_read && <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-ggz-amber" />}
+                {!item.is_read ? (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      markOneRead(item.id);
+                    }}
+                    className="mt-1 shrink-0 rounded-full bg-ggz-amber px-2.5 py-1 text-[10px] font-semibold text-black hover:brightness-110"
+                  >
+                    Mark read
+                  </button>
+                ) : null}
               </div>
             );
             return item.target_url ? <Link key={item.id} href={item.target_url}>{content}</Link> : <div key={item.id}>{content}</div>;

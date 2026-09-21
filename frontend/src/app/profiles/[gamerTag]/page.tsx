@@ -26,16 +26,29 @@ export default function ProfilePage({ params }: ProfilePageProps) {
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState("");
   const [notice, setNotice] = useState("");
-
-  async function loadProfile() {
-    const res = await fetch("/api/profiles/detail/" + encodeURIComponent(gamerTag) + "/", { credentials: "include", headers: { "X-Requested-With": "XMLHttpRequest" } });
-    if (!res.ok) throw new Error("Not found");
-    setProfile(await res.json());
-  }
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
-    loadProfile().catch(() => setProfile(null)).finally(() => setLoading(false));
-  }, [gamerTag]);
+    let cancelled = false;
+    fetch("/api/profiles/detail/" + encodeURIComponent(gamerTag) + "/", { credentials: "include", headers: { "X-Requested-With": "XMLHttpRequest" } })
+      .then((res) => {
+        if (cancelled) return null;
+        if (!res.ok) throw new Error("Not found");
+        return res.json() as Promise<ProfileData>;
+      })
+      .then((data) => {
+        if (!cancelled && data) setProfile(data);
+      })
+      .catch(() => {
+        if (!cancelled) setProfile(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [gamerTag, version]);
 
   async function profileAction(kind: string) {
     if (!profile || action) return;
@@ -50,11 +63,8 @@ export default function ProfilePage({ params }: ProfilePageProps) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || data.message || "Action failed");
-      if (kind === "follow" || kind === "unfollow" || kind === "block" || kind === "unblock") {
-        await loadProfile();
-      }
-      if (kind === "respect") {
-        await loadProfile();
+      if (kind === "follow" || kind === "unfollow" || kind === "block" || kind === "unblock" || kind === "respect") {
+        setVersion((value) => value + 1);
       }
       setNotice(data.message || (kind === "respect" ? "Respect sent." : "Community action updated."));
     } catch (error) {

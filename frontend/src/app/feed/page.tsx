@@ -34,28 +34,40 @@ export default function FeedPage() {
   const [authError, setAuthError] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [actionId, setActionId] = useState<number | null>(null);
-
-  async function loadFeed() {
-    const res = await fetch("/api/feed/", {
-      credentials: "include",
-      headers: { "X-Requested-With": "XMLHttpRequest" },
-    });
-    if (!res.ok) throw new Error("Unauthenticated");
-    const data = await res.json();
-    setPosts(Array.isArray(data) ? data : data.results ?? []);
-  }
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
-    Promise.all([
-      loadFeed(),
-      fetch("/api/games/", { credentials: "include" })
-        .then((res) => res.json())
-        .then((data) => setGames(data.results ?? data ?? []))
-        .catch(() => setGames([])),
-    ])
-      .catch(() => setAuthError(true))
-      .finally(() => setLoading(false));
-  }, []);
+    let cancelled = false;
+    fetch("/api/feed/", {
+      credentials: "include",
+      headers: { "X-Requested-With": "XMLHttpRequest" },
+    })
+      .then((res) => {
+        if (cancelled) return null;
+        if (!res.ok) throw new Error("Unauthenticated");
+        return res.json();
+      })
+      .then((data) => {
+        if (!cancelled && data) setPosts(Array.isArray(data) ? data : data.results ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setAuthError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    fetch("/api/games/", { credentials: "include" })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled) setGames(data.results ?? data ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setGames([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [version]);
 
   const hasPosts = useMemo(() => posts.length > 0, [posts]);
 
@@ -80,7 +92,7 @@ export default function FeedPage() {
       setBody("");
       setGame("");
       setImage(null);
-      await loadFeed();
+      setVersion((value) => value + 1);
     } catch {
       // Keep the draft so the user can retry.
     } finally {

@@ -166,3 +166,36 @@ class TeamInvitationTests(TestCase):
         self.assertContains(response, "Elite Open")
         self.assertContains(response, "Wins")
         self.assertContains(response, "Win rate")
+
+
+class TeamDetailApiTests(TestCase):
+    def setUp(self):
+        self.owner = GamerProfile.objects.create(user=User.objects.create_user(username="api-owner", password="pass"), gamer_tag="ApiOwner")
+        self.team = Team.objects.create(owner=self.owner, name="Apex Unit", tag="AU", slug="apex-unit")
+        TeamMembership.objects.create(team=self.team, player=self.owner, role="Captain")
+
+    def test_team_detail_api_returns_roster_and_roles(self):
+        response = self.client.get(reverse("api_team_detail", args=(self.team.slug,)))
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["slug"], "apex-unit")
+        self.assertEqual(payload["roster"][0]["gamer_tag"], "ApiOwner")
+        self.assertEqual(payload["roster"][0]["role"], "Captain")
+        self.assertFalse(payload["is_manager"])
+        self.assertIsNone(payload["viewer_role"])
+        self.assertEqual(self.client.get(reverse("api_team_detail", args=("ghost-squad",))).status_code, 404)
+        self.client.login(username="api-owner", password="pass")
+        payload = self.client.get(reverse("api_team_detail", args=(self.team.slug,))).json()
+        self.assertTrue(payload["is_manager"])
+        self.assertEqual(payload["viewer_role"], "Captain")
+
+    def test_team_create_api_uses_existing_validation(self):
+        self.assertEqual(self.client.post(reverse("api_team_create"), {"name": "No Auth", "tag": "NA"}).status_code, 401)
+        self.client.login(username="api-owner", password="pass")
+        response = self.client.post(reverse("api_team_create"), {"name": "Beta Squad", "tag": "BS", "description": "Second team"})
+        self.assertEqual(response.status_code, 201)
+        team = Team.objects.get(slug=response.json()["slug"])
+        self.assertEqual(team.owner, self.owner)
+        self.assertTrue(TeamMembership.objects.filter(team=team, player=self.owner, role="Captain").exists())
+        bad = self.client.post(reverse("api_team_create"), {"name": "", "tag": "X"})
+        self.assertEqual(bad.status_code, 400)

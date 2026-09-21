@@ -27,6 +27,27 @@ class TournamentTests(TestCase):
 		self.assertContains(self.client.get(reverse("tournament_list")), "GGz Cup")
 		self.assertContains(self.client.get(reverse("tournament_detail", args=[self.tournament.slug])), "OrganizerZW")
 
+	def test_tournament_detail_api_register_and_leave(self):
+		response = self.client.get(reverse("api_tournament_detail", args=[self.tournament.slug]))
+		self.assertEqual(response.status_code, 200)
+		payload = response.json()
+		self.assertEqual(payload["slug"], "ggz-cup")
+		self.assertEqual(payload["participant_count"], 0)
+		self.assertIsNone(payload["registration_status"])
+		self.assertEqual(self.client.get(reverse("api_tournament_detail", args=["no-such-cup"])).status_code, 404)
+		self.player.games.add(self.game)
+		self.client.login(username="player", password="pass-12345")
+		register = self.client.post(reverse("api_tournament_register", args=[self.tournament.slug]), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertTrue(register.json()["registered"])
+		self.assertTrue(TournamentRegistration.objects.filter(tournament=self.tournament, player=self.player, status="Registered").exists())
+		detail = self.client.get(reverse("api_tournament_detail", args=[self.tournament.slug])).json()
+		self.assertEqual(detail["registration_status"], "Registered")
+		self.assertEqual(detail["participant_count"], 1)
+		self.assertEqual(detail["participants"][0]["gamer_tag"], "PlayerZW")
+		leave = self.client.post(reverse("api_tournament_leave", args=[self.tournament.slug]), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertFalse(leave.json()["registered"])
+		self.assertEqual(TournamentRegistration.objects.get(tournament=self.tournament, player=self.player).status, "Withdrawn")
+
 	def test_tournament_detail_exposes_contextual_contact_for_players(self):
 		self.client.login(username="player", password="pass-12345")
 		response = self.client.get(reverse("tournament_detail", args=[self.tournament.slug]))

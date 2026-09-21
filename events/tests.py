@@ -34,6 +34,25 @@ class EventManagementTests(TestCase):
 		self.client.post(reverse("event_delete", args=(self.event.id,)))
 		self.assertFalse(Event.objects.filter(id=self.event.id).exists())
 
+	def test_event_detail_api_rsvp_and_leave(self):
+		response = self.client.get(reverse("api_event_detail", args=(self.event.id,)))
+		self.assertEqual(response.status_code, 200)
+		payload = response.json()
+		self.assertEqual(payload["name"], "Meetup")
+		self.assertFalse(payload["is_rsvped"])
+		self.assertFalse(payload["is_organizer"])
+		self.assertEqual(self.client.get(reverse("api_event_detail", args=(999999,))).status_code, 404)
+		GamerProfile.objects.create(user=self.other, gamer_tag="OtherAttendee")
+		self.client.login(username="other", password="pass")
+		rsvp = self.client.post(reverse("api_event_rsvp", args=(self.event.id,)), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertTrue(rsvp.json()["attending"])
+		detail = self.client.get(reverse("api_event_detail", args=(self.event.id,))).json()
+		self.assertTrue(detail["is_rsvped"])
+		self.assertEqual(detail["rsvp_count"], 1)
+		leave = self.client.post(reverse("api_event_leave", args=(self.event.id,)), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+		self.assertFalse(leave.json()["attending"])
+		self.assertEqual(self.client.get(reverse("api_event_detail", args=(self.event.id,))).json()["rsvp_count"], 0)
+
 	def test_organizer_dashboard_lists_events_and_management_actions(self):
 		self.client.login(username="event-owner", password="pass")
 		response = self.client.get(reverse("event_my"))

@@ -14,7 +14,7 @@ Required Vercel Project settings for the Next.js project:
 - Node.js Version: 24.x
 - Environment: set NEXT_PUBLIC_DJANGO_URL to the deployed Django API origin before runtime/browser verification.
 
-The repository contains a root vercel.json for repository-root deployments and frontend/vercel.json for the recommended monorepo Root Directory of frontend. Vercel supports framework, buildCommand, installCommand, and outputDirectory in vercel.json, and these override the corresponding Project Settings for a deployment. Vercel's monorepo guidance recommends setting the Root Directory to the application directory. citeturn707245search0turn678667search0
+The repository contains a single `frontend/vercel.json` (`framework: nextjs`, `installCommand: npm ci`, `buildCommand: npm run build`, `outputDirectory: .next`) matching the recommended monorepo Root Directory of `frontend`. There is intentionally no root-level `vercel.json` anymore, so only one configuration strategy applies. These file settings override the corresponding Project Settings for a deployment.
 
 The legacy scripts/vercel-build.sh is now frontend-only. It exists as a compatibility safeguard for a stale Vercel Build Command that still invokes that filename; it no longer runs Django migrations, PostgreSQL checks, or collectstatic.
 
@@ -24,37 +24,23 @@ The Django backend is a separate deployment concern. It retains the production P
 
 ## Deployment verification status
 
-### M15.2 frontend
+### GGz 2.0 frontend (`ggz-frontend`)
 
-- UI/UX implementation: COMPLETE
-- TypeScript/lint audit: COMPLETE (the previous audit reported zero errors/warnings)
-- Next 16 route compatibility fixes: APPLIED
-- Backend-backed page build-time isolation: APPLIED
-- Legacy Django Vercel build path: REMOVED from the active build script
-- Node runtime pinned to 24.x
-- Vercel Install/Build configuration: VERSIONED IN REPO
-- Vercel deployment: STILL FAILING
-- Browser smoke test: BLOCKED
+- Vercel deployment: SUCCESS for the `feat/ggz-nextjs-ui-2` branch head
+- Production URL: `https://ggz-frontend.vercel.app` (serves the latest production deployment)
+- Local `npm run lint`: 0 errors (2 pre-existing `exhaustive-deps` warnings)
+- Local `npm run build`: SUCCESS (Next.js 16.3.5, all routes generate)
+- Browser smoke test: public routes verified live (`/`, `/games`, `/games/8`, `/tournaments`, `/events`, `/marketplace`, `/teams`); client pages render correct loading/auth states
 
-### Diagnostic result
+### Deployment tracks (do not confuse these)
 
-A separate debug/vercel-minimal branch was created from the current GGz 2.0 code. It reduced the frontend to a minimal Next.js app with only layout.tsx, page.tsx, a minimal next.config.ts, and no Django/API page code. The same Vercel project still reported FAILURE for that deployment.
+- **Branch/preview deployment:** built automatically from `feat/ggz-nextjs-ui-2` pushes. This is where new frontend work (detail pages, Radar, leaderboards) is verified first.
+- **Production deployment:** `https://ggz-frontend.vercel.app` serves the latest production promotion. It lags the feature branch until merged through the normal flow — do not manually retarget production to the branch.
+- **Legacy project (`g-gz-zimbabwe`):** old Django-era Vercel project. Treat any FAILURE there as legacy infrastructure unless it is proven to be the active GGz 2.0 deployment. Do not let it dictate GGz 2.0 configuration.
 
-This isolates the remaining failure to the Vercel project/build environment or project configuration, not the M15.2 application source.
+### Historical diagnostic note (resolved)
 
-The connected Vercel API is currently returning 403 Not authorized for the andrewhyn scope, and its build-log action is unavailable in the current connection. Until the Vercel connection is re-authenticated, the exact platform error and Project Settings cannot be read or changed from this session.
-
-### Required Vercel-side verification
-
-1. Re-authenticate the Vercel connection for the andrewhyn scope.
-2. Confirm Root Directory is exactly frontend.
-3. Confirm Framework Preset is Next.js.
-4. Confirm Node.js is 24.x.
-5. Confirm there is no stale Build/Install override pointing to a Django command.
-6. Redeploy the current feat/ggz-nextjs-ui-2 branch and read the build log.
-7. Only after a successful deployment, set/verify NEXT_PUBLIC_DJANGO_URL and run browser smoke tests for the GGz routes.
-
-Do not begin M15.3 until the Vercel deployment succeeds and the browser smoke test has passed.
+An earlier `debug/vercel-minimal` experiment showed FAILURE even for a minimal app, which at the time pointed at project/build-environment configuration rather than application source. The actual application-side blockers found afterwards were `export const dynamic = "force-dynamic"` overuse, TypeScript API field mismatches, duplicate lockfiles, and contradictory root/`frontend` vercel.json files — all removed. The `ggz-frontend` project now builds and serves successfully.
 
 ## Legacy Django Vercel notes
 
