@@ -709,3 +709,45 @@ def api_conversation_detail(request, conversation_id):
 @require_POST
 def api_conversation_send_message(request, conversation_id):
     return api_conversation_detail(request, conversation_id)
+
+
+@require_POST
+def api_profile_connection(request, gamer_tag, action):
+    from accounts.views import connection_action
+    return connection_action(request, gamer_tag, action)
+
+
+@require_POST
+def api_feed_like(request, post_id):
+    from accounts.views import post_like
+    return post_like(request, post_id)
+
+
+@require_POST
+def api_feed_save(request, post_id):
+    from accounts.views import post_save_toggle
+    return post_save_toggle(request, post_id)
+
+
+@require_POST
+def api_feed_report(request, post_id):
+    from accounts.views import post_report
+    return post_report(request, post_id)
+
+
+@require_POST
+def api_notification_read(request, notification_id):
+    from accounts.views import notification_read
+    return notification_read(request, notification_id)
+
+
+@require_POST
+def api_message_request_action(request, gamer_tag, action):
+    from accounts.views import message_request_action
+    return message_request_action(request, gamer_tag, action)
+
+
+@require_POST
+def api_conversation_start(request, gamer_tag):
+    from accounts.views import conversation_start
+    return conversation_start(request, gamer_tag)
