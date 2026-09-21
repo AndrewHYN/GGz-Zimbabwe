@@ -55,6 +55,7 @@ def api_profile_detail(request, gamer_tag):
         "following_count": profile.following.count(),
         "is_following": False,
         "is_friend": False,
+        "is_self": viewer == profile,
         "presence": presence.public_status(viewer_is_owner=viewer == profile) if presence else "offline",
         "games": [
             {
@@ -403,7 +404,12 @@ def api_feed_list(request):
     if not request.user.is_authenticated:
         return JsonResponse({'authenticated': False}, status=401)
 
-    posts = Post.objects.select_related('author', 'author__user', 'game').prefetch_related('likes', 'comments').all()
+    viewer = getattr(request.user, "gamer_profile", None)
+    posts = (
+        Post.objects.select_related("author", "author__user", "game")
+        .prefetch_related("likes", "comments")
+        .order_by("-created_at")[:50]
+    )
 
     data = []
     for post in posts:
@@ -414,12 +420,16 @@ def api_feed_list(request):
         }
 
         data.append({
-            'id': post.id,
-            'author': author_data,
-            'content': post.body,
-            'created_at': post.created_at.isoformat() if post.created_at else None,
-            'like_count': post.likes.count(),
-            'comment_count': post.comments.count(),
+            "id": post.id,
+            "author": author_data,
+            "content": post.body,
+            "created_at": post.created_at.isoformat() if post.created_at else None,
+            "like_count": post.likes.count(),
+            "comment_count": post.comments.count(),
+            "liked": bool(viewer and post.likes.filter(user=viewer).exists()),
+            "saved": bool(viewer and post.saved_by.filter(user=viewer).exists()),
+            "image": _serialize_file_field(post.image),
+            "game": post.game.name if post.game else None,
         })
     return JsonResponse(data, safe=False)
 
@@ -751,3 +761,23 @@ def api_message_request_action(request, gamer_tag, action):
 def api_conversation_start(request, gamer_tag):
     from accounts.views import conversation_start
     return conversation_start(request, gamer_tag)
+
+
+@require_POST
+def api_feed_create(request):
+    from accounts.views import post_create
+    return post_create(request)
+
+
+@require_POST
+def api_profile_game_add(request, gamer_tag):
+    from accounts.views import profile_game_add
+    return profile_game_add(request, gamer_tag)
+
+
+@require_POST
+def api_profile_game_remove(request, gamer_tag, game_id):
+    from accounts.views import profile_game_remove
+    request.POST = request.POST.copy()
+    request.POST["game_id"] = str(game_id)
+    return profile_game_remove(request, gamer_tag)
