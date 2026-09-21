@@ -20,6 +20,21 @@ function csrfToken() {
   return document.cookie.match(/(?:^|; )csrftoken=([^;]+)/)?.[1] ?? "";
 }
 
+const INTERNAL_ROUTE_PATTERNS = [
+  /^\/profiles\/[^/]+\/?$/,
+  /^\/feed\/posts\/\d+\/?$/,
+  /^\/tournaments\/[^/]+\/?$/,
+  /^\/messages\/\d+\/?$/,
+  /^\/marketplace\/listing\/\d+\/?$/,
+  /^\/teams\/[^/]+\/?$/,
+  /^\/games\/\d+\/?$/,
+  /^\/events\/\d+\/?$/,
+];
+
+function isInternalRoute(target: string | null | undefined): target is string {
+  return !!target && INTERNAL_ROUTE_PATTERNS.some((pattern) => pattern.test(target));
+}
+
 function timeLabel(value: string) {
   const diff = Math.max(0, Date.now() - new Date(value).getTime());
   const minutes = Math.floor(diff / 60000);
@@ -145,7 +160,7 @@ export default function NotificationsPage() {
                 ) : null}
               </div>
             );
-            return item.target_url ? <Link key={item.id} href={item.target_url}>{content}</Link> : <div key={item.id}>{content}</div>;
+            return isInternalRoute(item.target_url) ? <Link key={item.id} href={item.target_url}>{content}</Link> : <div key={item.id}>{content}</div>;
           })}
         </div>
       )}
