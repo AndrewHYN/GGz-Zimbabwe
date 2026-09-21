@@ -29,7 +29,8 @@ function formatDate(dateStr: string) {
   });
 }
 
-export const dynamic = "force-dynamic";
+
+
 
 export const metadata = {
   title: "Events | GGz",
