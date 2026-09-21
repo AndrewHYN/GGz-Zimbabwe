@@ -8,8 +8,6 @@ import {
   CalendarIcon,
 } from "@/components/icons";
 
-
-
 const API_BASE = process.env.NEXT_PUBLIC_DJANGO_URL || "http://localhost:8000";
 
 interface HomeGame {
