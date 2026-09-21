@@ -64,6 +64,8 @@ urlpatterns = [
     path("api/messages/<int:conversation_id>/", api_views.api_conversation_detail, name="api_conversation_detail"),
     path("api/messages/", api_views.api_conversations_list, name="api_conversations_list"),
     path("api/profiles/gamers/", api_views.api_gamers_list, name="api_gamers_list"),
+    path("api/radar/map/", api_views.api_map_data, name="api_radar_map"),
+    path("api/leaderboards/", api_views.api_leaderboards, name="api_leaderboards"),
     path("api/profiles/detail/<str:gamer_tag>/", api_views.api_profile_detail, name="api_profile_detail"),
     path("admin/", admin.site.urls),
     path("profiles/", include("accounts.urls")),
