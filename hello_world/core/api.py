@@ -778,6 +778,4 @@ def api_profile_game_add(request, gamer_tag):
 @require_POST
 def api_profile_game_remove(request, gamer_tag, game_id):
     from accounts.views import profile_game_remove
-    request.POST = request.POST.copy()
-    request.POST["game_id"] = str(game_id)
-    return profile_game_remove(request, gamer_tag)
+    return profile_game_remove(request, gamer_tag, game_id)
