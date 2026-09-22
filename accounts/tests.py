@@ -2637,6 +2637,35 @@ class PresenceAndExportApiTests(TestCase):
 		self.assertEqual(response.json()["profile"]["gamer_tag"], "HtmlExporter")
 
 
+class ProfileDetailApiTests(TestCase):
+	def setUp(self):
+		self.alice_user = User.objects.create_user(username="alice", password="pass")
+		self.alice = GamerProfile.objects.create(user=self.alice_user, gamer_tag="Alice")
+		self.bob_user = User.objects.create_user(username="bob", password="pass")
+		self.bob = GamerProfile.objects.create(user=self.bob_user, gamer_tag="Bob")
+
+	def test_profile_detail_reports_follow_state_for_viewer(self):
+		detail_url = reverse("api_profile_detail", args=(self.bob.gamer_tag,))
+		anonymous = self.client.get(detail_url).json()
+		self.assertFalse(anonymous["is_following"])
+		self.assertFalse(anonymous["is_self"])
+		Follow.objects.create(follower=self.alice, following=self.bob)
+		self.client.login(username="alice", password="pass")
+		payload = self.client.get(detail_url).json()
+		self.assertTrue(payload["is_following"])
+		self.assertEqual(payload["follower_count"], 1)
+		self.assertFalse(payload["is_self"])
+		own = self.client.get(reverse("api_profile_detail", args=(self.alice.gamer_tag,))).json()
+		self.assertTrue(own["is_self"])
+
+	def test_notifications_mark_all_read_accepts_post(self):
+		Notification.objects.create(recipient=self.bob, actor=self.alice, notification_type="follow", message="Alice followed you")
+		self.client.login(username="bob", password="pass")
+		response = self.client.post(reverse("api_notifications_mark_all_read"))
+		self.assertTrue(response.json()["ok"])
+		self.assertFalse(Notification.objects.filter(recipient=self.bob, is_read=False).exists())
+
+
 class SearchAndRankTests(TestCase):
 	def test_account_dropdown_is_concise_and_uses_single_destinations(self):
 		user = User.objects.create_user(username="navhub", password="strong-password-123")

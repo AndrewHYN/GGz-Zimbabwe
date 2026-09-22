@@ -69,7 +69,7 @@ def api_profile_detail(request, gamer_tag):
     }
 
     if viewer and viewer != profile:
-        data["is_following"] = profile.followers.filter(id=viewer.id).exists()
+        data["is_following"] = profile.followers.filter(follower_id=viewer.id).exists()
         data["is_friend"] = (
             profile.friendships_as_one.filter(profile_two=viewer).exists()
             or profile.friendships_as_two.filter(profile_one=viewer).exists()
@@ -761,7 +761,7 @@ def api_gamers_list(request):
         })
     return JsonResponse(data, safe=False)
 
-@require_GET
+@require_http_methods(["GET", "POST"])
 def api_notifications_mark_all_read(request):
     if not request.user.is_authenticated:
         return JsonResponse({"authenticated": False}, status=401)
