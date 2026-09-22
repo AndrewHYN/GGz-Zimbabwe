@@ -24,15 +24,16 @@ const INTERNAL_ROUTE_PATTERNS = [
   /^\/profiles\/[^/]+\/?$/,
   /^\/feed\/posts\/\d+\/?$/,
   /^\/tournaments\/[^/]+\/?$/,
-  /^\/messages\/\d+\/?$/,
   /^\/marketplace\/listing\/\d+\/?$/,
   /^\/teams\/[^/]+\/?$/,
   /^\/games\/\d+\/?$/,
   /^\/events\/\d+\/?$/,
 ];
 
-function isInternalRoute(target: string | null | undefined): target is string {
-  return !!target && INTERNAL_ROUTE_PATTERNS.some((pattern) => pattern.test(target));
+function normalizeInternalTarget(target: string | null | undefined): string | null {
+  if (!target) return null;
+  if (/^\/messages\/\d+\/?$/.test(target)) return "/messages";
+  return INTERNAL_ROUTE_PATTERNS.some((pattern) => pattern.test(target)) ? target : null;
 }
 
 function timeLabel(value: string) {
@@ -160,7 +161,8 @@ export default function NotificationsPage() {
                 ) : null}
               </div>
             );
-            return isInternalRoute(item.target_url) ? <Link key={item.id} href={item.target_url}>{content}</Link> : <div key={item.id}>{content}</div>;
+            const href = normalizeInternalTarget(item.target_url);
+            return href ? <Link key={item.id} href={href}>{content}</Link> : <div key={item.id}>{content}</div>;
           })}
         </div>
       )}
