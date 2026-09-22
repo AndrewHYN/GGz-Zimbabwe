@@ -2669,13 +2669,14 @@ def account_security(request):
 	if request.method == "POST" and request.POST.get("form_name") == "export-data":
 		profile = get_object_or_404(GamerProfile, user=request.user)
 		from django.http import JsonResponse
+		from marketplace.models import Listing
 		data = {
 			"user": {"username": request.user.username, "email": request.user.email, "date_joined": request.user.date_joined.isoformat()},
 			"profile": {"gamer_tag": profile.gamer_tag, "bio": profile.bio, "location": profile.location, "public_location_label": profile.public_location_label, "platform": profile.platform, "rank": profile.get_rank_display(), "availability": profile.get_availability_display(), "matches_played": profile.matches_played, "match_wins": profile.match_wins, "tournament_wins": profile.tournament_wins, "respect_points": profile.respect_points, "created_at": profile.created_at.isoformat()},
 			"posts": list(Post.objects.filter(author=profile).values("id", "body", "game_id", "created_at")),
-			"connections": {"followers": list(profile.followers.values_list("gamer_tag", flat=True)), "following": list(profile.following.values_list("gamer_tag", flat=True)), "friends": list(profile.friends.values_list("gamer_tag", flat=True))},
+			"connections": {"followers": list(profile.followers.values_list("follower__gamer_tag", flat=True)), "following": list(profile.following.values_list("following__gamer_tag", flat=True)), "friends": sorted(set(profile.friendships_as_one.values_list("profile_two__gamer_tag", flat=True)) | set(profile.friendships_as_two.values_list("profile_one__gamer_tag", flat=True)))},
 			"blocks": list(Block.objects.filter(blocker=profile).values_list("blocked__gamer_tag", flat=True)),
-			"listings": list(Listing.objects.filter(seller=profile).values("id", "title", "description", "price", "currency", "status", "created_at")),
+			"listings": list(Listing.objects.filter(seller=profile).values("id", "title", "description", "price", "status", "created_at")),
 		}
 		import json
 		response = JsonResponse(data, json_dumps_params={"indent": 2})

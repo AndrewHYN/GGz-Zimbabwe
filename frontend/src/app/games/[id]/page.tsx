@@ -3,11 +3,6 @@ import { Badge } from "@/components/ui/Badge";
 import { GameArtwork } from "@/components/ui/GameArtwork";
 import { StarIcon, ExternalLinkIcon } from "@/components/icons";
 
-interface StoreLink {
-  name: string;
-  url: string;
-}
-
 interface Game {
   id: number;
   name: string;

@@ -23,11 +23,16 @@ const TYPE_LABELS: Record<string, string> = {
 
 const TYPE_ROUTES: Record<string, string> = {
   game: "/games",
-  gamer: "/gamers",
+  gamer: "/profiles",
   team: "/teams",
   tournament: "/tournaments",
   event: "/events",
 };
+
+function resultHref(item: SearchResult): string {
+  if (item.type === "gamer" && item.username) return "/profiles/" + encodeURIComponent(item.username);
+  return `${TYPE_ROUTES[item.type]}/${item.slug || item.id}`;
+}
 
 export default function SearchContent() {
   const searchParams = useSearchParams();
@@ -130,7 +135,7 @@ export default function SearchContent() {
                   {items.map((item) => (
                     <Link
                       key={item.id}
-                      href={`${TYPE_ROUTES[type]}/${item.slug || item.id}`}
+                      href={resultHref(item)}
                       className="block px-4 py-3 hover:bg-ggz-bg-2 transition-colors"
                     >
                       {item.title || item.username || item.name || `#${item.id}`}

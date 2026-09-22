@@ -2456,6 +2456,187 @@ class NotificationAndMessagingTests(TestCase):
 		_release_sse_slot(extra)
 
 
+class ConversationDetailApiTests(TestCase):
+	def setUp(self):
+		self.alice_user = User.objects.create_user(username="alice", password="pass")
+		self.alice = GamerProfile.objects.create(user=self.alice_user, gamer_tag="Alice")
+		self.bob_user = User.objects.create_user(username="bob", password="pass")
+		self.bob = GamerProfile.objects.create(user=self.bob_user, gamer_tag="Bob")
+		self.carol_user = User.objects.create_user(username="carol", password="pass")
+		self.carol = GamerProfile.objects.create(user=self.carol_user, gamer_tag="Carol")
+		self.conversation = Conversation.objects.create()
+		ConversationParticipant.objects.create(conversation=self.conversation, profile=self.alice)
+		ConversationParticipant.objects.create(conversation=self.conversation, profile=self.bob)
+
+	def test_detail_requires_authentication(self):
+		response = self.client.get(reverse("api_conversation_detail", args=(self.conversation.id,)))
+		self.assertEqual(response.status_code, 401)
+
+	def test_non_member_cannot_read_conversation(self):
+		self.client.login(username="carol", password="pass")
+		response = self.client.get(reverse("api_conversation_detail", args=(self.conversation.id,)))
+		self.assertEqual(response.status_code, 403)
+
+	def test_non_member_cannot_send_message(self):
+		self.client.login(username="carol", password="pass")
+		response = self.client.post(
+			reverse("api_conversation_send_message", args=(self.conversation.id,)),
+			data=json.dumps({"content": "Intruder hello"}),
+			content_type="application/json",
+		)
+		self.assertEqual(response.status_code, 403)
+		self.assertFalse(Message.objects.exists())
+
+	def test_member_can_read_conversation(self):
+		Message.objects.create(conversation=self.conversation, sender=self.alice, body="Hi Bob")
+		self.client.login(username="bob", password="pass")
+		response = self.client.get(reverse("api_conversation_detail", args=(self.conversation.id,)))
+		self.assertEqual(response.status_code, 200)
+		payload = response.json()
+		self.assertEqual(payload["other_participant"]["gamer_tag"], "Alice")
+		self.assertEqual([message["content"] for message in payload["messages"]], ["Hi Bob"])
+
+	def test_member_can_send_message(self):
+		self.client.login(username="bob", password="pass")
+		response = self.client.post(
+			reverse("api_conversation_send_message", args=(self.conversation.id,)),
+			data=json.dumps({"content": "Hello Alice"}),
+			content_type="application/json",
+		)
+		self.assertEqual(response.status_code, 201)
+		message = Message.objects.get(conversation=self.conversation)
+		self.assertEqual(message.body, "Hello Alice")
+		self.assertEqual(message.sender, self.bob)
+
+	def test_duplicate_client_id_returns_existing_message(self):
+		self.client.login(username="bob", password="pass")
+		url = reverse("api_conversation_send_message", args=(self.conversation.id,))
+		payload = json.dumps({"content": "Hello again", "client_id": "retry-123"})
+		first = self.client.post(url, data=payload, content_type="application/json")
+		second = self.client.post(url, data=payload, content_type="application/json")
+		self.assertEqual(first.status_code, 201)
+		self.assertEqual(second.json()["id"], first.json()["id"])
+		self.assertEqual(Message.objects.filter(conversation=self.conversation).count(), 1)
+
+
+class FeedDetailApiTests(TestCase):
+	def setUp(self):
+		self.alice_user = User.objects.create_user(username="poster", password="pass")
+		self.alice = GamerProfile.objects.create(user=self.alice_user, gamer_tag="Poster")
+		self.bob_user = User.objects.create_user(username="commenter", password="pass")
+		self.bob = GamerProfile.objects.create(user=self.bob_user, gamer_tag="Commenter")
+		self.post = Post.objects.create(author=self.alice, body="GGz plays together")
+
+	def test_feed_detail_returns_post_with_comments(self):
+		self.post.comments.create(author=self.bob, body="Agreed!")
+		self.client.login(username="commenter", password="pass")
+		response = self.client.get(reverse("api_feed_detail", args=(self.post.id,)))
+		self.assertEqual(response.status_code, 200)
+		payload = response.json()
+		self.assertEqual(payload["content"], "GGz plays together")
+		self.assertEqual(payload["author"]["gamer_tag"], "Poster")
+		self.assertEqual([comment["body"] for comment in payload["comments"]], ["Agreed!"])
+		self.assertEqual(self.client.get(reverse("api_feed_detail", args=(999999,))).status_code, 404)
+
+	def test_feed_comment_create_notifies_author(self):
+		self.client.login(username="commenter", password="pass")
+		response = self.client.post(
+			reverse("api_feed_comment_create", args=(self.post.id,)),
+			data=json.dumps({"body": "Nice post!"}),
+			content_type="application/json",
+		)
+		self.assertEqual(response.status_code, 201)
+		self.assertEqual(response.json()["comment"]["body"], "Nice post!")
+		self.assertEqual(self.post.comments.count(), 1)
+		self.assertTrue(Notification.objects.filter(recipient=self.alice, notification_type="comment").exists())
+
+	def test_feed_comment_requires_text_and_respects_blocks(self):
+		self.client.login(username="commenter", password="pass")
+		empty = self.client.post(
+			reverse("api_feed_comment_create", args=(self.post.id,)),
+			data=json.dumps({"body": "  "}),
+			content_type="application/json",
+		)
+		self.assertEqual(empty.status_code, 400)
+		Block.objects.create(blocker=self.alice, blocked=self.bob)
+		blocked = self.client.post(
+			reverse("api_feed_comment_create", args=(self.post.id,)),
+			data=json.dumps({"body": "Let me in"}),
+			content_type="application/json",
+		)
+		self.assertEqual(blocked.status_code, 404)
+		self.assertEqual(self.post.comments.count(), 0)
+
+
+class SecurityOverviewApiTests(TestCase):
+	def test_security_overview_requires_authentication(self):
+		self.assertEqual(self.client.get(reverse("api_security_overview")).status_code, 401)
+
+	def test_security_overview_returns_providers_and_presence(self):
+		user = User.objects.create_user(username="secured", password="pass")
+		GamerProfile.objects.create(user=user, gamer_tag="Secured")
+		self.client.login(username="secured", password="pass")
+		response = self.client.get(reverse("api_security_overview"))
+		self.assertEqual(response.status_code, 200)
+		payload = response.json()
+		self.assertEqual(payload["username"], "secured")
+		self.assertEqual({item["provider"] for item in payload["providers"]}, {"google", "apple", "discord"})
+		self.assertIn("show_online_status", payload["presence"])
+		self.assertIn("show_last_seen", payload["presence"])
+
+
+class PresenceAndExportApiTests(TestCase):
+	def test_presence_update_requires_authentication(self):
+		response = self.client.post(
+			reverse("api_presence_update"),
+			data=json.dumps({"show_online_status": False}),
+			content_type="application/json",
+		)
+		self.assertEqual(response.status_code, 401)
+
+	def test_presence_update_persists_privacy_settings(self):
+		user = User.objects.create_user(username="private", password="pass")
+		GamerProfile.objects.create(user=user, gamer_tag="Private")
+		self.client.login(username="private", password="pass")
+		response = self.client.post(
+			reverse("api_presence_update"),
+			data=json.dumps({"show_online_status": False, "show_last_seen": True}),
+			content_type="application/json",
+		)
+		self.assertTrue(response.json()["ok"])
+		presence = GamerPresence.objects.get(profile__gamer_tag="Private")
+		self.assertFalse(presence.show_online_status)
+		self.assertTrue(presence.show_last_seen)
+
+	def test_data_export_returns_owned_profile_snapshot(self):
+		user = User.objects.create_user(username="exporter", password="pass", email="exporter@example.com")
+		exporter = GamerProfile.objects.create(user=user, gamer_tag="Exporter")
+		follower = GamerProfile.objects.create(user=User.objects.create_user(username="fan", password="pass"), gamer_tag="Fan")
+		Follow.objects.create(follower=follower, following=exporter)
+		first, second = sorted((exporter.id, follower.id))
+		Friendship.objects.create(profile_one_id=first, profile_two_id=second)
+		self.assertEqual(self.client.get(reverse("api_data_export")).status_code, 401)
+		self.client.login(username="exporter", password="pass")
+		response = self.client.get(reverse("api_data_export"))
+		self.assertEqual(response.status_code, 200)
+		self.assertIn("attachment", response["Content-Disposition"])
+		payload = response.json()
+		self.assertEqual(payload["user"]["username"], "exporter")
+		self.assertEqual(payload["profile"]["gamer_tag"], "Exporter")
+		self.assertEqual(payload["connections"]["followers"], ["Fan"])
+		self.assertEqual(payload["connections"]["friends"], ["Fan"])
+
+
+	def test_django_security_export_download_uses_valid_fields(self):
+		user = User.objects.create_user(username="htmlexporter", password="pass")
+		GamerProfile.objects.create(user=user, gamer_tag="HtmlExporter")
+		self.client.login(username="htmlexporter", password="pass")
+		response = self.client.post(reverse("account_security"), {"form_name": "export-data"})
+		self.assertEqual(response.status_code, 200)
+		self.assertIn("attachment", response["Content-Disposition"])
+		self.assertEqual(response.json()["profile"]["gamer_tag"], "HtmlExporter")
+
+
 class SearchAndRankTests(TestCase):
 	def test_account_dropdown_is_concise_and_uses_single_destinations(self):
 		user = User.objects.create_user(username="navhub", password="strong-password-123")

@@ -3,134 +3,165 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 
 interface Notification {
-  id: string;
-  actor: {
-    username: string;
-    avatar_url: string;
-  };
-  verb: string;
-  target: string;
+  id: number;
+  actor: { gamer_tag: string; avatar?: string | null };
+  notification_type: string;
+  message: string;
+  target_url?: string | null;
   created_at: string;
-  read: boolean;
+  is_read: boolean;
+}
+
+function csrfToken() {
+  if (typeof document === "undefined") return "";
+  return document.cookie.match(/(?:^|; )csrftoken=([^;]+)/)?.[1] ?? "";
+}
+
+const INTERNAL_ROUTE_PATTERNS = [
+  /^\/profiles\/[^/]+\/?$/,
+  /^\/feed\/posts\/\d+\/?$/,
+  /^\/tournaments\/[^/]+\/?$/,
+  /^\/messages\/\d+\/?$/,
+  /^\/marketplace\/listing\/\d+\/?$/,
+  /^\/teams\/[^/]+\/?$/,
+  /^\/games\/\d+\/?$/,
+  /^\/events\/\d+\/?$/,
+];
+
+function isInternalRoute(target: string | null | undefined): target is string {
+  return !!target && INTERNAL_ROUTE_PATTERNS.some((pattern) => pattern.test(target));
+}
+
+function timeLabel(value: string) {
+  const diff = Math.max(0, Date.now() - new Date(value).getTime());
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return minutes + "m ago";
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return hours + "h ago";
+  return Math.floor(hours / 24) + "d ago";
 }
 
 export default function NotificationsPage() {
   const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
-  const [authError, setAuthError] = useState(false);
+  const [marking, setMarking] = useState(false);
 
   useEffect(() => {
-    async function fetchNotifications() {
-      try {
-        const res = await fetch("/api/notifications/", {
-          credentials: "include",
-        });
-        if (res.status === 401 || res.status === 403) {
-          setAuthError(true);
-          return;
-        }
-        const data = await res.json();
-        setNotifications(data.results ?? data);
-      } catch {
-        setAuthError(true);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchNotifications();
-  }, []);
+    fetch("/api/notifications/", { credentials: "include" })
+      .then((res) => {
+        if (!res.ok) throw new Error("Unauthenticated");
+        return res.json();
+      })
+      .then((data) => setNotifications(Array.isArray(data) ? data : data.results ?? []))
+      .catch(() => router.push("/auth/login"))
+      .finally(() => setLoading(false));
+  }, [router]);
 
-  useEffect(() => {
-    if (authError) router.push("/login");
-  }, [authError, router]);
-
-  async function markAllRead() {
+  async function markOneRead(id: number) {
     try {
-      await fetch("/api/notifications/mark-all-read/", {
+      if (!csrfToken()) await fetch("/api/csrf/", { credentials: "include" });
+      const res = await fetch("/api/notifications/" + id + "/read/", {
         method: "POST",
         credentials: "include",
+        headers: {
+          "X-CSRFToken": csrfToken(),
+          "X-Requested-With": "XMLHttpRequest",
+        },
       });
-      setNotifications((prev) =>
-        prev.map((n) => ({ ...n, read: true }))
-      );
-    } catch {}
+      if (!res.ok) throw new Error("Failed");
+      setNotifications((items) => items.map((item) => (item.id === id ? { ...item, is_read: true } : item)));
+    } catch {
+      // Keep the unread state so the user can retry.
+    }
+  }
+
+  async function markAllRead() {
+    if (marking) return;
+    setMarking(true);
+    try {
+      if (!csrfToken()) await fetch("/api/csrf/", { credentials: "include" });
+      const res = await fetch("/api/notifications/mark-all-read/", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "X-CSRFToken": csrfToken(),
+          "X-Requested-With": "XMLHttpRequest",
+        },
+      });
+      if (!res.ok) throw new Error("Failed");
+      setNotifications((items) => items.map((item) => ({ ...item, is_read: true })));
+    } finally {
+      setMarking(false);
+    }
   }
 
   if (loading) {
-    return (
-      <div className="max-w-[1536px] mx-auto px-4 py-8">
-        <p className="text-ggz-text-muted">Loading...</p>
-      </div>
-    );
+    return <div className="mx-auto max-w-4xl px-4 py-10 text-ggz-text-secondary">Loading notifications…</div>;
   }
 
-  if (authError) return null;
+  const unread = notifications.filter((item) => !item.is_read).length;
 
   return (
-    <div className="max-w-[1536px] mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-ggz-text-primary">
-          Notifications
-        </h1>
-        {notifications.some((n) => !n.read) && (
+    <div className="mx-auto max-w-4xl px-4 py-8">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ggz-amber">Activity</p>
+          <h1 className="mt-1 text-3xl font-bold text-ggz-text-primary">Notifications</h1>
+          <p className="mt-1 text-sm text-ggz-text-secondary">{unread ? unread + " unread" : "You're all caught up"}</p>
+        </div>
+        {unread > 0 && (
           <button
             onClick={markAllRead}
-            className="bg-ggz-amber text-black font-semibold px-5 py-2 rounded-[var(--radius-lg)] hover:opacity-90 transition"
+            disabled={marking}
+            className="rounded-xl border border-ggz-border bg-ggz-bg-1 px-4 py-2 text-sm font-semibold text-ggz-text-primary transition hover:border-ggz-amber/50 disabled:opacity-50"
           >
-            Mark all as read
+            {marking ? "Saving…" : "Mark all read"}
           </button>
         )}
       </div>
 
       {notifications.length === 0 ? (
-        <div className="bg-ggz-bg-1 border border-ggz-border rounded-[var(--radius-lg)] p-8 text-center">
-          <p className="text-ggz-text-muted">No notifications yet.</p>
+        <div className="rounded-2xl border border-ggz-border bg-ggz-bg-1 p-12 text-center">
+          <p className="font-semibold text-ggz-text-primary">No notifications yet</p>
+          <p className="mt-2 text-sm text-ggz-text-secondary">Follow gamers, join tournaments and interact with the community to see activity here.</p>
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
-          {notifications.map((n) => (
-            <div
-              key={n.id}
-              className={`bg-ggz-bg-1 border rounded-[var(--radius-lg)] p-4 flex items-start gap-3 transition ${
-                n.read
-                  ? "border-ggz-border"
-                  : "border-ggz-amber/40 bg-ggz-amber/5"
-              }`}
-            >
-<Image
-                  src={n.actor.avatar_url}
-                  alt={n.actor.username}
-                  className="w-9 h-9 rounded-full bg-ggz-border object-cover shrink-0"
-                  fill
-                  sizes="36px"
-                />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-ggz-text-secondary">
-                  <span className="font-semibold text-ggz-text-primary">
-                    {n.actor.username}
-                  </span>{" "}
-                  {n.verb}
-                  {n.target && (
-                    <>
-                      {" "}
-                      <span className="font-semibold text-ggz-amber">
-                        {n.target}
-                      </span>
-                    </>
+        <div className="space-y-2">
+          {notifications.map((item) => {
+            const content = (
+              <div className={"flex items-start gap-3 rounded-2xl border p-4 transition hover:bg-ggz-bg-2 " + (item.is_read ? "border-ggz-border bg-ggz-bg-1" : "border-ggz-amber/30 bg-ggz-amber/5")}>
+                <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-ggz-bg-2">
+                  {item.actor.avatar ? (
+                    <Image src={item.actor.avatar} alt="" fill sizes="40px" className="object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-xs font-bold text-ggz-amber">{item.actor.gamer_tag.slice(0, 1).toUpperCase()}</div>
                   )}
-                </p>
-                <span className="text-[11px] text-ggz-text-muted">
-                  {new Date(n.created_at).toLocaleDateString()}
-                </span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm leading-6 text-ggz-text-secondary">{item.message || item.notification_type}</p>
+                  <p className="mt-1 text-xs text-ggz-text-muted">{item.actor.gamer_tag} · {timeLabel(item.created_at)}</p>
+                </div>
+                {!item.is_read ? (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      markOneRead(item.id);
+                    }}
+                    className="mt-1 shrink-0 rounded-full bg-ggz-amber px-2.5 py-1 text-[10px] font-semibold text-black hover:brightness-110"
+                  >
+                    Mark read
+                  </button>
+                ) : null}
               </div>
-              {!n.read && (
-                <span className="w-2.5 h-2.5 rounded-full bg-ggz-amber shrink-0 mt-1" />
-              )}
-            </div>
-          ))}
+            );
+            return isInternalRoute(item.target_url) ? <Link key={item.id} href={item.target_url}>{content}</Link> : <div key={item.id}>{content}</div>;
+          })}
         </div>
       )}
     </div>

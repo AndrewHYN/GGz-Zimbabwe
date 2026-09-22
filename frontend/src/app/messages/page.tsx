@@ -1,220 +1,203 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 
 interface Participant {
-  username: string;
-  avatar_url: string;
+  id: number | null;
+  username?: string | null;
+  gamer_tag?: string | null;
+  avatar?: string | null;
 }
 
 interface Message {
-  id: string;
+  id: number;
   sender: string;
   content: string;
   created_at: string;
+  is_read?: boolean;
 }
 
 interface Conversation {
-  id: string;
+  id: number;
   other_participant: Participant;
   last_message: string;
   last_message_time: string;
   unread_count: number;
+  updated_at: string;
   messages?: Message[];
+}
+
+function getCsrfToken() {
+  if (typeof document === "undefined") return "";
+  return document.cookie.match(/(?:^|; )csrftoken=([^;]+)/)?.[1] ?? "";
 }
 
 export default function MessagesPage() {
   const router = useRouter();
+  const endRef = useRef<HTMLDivElement>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  const [authError, setAuthError] = useState(false);
-  const [inputValue, setInputValue] = useState("");
+  const [detailLoading, setDetailLoading] = useState(false);
   const [sending, setSending] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [composer, setComposer] = useState("");
 
   useEffect(() => {
-    async function fetchConversations() {
-      try {
-        const res = await fetch("/api/messages/", {
-          credentials: "include",
-        });
-        if (res.status === 401 || res.status === 403) {
-          setAuthError(true);
-          return;
+    fetch("/api/messages/", { credentials: "include", headers: { "X-Requested-With": "XMLHttpRequest" } })
+      .then((res) => {
+        if (!res.ok) throw new Error("Unauthenticated");
+        return res.json();
+      })
+      .then((data) => {
+        const list = Array.isArray(data) ? data : data.results ?? [];
+        setConversations(list);
+        if (list[0]) setSelectedId(list[0].id);
+      })
+      .catch(() => router.push("/auth/login"))
+      .finally(() => setLoading(false));
+  }, [router]);
+
+  useEffect(() => {
+    if (selectedId == null) return;
+    let cancelled = false;
+    fetch("/api/messages/" + selectedId + "/", { credentials: "include" })
+      .then((res) => {
+        if (cancelled) return null;
+        if (!res.ok) throw new Error("Conversation unavailable");
+        return res.json();
+      })
+      .then((detail) => {
+        if (!cancelled && detail) {
+          setConversations((items) =>
+            items.map((item) => item.id === selectedId ? { ...item, ...detail, messages: detail.messages ?? [] } : item)
+          );
         }
-        const data = await res.json();
-        setConversations(data.results ?? data);
-      } catch {
-        setAuthError(true);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchConversations();
-  }, []);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setDetailLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId]);
 
   useEffect(() => {
-    if (authError) router.push("/login");
-  }, [authError, router]);
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [selectedId, conversations.find((item) => item.id === selectedId)?.messages?.length]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [selectedId, conversations]);
-
-  const selected = conversations.find((c) => c.id === selectedId);
-
-  async function handleSend(e: React.FormEvent) {
-    e.preventDefault();
-    if (!inputValue.trim() || !selectedId) return;
+  async function sendMessage(event: React.FormEvent) {
+    event.preventDefault();
+    const content = composer.trim();
+    if (!content || selectedId == null || sending) return;
     setSending(true);
     try {
-      const res = await fetch(`/api/messages/${selectedId}/send/`, {
+      if (!getCsrfToken()) await fetch("/api/csrf/", { credentials: "include" });
+      const res = await fetch("/api/messages/" + selectedId + "/send/", {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: inputValue.trim() }),
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCsrfToken(),
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        body: JSON.stringify({ content }),
       });
-      if (res.ok) {
-        const msg: Message = await res.json();
-        setConversations((prev) =>
-          prev.map((c) =>
-            c.id === selectedId
-              ? { ...c, messages: [...(c.messages ?? []), msg], last_message: msg.content, last_message_time: msg.created_at }
-              : c
-          )
-        );
-        setInputValue("");
-      }
+      if (!res.ok) throw new Error("Message failed");
+      const message: Message = await res.json();
+      setConversations((items) => items.map((item) =>
+        item.id === selectedId
+          ? { ...item, last_message: message.content, last_message_time: message.created_at, messages: [...(item.messages ?? []), message], unread_count: 0 }
+          : item
+      ));
+      setComposer("");
     } finally {
       setSending(false);
     }
   }
 
-  if (loading) {
-    return (
-      <div className="max-w-[1536px] mx-auto px-4 py-8">
-        <p className="text-ggz-text-muted">Loading...</p>
-      </div>
-    );
-  }
+  if (loading) return <div className="mx-auto max-w-7xl px-4 py-8 text-ggz-text-secondary">Loading messages…</div>;
 
-  if (authError) return null;
+  const selected = conversations.find((item) => item.id === selectedId);
 
   return (
-    <div className="max-w-[1536px] mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-ggz-text-primary mb-6">
-        Messages
-      </h1>
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:py-8">
+      <div className="mb-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ggz-amber">Direct chat</p>
+        <h1 className="mt-1 text-3xl font-bold text-ggz-text-primary">Messages</h1>
+      </div>
 
-      <div className="bg-ggz-bg-1 border border-ggz-border rounded-[var(--radius-lg)] overflow-hidden flex h-[70vh]">
-        {/* Sidebar */}
-        <div className="w-80 border-r border-ggz-border flex flex-col overflow-y-auto">
-          {conversations.length === 0 ? (
-            <div className="p-6 text-center">
-              <p className="text-ggz-text-muted">No conversations yet.</p>
-            </div>
-          ) : (
-            conversations.map((conv) => (
-              <button
-                key={conv.id}
-                onClick={() => setSelectedId(conv.id)}
-                className={`flex items-center gap-3 w-full px-4 py-3 text-left border-b border-ggz-border transition ${
-                  selectedId === conv.id
-                    ? "bg-ggz-amber/10 border-l-2 border-l-ggz-amber"
-                    : "hover:bg-ggz-bg-2"
-                }`}
-              >
-                <Image
-                  src={conv.other_participant.avatar_url}
-                  alt={conv.other_participant.username}
-                  className="w-9 h-9 rounded-full bg-ggz-border object-cover shrink-0"
-                  fill
-                  sizes="36px"
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-sm text-ggz-text-primary truncate">
-                      {conv.other_participant.username}
-                    </span>
-                    <span className="text-[11px] text-ggz-text-muted whitespace-nowrap ml-2">
-                      {new Date(conv.last_message_time).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
+      <div className="overflow-hidden rounded-2xl border border-ggz-border bg-ggz-bg-1 lg:grid lg:grid-cols-[320px_1fr]">
+        <aside className={"border-r border-ggz-border " + (selected ? "hidden lg:block" : "block")}>
+          <div className="border-b border-ggz-border px-4 py-3 text-xs font-semibold uppercase tracking-wide text-ggz-text-muted">{conversations.length} conversations</div>
+          <div className="max-h-[68vh] overflow-y-auto">
+            {conversations.length === 0 ? (
+              <div className="p-6 text-sm text-ggz-text-secondary">No conversations yet. Open a gamer profile to start a conversation.</div>
+            ) : conversations.map((conversation) => (
+              <button key={conversation.id} onClick={() => { setDetailLoading(true); setSelectedId(conversation.id); }} className={"flex w-full items-center gap-3 border-b border-ggz-border/70 px-4 py-3 text-left transition " + (selectedId === conversation.id ? "bg-ggz-amber/10" : "hover:bg-ggz-bg-2")}>
+                <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-ggz-bg-2">
+                  {conversation.other_participant.avatar ? <Image src={conversation.other_participant.avatar} alt="" fill sizes="40px" className="object-cover" /> : <div className="flex h-full w-full items-center justify-center text-xs font-bold text-ggz-amber">{(conversation.other_participant.gamer_tag || "G").slice(0, 1).toUpperCase()}</div>}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate text-sm font-semibold text-ggz-text-primary">{conversation.other_participant.gamer_tag || conversation.other_participant.username || "Gamer"}</p>
+                    {conversation.unread_count > 0 && <span className="rounded-full bg-ggz-amber px-2 py-0.5 text-[10px] font-bold text-black">{conversation.unread_count}</span>}
                   </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-ggz-text-muted truncate">
-                      {conv.last_message}
-                    </p>
-                    {conv.unread_count > 0 && (
-                      <span className="ml-2 shrink-0 bg-ggz-amber text-black text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
-                        {conv.unread_count}
-                      </span>
-                    )}
-                  </div>
+                  <p className="truncate text-xs text-ggz-text-muted">{conversation.last_message || "No messages yet"}</p>
                 </div>
               </button>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        </aside>
 
-        {/* Message area */}
-        <div className="flex-1 flex flex-col">
+        <section className={"min-h-[62vh] " + (selected ? "block" : "hidden lg:block")}>
           {selected ? (
-            <>
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {(selected.messages ?? []).map((msg) => (
-                  <div key={msg.id} className="max-w-[75%]">
-                    <span className="text-xs font-semibold text-ggz-text-primary block mb-0.5">
-                      {msg.sender}
-                    </span>
-                    <div className="bg-ggz-bg-2 border border-ggz-border rounded-[var(--radius-lg)] px-3 py-2">
-                      <p className="text-sm text-ggz-text-secondary whitespace-pre-wrap break-words">
-                        {msg.content}
-                      </p>
-                    </div>
-                    <span className="text-[10px] text-ggz-text-muted mt-0.5 block">
-                      {new Date(msg.created_at).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                  </div>
-                ))}
-                <div ref={messagesEndRef} />
+            <div className="flex h-full min-h-[62vh] flex-col">
+              <div className="flex items-center gap-3 border-b border-ggz-border px-4 py-3">
+                <button onClick={() => setSelectedId(null)} className="lg:hidden rounded-lg border border-ggz-border px-2 py-1 text-xs text-ggz-text-secondary">Back</button>
+                <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full bg-ggz-bg-2">
+                  {selected.other_participant.avatar ? <Image src={selected.other_participant.avatar} alt="" fill sizes="36px" className="object-cover" /> : <div className="flex h-full w-full items-center justify-center text-xs font-bold text-ggz-amber">{(selected.other_participant.gamer_tag || "G").slice(0, 1).toUpperCase()}</div>}
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-ggz-text-primary">{selected.other_participant.gamer_tag || selected.other_participant.username || "Gamer"}</p>
+                  <p className="text-xs text-ggz-text-muted">GGz conversation</p>
+                </div>
               </div>
-              <form
-                onSubmit={handleSend}
-                className="border-t border-ggz-border p-3 flex gap-2"
-              >
-                <input
-                  type="text"
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  placeholder="Type a message..."
-                  className="flex-1 bg-ggz-bg-2 border border-ggz-border rounded-[var(--radius-lg)] px-4 py-2 text-sm text-ggz-text-primary placeholder:text-ggz-text-muted focus:outline-none focus:border-ggz-amber"
-                />
-                <button
-                  type="submit"
-                  disabled={sending || !inputValue.trim()}
-                  className="bg-ggz-amber text-black font-semibold px-5 py-2 rounded-[var(--radius-lg)] hover:opacity-90 transition disabled:opacity-40"
-                >
-                  Send
-                </button>
+
+              <div className="flex-1 overflow-y-auto px-4 py-5">
+                {detailLoading ? (
+                  <p className="text-sm text-ggz-text-secondary">Loading conversation…</p>
+                ) : (selected.messages ?? []).length === 0 ? (
+                  <div className="flex min-h-[360px] items-center justify-center text-center">
+                    <div><p className="font-semibold text-ggz-text-primary">Start the conversation</p><p className="mt-1 text-sm text-ggz-text-secondary">Send a message to get things going.</p></div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {(selected.messages ?? []).map((message) => (
+                      <div key={message.id} className="max-w-[82%] rounded-2xl border border-ggz-border bg-ggz-bg-2 px-4 py-3">
+                        <p className="text-xs font-semibold text-ggz-amber">{message.sender}</p>
+                        <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-ggz-text-secondary">{message.content}</p>
+                        <p className="mt-2 text-[10px] text-ggz-text-muted">{new Date(message.created_at).toLocaleString()}</p>
+                      </div>
+                    ))}
+                    <div ref={endRef} />
+                  </div>
+                )}
+              </div>
+
+              <form onSubmit={sendMessage} className="border-t border-ggz-border p-3">
+                <div className="flex gap-2">
+                  <input value={composer} onChange={(event) => setComposer(event.target.value)} placeholder="Write a message…" className="min-w-0 flex-1 rounded-xl border border-ggz-border bg-ggz-bg-2 px-4 py-3 text-sm text-ggz-text-primary outline-none transition focus:border-ggz-amber" />
+                  <button type="submit" disabled={sending || !composer.trim()} className="rounded-xl bg-ggz-amber px-5 py-3 text-sm font-semibold text-black transition hover:brightness-110 disabled:opacity-40">{sending ? "Sending…" : "Send"}</button>
+                </div>
               </form>
-            </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center">
-              <p className="text-ggz-text-muted">
-                Select a conversation to start messaging.
-              </p>
             </div>
+          ) : (
+            <div className="flex min-h-[62vh] items-center justify-center text-sm text-ggz-text-secondary">Select a conversation.</div>
           )}
-        </div>
+        </section>
       </div>
     </div>
   );

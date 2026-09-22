@@ -46,7 +46,6 @@ if (parsedBackend && parsedBackend.hostname !== "localhost") {
 }
 
 const nextConfig: NextConfig = {
-  trailingSlash: true,
   images: {
     remotePatterns,
   },

@@ -3,16 +3,5 @@
   "framework": "nextjs",
   "installCommand": "npm ci",
   "buildCommand": "npm run build",
-  "outputDirectory": ".next",
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "https://g-gz-zimbabwe.vercel.app/api/$1" },
-    { "source": "/accounts/(.*)", "destination": "https://g-gz-zimbabwe.vercel.app/accounts/$1" },
-    { "source": "/profiles/signup/", "destination": "https://g-gz-zimbabwe.vercel.app/profiles/signup/" },
-    { "source": "/media/(.*)", "destination": "https://g-gz-zimbabwe.vercel.app/media/$1" },
-    { "source": "/static/(.*)", "destination": "https://g-gz-zimbabwe.vercel.app/static/$1" },
-    { "source": "/privacy", "destination": "https://g-gz-zimbabwe.vercel.app/privacy/" },
-    { "source": "/terms", "destination": "https://g-gz-zimbabwe.vercel.app/terms/" },
-    { "source": "/cookies", "destination": "https://g-gz-zimbabwe.vercel.app/cookies/" },
-    { "source": "/refund", "destination": "https://g-gz-zimbabwe.vercel.app/refund/" }
-  ]
+  "outputDirectory": ".next"
 }
