@@ -23,6 +23,47 @@ interface LeaderboardEntry {
   win_percentage: number;
 }
 
+interface CommunityPost {
+  id: number;
+  author: { gamer_tag: string };
+  content: string;
+  like_count: number;
+  comment_count: number;
+  created_at?: string | null;
+}
+
+interface PlayerPreview {
+  gamer_tag: string;
+  avatar?: string | null;
+}
+
+interface LinkedTournament {
+  id: number;
+  name: string;
+  slug: string;
+  status: string;
+}
+
+interface LinkedEvent {
+  id: number;
+  name: string;
+  status: string;
+}
+
+interface LinkedListing {
+  id: number;
+  title: string;
+  price: string;
+}
+
+interface GameNewsItem {
+  title: string;
+  source_name: string;
+  url: string;
+  image_url?: string | null;
+  published_at?: string | null;
+}
+
 interface Game {
   id: number;
   name: string;
@@ -38,6 +79,7 @@ interface Game {
   store_url?: string | null;
   trailer_url?: string | null;
   trailer_embed_url?: string | null;
+  igdb_url?: string | null;
   average_rating?: number | null;
   review_count: number;
   user_review?: { id: number; rating: number; review: string } | null;
@@ -45,6 +87,16 @@ interface Game {
   leaderboard: LeaderboardEntry[];
   is_wishlisted: boolean;
   wishlist_count: number;
+  player_count_total: number;
+  tournament_count: number;
+  event_count: number;
+  available_players: PlayerPreview[];
+  challengers: { id: number; gamer_tag: string }[];
+  community_posts: CommunityPost[];
+  upcoming_tournaments: LinkedTournament[];
+  related_events: LinkedEvent[];
+  related_listings: LinkedListing[];
+  game_news: GameNewsItem[];
 }
 
 function csrfToken() {
@@ -70,6 +122,8 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
   const [reviewText, setReviewText] = useState("");
   const [saving, setSaving] = useState(false);
   const [wishlisting, setWishlisting] = useState(false);
+  const [challenging, setChallenging] = useState(false);
+  const [opponent, setOpponent] = useState("");
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
@@ -93,6 +147,13 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
             leaderboard: detail.leaderboard ?? [],
             is_wishlisted: detail.is_wishlisted ?? false,
             wishlist_count: detail.wishlist_count ?? 0,
+            available_players: detail.available_players ?? [],
+            challengers: detail.challengers ?? [],
+            community_posts: detail.community_posts ?? [],
+            upcoming_tournaments: detail.upcoming_tournaments ?? [],
+            related_events: detail.related_events ?? [],
+            related_listings: detail.related_listings ?? [],
+            game_news: detail.game_news ?? [],
           };
           setGame(normalized);
           if (normalized.user_review) {
@@ -157,6 +218,31 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
       setNotice(error instanceof Error ? error.message : "Wishlist update failed");
     } finally {
       setWishlisting(false);
+    }
+  }
+
+  async function submitChallenge(event: React.FormEvent) {
+    event.preventDefault();
+    if (!game || challenging || !opponent) return;
+    setChallenging(true);
+    setNotice("");
+    try {
+      if (!csrfToken()) await fetch("/api/csrf/", { credentials: "include" });
+      const res = await fetch("/api/games/" + game.id + "/challenge/", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken(), "X-Requested-With": "XMLHttpRequest" },
+        body: JSON.stringify({ opponent }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) throw new Error("Sign in to challenge a friend.");
+      if (!res.ok) throw new Error(data.error || "Challenge failed");
+      setNotice(data.message || "Challenge sent.");
+      setOpponent("");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Challenge failed");
+    } finally {
+      setChallenging(false);
     }
   }
 
@@ -320,6 +406,126 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
                 </li>
               ))}
             </ol>
+          )}
+        </div>
+      </section>
+
+      <section className="mt-8 grid gap-5 lg:grid-cols-3">
+        <div className="rounded-[var(--radius-lg)] border border-ggz-border bg-ggz-bg-1 p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="font-semibold text-ggz-text-primary">Players</h2>
+            <Link href="/gamers" className="text-xs font-semibold text-ggz-amber hover:underline">Find players</Link>
+          </div>
+          {game.available_players.length === 0 ? (
+            <p className="text-sm text-ggz-text-muted">No players have added this game yet.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {game.available_players.slice(0, 12).map((player) => (
+                <Link key={player.gamer_tag} href={"/profiles/" + encodeURIComponent(player.gamer_tag)} className="flex items-center gap-2 rounded-full border border-ggz-border bg-ggz-bg-2 py-1 pl-1 pr-3 transition hover:border-ggz-amber/40">
+                  <span className="relative block h-6 w-6 overflow-hidden rounded-full bg-ggz-bg-1">
+                    {player.avatar ? <Image src={player.avatar} alt="" fill sizes="24px" className="object-cover" /> : <span className="flex h-full w-full items-center justify-center text-[10px] font-bold text-ggz-amber">{player.gamer_tag.slice(0, 1)}</span>}
+                  </span>
+                  <span className="text-xs font-medium text-ggz-text-primary">{player.gamer_tag}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+          {game.challengers.length > 0 && (
+            <form onSubmit={submitChallenge} className="mt-4 border-t border-ggz-border pt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ggz-text-muted">Challenge a friend</p>
+              <div className="mt-2 flex gap-2">
+                <select value={opponent} onChange={(e) => setOpponent(e.target.value)} className="h-10 min-w-0 flex-1 rounded-xl border border-ggz-border bg-ggz-bg-2 px-3 text-sm text-ggz-text-primary outline-none focus:border-ggz-amber">
+                  <option value="">Select player…</option>
+                  {game.challengers.map((challenger) => <option key={challenger.id} value={challenger.id}>{challenger.gamer_tag}</option>)}
+                </select>
+                <button type="submit" disabled={challenging || !opponent} className="rounded-xl bg-ggz-amber px-4 py-2 text-sm font-semibold text-black hover:brightness-110 disabled:opacity-40">
+                  {challenging ? "…" : "Challenge"}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+
+        <div className="rounded-[var(--radius-lg)] border border-ggz-border bg-ggz-bg-1 p-5">
+          <h2 className="font-semibold text-ggz-text-primary">Community posts</h2>
+          {game.community_posts.length === 0 ? (
+            <p className="mt-3 text-sm text-ggz-text-muted">No posts about this game yet. <Link href="/feed" className="text-ggz-amber hover:underline">Start the conversation</Link>.</p>
+          ) : (
+            <div className="mt-3 space-y-2">
+              {game.community_posts.map((post) => (
+                <Link key={post.id} href={"/feed/posts/" + post.id} className="block rounded-xl border border-ggz-border bg-ggz-bg-2 p-3 transition hover:border-ggz-amber/40">
+                  <p className="truncate text-sm font-medium text-ggz-text-primary">{post.author.gamer_tag}</p>
+                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-ggz-text-secondary">{post.content}</p>
+                  <p className="mt-1 text-[11px] text-ggz-text-muted">♥ {post.like_count} · 💬 {post.comment_count}</p>
+                </Link>
+              ))}
+            </div>
+          )}
+          <h2 className="mb-3 mt-6 font-semibold text-ggz-text-primary">Game news</h2>
+          {game.game_news.length === 0 ? (
+            <p className="text-sm text-ggz-text-muted">No news items for this game.</p>
+          ) : (
+            <div className="space-y-2">
+              {game.game_news.map((item) => (
+                <a key={item.url} href={item.url} target="_blank" rel="noopener noreferrer" className="block rounded-xl border border-ggz-border bg-ggz-bg-2 p-3 transition hover:border-ggz-amber/40">
+                  <p className="text-sm font-medium leading-5 text-ggz-text-primary">{item.title}</p>
+                  <p className="mt-1 text-[11px] text-ggz-text-muted">{item.source_name}</p>
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-[var(--radius-lg)] border border-ggz-border bg-ggz-bg-1 p-5">
+          <h2 className="font-semibold text-ggz-text-primary">Tournaments</h2>
+          {game.upcoming_tournaments.length === 0 ? (
+            <p className="mt-3 text-sm text-ggz-text-muted">No upcoming tournaments. <Link href="/tournaments" className="text-ggz-amber hover:underline">Browse all</Link>.</p>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {game.upcoming_tournaments.map((tournament) => (
+                <li key={tournament.id}>
+                  <Link href={"/tournaments/" + tournament.slug} className="block rounded-xl border border-ggz-border bg-ggz-bg-2 p-3 text-sm transition hover:border-ggz-amber/40">
+                    <span className="font-medium text-ggz-text-primary">{tournament.name}</span>
+                    <span className="ml-2 text-xs text-ggz-text-muted">{tournament.status}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          <h2 className="mb-3 mt-6 font-semibold text-ggz-text-primary">Events</h2>
+          {game.related_events.length === 0 ? (
+            <p className="text-sm text-ggz-text-muted">No upcoming events. <Link href="/events" className="text-ggz-amber hover:underline">Browse all</Link>.</p>
+          ) : (
+            <ul className="space-y-2">
+              {game.related_events.map((event) => (
+                <li key={event.id}>
+                  <Link href={"/events/" + event.id} className="block rounded-xl border border-ggz-border bg-ggz-bg-2 p-3 text-sm transition hover:border-ggz-amber/40">
+                    <span className="font-medium text-ggz-text-primary">{event.name}</span>
+                    <span className="ml-2 text-xs text-ggz-text-muted">{event.status}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          <h2 className="mb-3 mt-6 font-semibold text-ggz-text-primary">Marketplace</h2>
+          {game.related_listings.length === 0 ? (
+            <p className="text-sm text-ggz-text-muted">Nothing listed for this game. <Link href="/marketplace" className="text-ggz-amber hover:underline">Browse all</Link>.</p>
+          ) : (
+            <ul className="space-y-2">
+              {game.related_listings.map((listing) => (
+                <li key={listing.id}>
+                  <Link href={"/marketplace/listing/" + listing.id} className="block rounded-xl border border-ggz-border bg-ggz-bg-2 p-3 text-sm transition hover:border-ggz-amber/40">
+                    <span className="font-medium text-ggz-text-primary">{listing.title}</span>
+                    <span className="ml-2 text-xs text-ggz-amber">${listing.price}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          {game.igdb_url && (
+            <a href={game.igdb_url} target="_blank" rel="noopener noreferrer" className="mt-6 inline-flex items-center gap-2 text-sm text-ggz-amber hover:underline">
+              View on IGDB <ExternalLinkIcon className="h-4 w-4" />
+            </a>
           )}
         </div>
       </section>

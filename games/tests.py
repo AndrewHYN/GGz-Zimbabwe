@@ -558,6 +558,57 @@ class GameHubTests(TestCase):
 		self.assertFalse(removed.json()["wishlisted"])
 		self.assertEqual(self.client.get(reverse("api_game_detail", args=[game.id])).json()["wishlist_count"], 0)
 
+	def test_game_detail_api_exposes_community_sections(self):
+		from accounts.models import Post
+		from tournaments.models import Tournament
+
+		game = Game.objects.create(name="Rocket League")
+		author_user = User.objects.create_user(username="poster", password="pass")
+		author = GamerProfile.objects.create(user=author_user, gamer_tag="PosterZW")
+		author.games.add(game)
+		post = Post.objects.create(author=author, game=game, body=" loving this game ")
+		tournament = Tournament.objects.create(
+			organizer=author, game=game, name="Rocket Cup", slug="rocket-cup",
+			description="cup", format="1v1", max_participants=8,
+			start_date=timezone.now() + timedelta(days=5),
+			registration_deadline=timezone.now() + timedelta(days=4),
+			status="Registration Open",
+		)
+		payload = self.client.get(reverse("api_game_detail", args=[game.id])).json()
+		self.assertEqual(payload["community_posts"][0]["id"], post.id)
+		self.assertEqual(payload["available_players"][0]["gamer_tag"], "PosterZW")
+		self.assertEqual(payload["upcoming_tournaments"][0]["slug"], "rocket-cup")
+		self.assertEqual(payload["tournament_count"], 1)
+		self.assertIn("challengers", payload)
+		self.assertIn("game_news", payload)
+
+	def test_game_challenge_api_enforces_eligibility_and_rules(self):
+		game = Game.objects.create(name="Apex Legends")
+		challenger_user = User.objects.create_user(username="challenger", password="pass")
+		challenger = GamerProfile.objects.create(user=challenger_user, gamer_tag="ChallengerZW")
+		challenger.games.add(game)
+		opponent_user = User.objects.create_user(username="opponent", password="pass")
+		opponent = GamerProfile.objects.create(user=opponent_user, gamer_tag="OpponentZW")
+		opponent.games.add(game)
+		url = reverse("api_game_challenge_create", args=[game.id])
+
+		self.assertEqual(self.client.post(url, data=json.dumps({"opponent": opponent.id}), content_type="application/json").status_code, 401)
+		self.client.force_login(challenger_user)
+		self.assertEqual(self.client.post(url, data=json.dumps({"opponent": challenger.id}), content_type="application/json").status_code, 400)
+		stranger_user = User.objects.create_user(username="stranger", password="pass")
+		GamerProfile.objects.create(user=stranger_user, gamer_tag="StrangerZW")
+		self.client.force_login(stranger_user)
+		outsider = self.client.post(url, data=json.dumps({"opponent": opponent.id}), content_type="application/json")
+		self.assertEqual(outsider.status_code, 201)
+		self.client.force_login(challenger_user)
+		created = self.client.post(url, data=json.dumps({"opponent": opponent.id}), content_type="application/json")
+		self.assertEqual(created.status_code, 201)
+		self.assertTrue(created.json()["created"])
+		self.assertTrue(Challenge.objects.filter(challenger=challenger, opponent=opponent, game=game, status="Pending").exists())
+		duplicate = self.client.post(url, data=json.dumps({"opponent": opponent.id}), content_type="application/json")
+		self.assertFalse(duplicate.json()["created"])
+		self.assertEqual(Challenge.objects.filter(challenger=challenger, opponent=opponent, game=game).count(), 1)
+
 	def test_game_detail_wires_find_players_and_challenge_friend_to_existing_system(self):
 		game = Game.objects.create(name="League of Legends", genre="MOBA")
 		player_user = User.objects.create_user(username="playerone", password="pass")

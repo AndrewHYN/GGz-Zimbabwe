@@ -4,7 +4,7 @@ from django.db.models import Count
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
-from accounts.models import GamerProfile, Notification, Post, Conversation, Message, ConversationParticipant
+from accounts.models import Block, GamerProfile, Notification, Post, Conversation, Message, ConversationParticipant
 from events.models import Event
 from games.models import Game, GameReview, GameWishlist
 from marketplace.models import Listing
@@ -142,12 +142,36 @@ def api_game_detail(request, game_id):
 
     from games.views import _compute_game_stats
 
+    from accounts.models import ExternalFeedItem
+    from accounts.views import _visible_posts
+
     viewer = getattr(request.user, 'gamer_profile', None) if request.user.is_authenticated else None
     reviews = list(game.reviews.select_related('reviewer').order_by('-created_at')[:20])
     user_review = (
         GameReview.objects.select_related('reviewer').filter(game=game, reviewer=viewer).first()
         if viewer
         else None
+    )
+    community_posts = list(
+        _visible_posts(viewer).filter(game=game).select_related('author').order_by('-created_at')[:5]
+    )
+    available_players = list(game.players.order_by('gamer_tag')[:8])
+    challengers = [
+        {'id': player.id, 'gamer_tag': player.gamer_tag}
+        for player in available_players
+        if viewer is None or player.id != viewer.id
+    ]
+    upcoming_tournaments = list(
+        game.tournaments.filter(status__in=('Registration Open', 'Registration Closed', 'Live')).order_by('start_date')[:4]
+    )
+    related_events = list(
+        game.events.filter(status__in=('Upcoming', 'Published', 'Live')).order_by('start_date')[:4]
+    )
+    related_listings = list(
+        game.listings.filter(status__in=('Available', 'Reserved')).select_related('seller').order_by('-created_at')[:4]
+    )
+    game_news = list(
+        ExternalFeedItem.objects.filter(game=game, is_active=True).order_by('-published_at')[:4]
     )
     leaderboard = [
         {
@@ -204,6 +228,48 @@ def api_game_detail(request, game_id):
         'leaderboard': leaderboard,
         'is_wishlisted': bool(viewer and GameWishlist.objects.filter(profile=viewer, game=game).exists()),
         'wishlist_count': GameWishlist.objects.filter(game=game).count(),
+        'igdb_url': game.igdb_url or None,
+        'player_count_total': game.players.count(),
+        'tournament_count': game.tournaments.filter(status__in=('Registration Open', 'Registration Closed', 'Live')).count(),
+        'event_count': game.events.filter(status__in=('Upcoming', 'Published', 'Live')).count(),
+        'available_players': [
+            {'gamer_tag': player.gamer_tag, 'avatar': _serialize_file_field(player.avatar)}
+            for player in available_players
+        ],
+        'challengers': challengers,
+        'community_posts': [
+            {
+                'id': post.id,
+                'author': {'gamer_tag': post.author.gamer_tag},
+                'content': post.body[:220],
+                'like_count': post.likes.count(),
+                'comment_count': post.comments.count(),
+                'created_at': post.created_at.isoformat() if post.created_at else None,
+            }
+            for post in community_posts
+        ],
+        'upcoming_tournaments': [
+            {'id': tournament.id, 'name': tournament.name, 'slug': tournament.slug, 'status': tournament.status}
+            for tournament in upcoming_tournaments
+        ],
+        'related_events': [
+            {'id': event.id, 'name': event.name, 'status': event.status}
+            for event in related_events
+        ],
+        'related_listings': [
+            {'id': listing.id, 'title': listing.title, 'price': str(listing.price)}
+            for listing in related_listings
+        ],
+        'game_news': [
+            {
+                'title': item.title,
+                'source_name': item.source_name,
+                'url': item.url,
+                'image_url': item.image_url or None,
+                'published_at': item.published_at.isoformat() if item.published_at else None,
+            }
+            for item in game_news
+        ],
     }
     return JsonResponse(data)
 
@@ -252,6 +318,63 @@ def api_game_review_create(request, game_id):
             'created_at': review.created_at.isoformat() if review.created_at else None,
         },
     }, status=201 if created else 200)
+
+
+@require_POST
+def api_game_challenge_create(request, game_id):
+    import json
+
+    from django.db.models import Q
+    from django.utils.dateparse import parse_datetime
+    from django.utils import timezone
+    from tournaments.models import Challenge
+
+    from accounts.views import _rate_limit_exceeded
+
+    if not request.user.is_authenticated:
+        return JsonResponse({'authenticated': False}, status=401)
+    try:
+        game = Game.objects.get(id=game_id)
+    except Game.DoesNotExist:
+        return JsonResponse({'error': 'Game not found'}, status=404)
+    try:
+        profile = GamerProfile.objects.get(user=request.user)
+    except GamerProfile.DoesNotExist:
+        return JsonResponse({'error': 'Profile not found'}, status=404)
+    if _rate_limit_exceeded(request, 'challenge', 20):
+        return JsonResponse({'ok': False, 'error': 'Too many challenges sent. Please slow down.'}, status=429)
+    try:
+        payload = json.loads(request.body)
+    except (json.JSONDecodeError, TypeError, AttributeError):
+        return JsonResponse({'ok': False, 'error': 'Invalid request.'}, status=400)
+    opponent_id = payload.get('opponent')
+    try:
+        opponent = GamerProfile.objects.filter(
+            Q(games=game) | Q(team_memberships__team__game=game)
+        ).distinct().get(id=opponent_id)
+    except (GamerProfile.DoesNotExist, TypeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'Choose an eligible friend to challenge.'}, status=400)
+    if opponent == profile:
+        return JsonResponse({'ok': False, 'error': 'You cannot challenge yourself.'}, status=400)
+    if Block.objects.filter(Q(blocker=profile, blocked=opponent) | Q(blocker=opponent, blocked=profile)).exists():
+        return JsonResponse({'ok': False, 'error': 'You cannot challenge this player.'}, status=403)
+    scheduled_at = payload.get('scheduled_at') or None
+    if scheduled_at:
+        scheduled_at = parse_datetime(scheduled_at)
+        if scheduled_at and timezone.is_naive(scheduled_at):
+            scheduled_at = timezone.make_aware(scheduled_at, timezone.get_current_timezone())
+    challenge, created = Challenge.objects.get_or_create(
+        challenger=profile,
+        opponent=opponent,
+        game=game,
+        status='Pending',
+        defaults={'scheduled_at': scheduled_at},
+    )
+    if not created:
+        return JsonResponse({'ok': True, 'created': False, 'message': 'You already have a pending challenge for this player.'})
+    from accounts.models import notify
+    notify(opponent, profile, 'challenge', f'{profile.gamer_tag} challenged you', f'/games/{game.id}/')
+    return JsonResponse({'ok': True, 'created': True, 'message': 'Challenge sent.'}, status=201)
 
 
 @require_POST

@@ -54,6 +54,7 @@ urlpatterns = [
     path("api/games/<int:game_id>/", api_views.api_game_detail, name="api_game_detail"),
     path("api/games/<int:game_id>/reviews/", api_views.api_game_review_create, name="api_game_review_create"),
     path("api/games/<int:game_id>/wishlist/", api_views.api_game_wishlist_toggle, name="api_game_wishlist_toggle"),
+    path("api/games/<int:game_id>/challenge/", api_views.api_game_challenge_create, name="api_game_challenge_create"),
     path("api/tournaments/", api_views.api_tournaments_list, name="api_tournaments_list"),
     path("api/events/", api_views.api_events_list, name="api_events_list"),
     path("api/teams/", api_views.api_teams_list, name="api_teams_list"),
