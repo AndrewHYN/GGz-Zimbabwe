@@ -63,13 +63,18 @@ const nextConfig: NextConfig = {
   async rewrites() {
     const backendUrl = process.env.NEXT_PUBLIC_DJANGO_URL || "http://localhost:8000";
     return [
+      // NOTE: the trailing "/" in these destinations is load-bearing. Next.js
+      // captures :path* without a trailing slash, so without it Django receives
+      // slashless paths and APPEND_SLASH 301-redirects back, producing an
+      // infinite redirect loop for every browser-initiated backend call.
+      // (Media/static file paths are intentionally left untouched.)
       {
         source: "/api/:path*",
-        destination: `${backendUrl}/api/:path*`,
+        destination: `${backendUrl}/api/:path*/`,
       },
       {
         source: "/accounts/:path*",
-        destination: `${backendUrl}/accounts/:path*`,
+        destination: `${backendUrl}/accounts/:path*/`,
       },
       {
         source: "/profiles/signup/",
