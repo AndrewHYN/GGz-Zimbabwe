@@ -144,7 +144,11 @@ def api_game_detail(request, game_id):
 
     viewer = getattr(request.user, 'gamer_profile', None) if request.user.is_authenticated else None
     reviews = list(game.reviews.select_related('reviewer').order_by('-created_at')[:20])
-    user_review = next((review for review in reviews if viewer and review.reviewer_id == viewer.id), None)
+    user_review = (
+        GameReview.objects.select_related('reviewer').filter(game=game, reviewer=viewer).first()
+        if viewer
+        else None
+    )
     leaderboard = [
         {
             'gamer_tag': profile.gamer_tag,
