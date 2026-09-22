@@ -6,7 +6,7 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 
 from accounts.models import GamerProfile, Notification, Post, Conversation, Message, ConversationParticipant
 from events.models import Event
-from games.models import Game
+from games.models import Game, GameReview, GameWishlist
 from marketplace.models import Listing
 from teams.models import Team
 from tournaments.models import Tournament
@@ -136,10 +136,25 @@ def api_games_list(request):
 @require_GET
 def api_game_detail(request, game_id):
     try:
-        game = Game.objects.get(id=game_id)
+        game = Game.objects.prefetch_related('reviews__reviewer').get(id=game_id)
     except Game.DoesNotExist:
         return JsonResponse({'error': 'Game not found'}, status=404)
 
+    from games.views import _compute_game_stats
+
+    viewer = getattr(request.user, 'gamer_profile', None) if request.user.is_authenticated else None
+    reviews = list(game.reviews.select_related('reviewer').order_by('-created_at')[:20])
+    user_review = next((review for review in reviews if viewer and review.reviewer_id == viewer.id), None)
+    leaderboard = [
+        {
+            'gamer_tag': profile.gamer_tag,
+            'avatar': _serialize_file_field(profile.avatar),
+            'wins': wins,
+            'matches': matches,
+            'win_percentage': win_rate,
+        }
+        for profile, wins, matches, win_rate in _compute_game_stats(game)[:10]
+    ]
     data = {
         'id': game.id,
         'name': game.name,
@@ -156,9 +171,109 @@ def api_game_detail(request, game_id):
         'epic_url': game.epic_url or None,
         'store_url': game.store_url or None,
         'trailer_url': game.trailer_url or None,
+        'trailer_embed_url': game.trailer_embed_url or None,
         'igdb_rating': float(game.igdb_rating) if game.igdb_rating else None,
+        'average_rating': game.average_rating,
+        'review_count': game.review_count,
+        'user_review': (
+            {
+                'id': user_review.id,
+                'rating': user_review.rating,
+                'review': user_review.review,
+                'created_at': user_review.created_at.isoformat() if user_review.created_at else None,
+            }
+            if user_review else None
+        ),
+        'reviews': [
+            {
+                'id': review.id,
+                'reviewer': {
+                    'gamer_tag': review.reviewer.gamer_tag,
+                    'avatar': _serialize_file_field(review.reviewer.avatar),
+                },
+                'rating': review.rating,
+                'review': review.review,
+                'created_at': review.created_at.isoformat() if review.created_at else None,
+            }
+            for review in reviews
+        ],
+        'leaderboard': leaderboard,
+        'is_wishlisted': bool(viewer and GameWishlist.objects.filter(profile=viewer, game=game).exists()),
+        'wishlist_count': GameWishlist.objects.filter(game=game).count(),
     }
     return JsonResponse(data)
+
+
+@require_POST
+def api_game_review_create(request, game_id):
+    import json
+
+    if not request.user.is_authenticated:
+        return JsonResponse({'authenticated': False}, status=401)
+    try:
+        game = Game.objects.get(id=game_id)
+    except Game.DoesNotExist:
+        return JsonResponse({'error': 'Game not found'}, status=404)
+    try:
+        profile = GamerProfile.objects.get(user=request.user)
+    except GamerProfile.DoesNotExist:
+        return JsonResponse({'error': 'Profile not found'}, status=404)
+    try:
+        payload = json.loads(request.body)
+    except (json.JSONDecodeError, TypeError, AttributeError):
+        return JsonResponse({'ok': False, 'error': 'Invalid request.'}, status=400)
+    try:
+        rating_value = int(payload.get('rating'))
+    except (TypeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'Select a rating between 1 and 5.'}, status=400)
+    if rating_value not in {1, 2, 3, 4, 5}:
+        return JsonResponse({'ok': False, 'error': 'Select a rating between 1 and 5.'}, status=400)
+    review_text = str(payload.get('review') or '').strip()
+    review, created = GameReview.objects.get_or_create(
+        game=game, reviewer=profile, defaults={'rating': rating_value, 'review': review_text}
+    )
+    review.rating = rating_value
+    review.review = review_text
+    review.save()
+    game.refresh_from_db()
+    return JsonResponse({
+        'ok': True,
+        'created': created,
+        'average_rating': game.average_rating,
+        'review_count': game.review_count,
+        'review': {
+            'id': review.id,
+            'rating': review.rating,
+            'review': review.review,
+            'created_at': review.created_at.isoformat() if review.created_at else None,
+        },
+    }, status=201 if created else 200)
+
+
+@require_POST
+def api_game_wishlist_toggle(request, game_id):
+    if not request.user.is_authenticated:
+        return JsonResponse({'authenticated': False}, status=401)
+    try:
+        game = Game.objects.get(id=game_id)
+    except Game.DoesNotExist:
+        return JsonResponse({'error': 'Game not found'}, status=404)
+    try:
+        profile = GamerProfile.objects.get(user=request.user)
+    except GamerProfile.DoesNotExist:
+        return JsonResponse({'error': 'Profile not found'}, status=404)
+    wishlist_item = GameWishlist.objects.filter(game=game, profile=profile).first()
+    if wishlist_item:
+        wishlist_item.delete()
+        wishlisted = False
+    else:
+        GameWishlist.objects.create(game=game, profile=profile)
+        wishlisted = True
+    return JsonResponse({
+        'ok': True,
+        'wishlisted': wishlisted,
+        'wishlist_count': GameWishlist.objects.filter(game=game).count(),
+    })
 
 
 @require_GET

@@ -1,3 +1,4 @@
+import json
 from datetime import timedelta
 from pathlib import Path
 
@@ -468,6 +469,76 @@ class GameHubTests(TestCase):
 
 		self.client.post(reverse("game_wishlist_toggle", args=[game.id]))
 		self.assertFalse(GameWishlist.objects.filter(game=game, profile=player).exists())
+
+	def test_game_review_api_rejects_anonymous_and_invalid_ratings(self):
+		game = Game.objects.create(name="Hollow Knight")
+		anonymous = self.client.post(
+			reverse("api_game_review_create", args=[game.id]),
+			data=json.dumps({"rating": 5, "review": "Great."}),
+			content_type="application/json",
+		)
+		self.assertEqual(anonymous.status_code, 401)
+		user = User.objects.create_user(username="critic", password="pass")
+		GamerProfile.objects.create(user=user, gamer_tag="CriticZW")
+		self.client.force_login(user)
+		for bad in (0, 6, "excellent", None):
+			response = self.client.post(
+				reverse("api_game_review_create", args=[game.id]),
+				data=json.dumps({"rating": bad}),
+				content_type="application/json",
+			)
+			self.assertEqual(response.status_code, 400)
+		self.assertFalse(GameReview.objects.exists())
+
+	def test_game_review_api_creates_updates_and_reports_averages(self):
+		game = Game.objects.create(name="Celeste")
+		first_user = User.objects.create_user(username="fanone", password="pass")
+		GamerProfile.objects.create(user=first_user, gamer_tag="FanOneZW")
+		second_user = User.objects.create_user(username="fantwo", password="pass")
+		GamerProfile.objects.create(user=second_user, gamer_tag="FanTwoZW")
+
+		self.client.force_login(first_user)
+		created = self.client.post(
+			reverse("api_game_review_create", args=[game.id]),
+			data=json.dumps({"rating": 5, "review": "A masterpiece."}),
+			content_type="application/json",
+		)
+		self.assertEqual(created.status_code, 201)
+		self.assertTrue(created.json()["created"])
+
+		updated = self.client.post(
+			reverse("api_game_review_create", args=[game.id]),
+			data=json.dumps({"rating": 4, "review": "Still great."}),
+			content_type="application/json",
+		)
+		self.assertEqual(updated.status_code, 200)
+		self.assertFalse(updated.json()["created"])
+		self.assertEqual(GameReview.objects.filter(game=game).count(), 1)
+
+		self.client.force_login(second_user)
+		self.client.post(
+			reverse("api_game_review_create", args=[game.id]),
+			data=json.dumps({"rating": 2}),
+			content_type="application/json",
+		)
+		detail = self.client.get(reverse("api_game_detail", args=[game.id])).json()
+		self.assertEqual(detail["review_count"], 2)
+		self.assertEqual(detail["average_rating"], 3.0)
+		self.assertEqual(detail["reviews"][0]["reviewer"]["gamer_tag"], "FanTwoZW")
+		self.assertEqual(detail["user_review"]["rating"], 2)
+
+	def test_game_wishlist_api_toggles_for_authenticated_profiles(self):
+		game = Game.objects.create(name="Stardew Valley")
+		self.assertEqual(self.client.post(reverse("api_game_wishlist_toggle", args=[game.id])).status_code, 401)
+		user = User.objects.create_user(username="collector", password="pass")
+		profile = GamerProfile.objects.create(user=user, gamer_tag="CollectorZW")
+		self.client.force_login(user)
+		added = self.client.post(reverse("api_game_wishlist_toggle", args=[game.id]))
+		self.assertTrue(added.json()["wishlisted"])
+		self.assertTrue(GameWishlist.objects.filter(game=game, profile=profile).exists())
+		removed = self.client.post(reverse("api_game_wishlist_toggle", args=[game.id]))
+		self.assertFalse(removed.json()["wishlisted"])
+		self.assertEqual(self.client.get(reverse("api_game_detail", args=[game.id])).json()["wishlist_count"], 0)
 
 	def test_game_detail_wires_find_players_and_challenge_friend_to_existing_system(self):
 		game = Game.objects.create(name="League of Legends", genre="MOBA")

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 interface Entry {
   rank: number;
@@ -21,9 +22,18 @@ interface Entry {
 interface Game { id: number; name: string; }
 
 export default function LeaderboardsPage() {
+  return (
+    <Suspense fallback={<div className="mx-auto max-w-5xl px-4 py-8 text-ggz-text-secondary">Loading rankings…</div>}>
+      <LeaderboardsView />
+    </Suspense>
+  );
+}
+
+function LeaderboardsView() {
+  const searchParams = useSearchParams();
   const [entries, setEntries] = useState<Entry[]>([]);
   const [games, setGames] = useState<Game[]>([]);
-  const [game, setGame] = useState("");
+  const [game, setGame] = useState(searchParams.get("game") ?? "");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
