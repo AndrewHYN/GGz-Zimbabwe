@@ -527,6 +527,24 @@ class GameHubTests(TestCase):
 		self.assertEqual(detail["reviews"][0]["reviewer"]["gamer_tag"], "FanTwoZW")
 		self.assertEqual(detail["user_review"]["rating"], 2)
 
+	def test_game_detail_returns_current_user_review_even_when_older_than_latest_20(self):
+		game = Game.objects.create(name="Hades")
+		user = User.objects.create_user(username="oldreviewer", password="pass")
+		profile = GamerProfile.objects.create(user=user, gamer_tag="OldReviewerZW")
+		GameReview.objects.create(game=game, reviewer=profile, rating=4, review="My original review.")
+		for index in range(20):
+			extra_user = User.objects.create_user(username=f"recent{index}", password="pass")
+			extra_profile = GamerProfile.objects.create(user=extra_user, gamer_tag=f"Recent{index}ZW")
+			review = GameReview.objects.create(game=game, reviewer=extra_profile, rating=5, review=f"Recent review {index}")
+			GameReview.objects.filter(pk=review.pk).update(created_at=timezone.now() + timedelta(seconds=index + 1))
+
+		self.client.force_login(user)
+		detail = self.client.get(reverse("api_game_detail", args=[game.id])).json()
+		self.assertEqual(detail["review_count"], 21)
+		self.assertEqual(detail["user_review"]["rating"], 4)
+		self.assertEqual(detail["user_review"]["review"], "My original review.")
+		self.assertNotIn("OldReviewerZW", [item["reviewer"]["gamer_tag"] for item in detail["reviews"]])
+
 	def test_game_wishlist_api_toggles_for_authenticated_profiles(self):
 		game = Game.objects.create(name="Stardew Valley")
 		self.assertEqual(self.client.post(reverse("api_game_wishlist_toggle", args=[game.id])).status_code, 401)
