@@ -5,14 +5,25 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 
+interface NotificationActor {
+  gamer_tag: string;
+  avatar?: string | null;
+}
+
 interface Notification {
   id: number;
-  actor: { gamer_tag: string; avatar?: string | null };
+  actor: string | NotificationActor | null;
   notification_type: string;
   message: string;
   target_url?: string | null;
   created_at: string;
   is_read: boolean;
+}
+
+function normalizeActor(actor: Notification["actor"]): NotificationActor {
+  if (typeof actor === "string") return { gamer_tag: actor, avatar: null };
+  if (actor && typeof actor.gamer_tag === "string") return actor;
+  return { gamer_tag: "GGz", avatar: null };
 }
 
 function csrfToken() {
@@ -134,18 +145,19 @@ export default function NotificationsPage() {
       ) : (
         <div className="space-y-2">
           {notifications.map((item) => {
+            const actor = normalizeActor(item.actor);
             const content = (
               <div className={"flex items-start gap-3 rounded-2xl border p-4 transition hover:bg-ggz-bg-2 " + (item.is_read ? "border-ggz-border bg-ggz-bg-1" : "border-ggz-amber/30 bg-ggz-amber/5")}>
                 <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-ggz-bg-2">
-                  {item.actor.avatar ? (
-                    <Image src={item.actor.avatar} alt="" fill sizes="40px" className="object-cover" />
+                  {actor.avatar ? (
+                    <Image src={actor.avatar} alt="" fill sizes="40px" className="object-cover" />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center text-xs font-bold text-ggz-amber">{item.actor.gamer_tag.slice(0, 1).toUpperCase()}</div>
+                    <div className="flex h-full w-full items-center justify-center text-xs font-bold text-ggz-amber">{actor.gamer_tag.slice(0, 1).toUpperCase()}</div>
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm leading-6 text-ggz-text-secondary">{item.message || item.notification_type}</p>
-                  <p className="mt-1 text-xs text-ggz-text-muted">{item.actor.gamer_tag} · {timeLabel(item.created_at)}</p>
+                  <p className="mt-1 text-xs text-ggz-text-muted">{actor.gamer_tag} · {timeLabel(item.created_at)}</p>
                 </div>
                 {!item.is_read ? (
                   <button

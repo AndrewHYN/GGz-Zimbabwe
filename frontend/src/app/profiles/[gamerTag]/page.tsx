@@ -103,6 +103,8 @@ export default function ProfilePage({ params }: ProfilePageProps) {
   if (loading) return <div className="mx-auto max-w-6xl px-4 py-8 text-ggz-text-secondary">Loading profile…</div>;
   if (!profile) return <div className="mx-auto max-w-3xl px-4 py-16 text-center"><div className="rounded-2xl border border-ggz-border bg-ggz-bg-1 p-8"><h1 className="text-2xl font-bold text-ggz-text-primary">Profile not found</h1><p className="mt-2 text-sm text-ggz-text-secondary">That gamer tag does not exist.</p></div></div>;
 
+  const profileGames = profile.games ?? [];
+
   const stats = [
     ["Followers", profile.follower_count], ["Following", profile.following_count], ["Respect", profile.respect_points],
     ["Wins", profile.match_wins], ["Matches", profile.matches_played], ["Win rate", profile.win_percentage + "%"], ["Tournament wins", profile.tournament_wins],
@@ -153,7 +155,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
           <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
             <section>
               <div className="flex items-center justify-between"><h2 className="text-lg font-semibold text-ggz-text-primary">Games</h2><Link href="/games" className="text-xs font-semibold text-ggz-amber">Browse all</Link></div>
-              {profile.games.length === 0 ? <div className="mt-3 rounded-xl border border-ggz-border bg-ggz-bg-2 p-6 text-sm text-ggz-text-secondary">No games added yet.</div> : <div className="mt-3 grid gap-3 sm:grid-cols-2">{profile.games.map((game) => <Link key={game.id} href={"/games/" + game.id} className="flex items-center gap-3 rounded-xl border border-ggz-border bg-ggz-bg-2 p-3 transition hover:border-ggz-amber/40"><div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-ggz-bg-1">{game.cover_art_url ? <Image src={game.cover_art_url} alt="" fill sizes="48px" className="object-cover" /> : <span className="flex h-full w-full items-center justify-center text-xs text-ggz-text-muted">GGz</span>}</div><div className="min-w-0"><p className="truncate text-sm font-semibold text-ggz-text-primary">{game.name}</p><p className="text-xs text-ggz-text-muted">{game.platform || "Gaming profile"}</p></div></Link>)}</div>}
+              {profileGames.length === 0 ? <div className="mt-3 rounded-xl border border-ggz-border bg-ggz-bg-2 p-6 text-sm text-ggz-text-secondary">No games added yet.</div> : <div className="mt-3 grid gap-3 sm:grid-cols-2">{profileGames.map((game) => <Link key={game.id} href={"/games/" + game.id} className="flex items-center gap-3 rounded-xl border border-ggz-border bg-ggz-bg-2 p-3 transition hover:border-ggz-amber/40"><div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-ggz-bg-1">{game.cover_art_url ? <Image src={game.cover_art_url} alt="" fill sizes="48px" className="object-cover" /> : <span className="flex h-full w-full items-center justify-center text-xs text-ggz-text-muted">GGz</span>}</div><div className="min-w-0"><p className="truncate text-sm font-semibold text-ggz-text-primary">{game.name}</p><p className="text-xs text-ggz-text-muted">{game.platform || "Gaming profile"}</p></div></Link>)}</div>}
             </section>
 
             <aside className="rounded-2xl border border-ggz-border bg-ggz-bg-2 p-4">

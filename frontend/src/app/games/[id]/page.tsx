@@ -86,10 +86,18 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
       })
       .then((detail) => {
         if (!cancelled && detail) {
-          setGame(detail);
-          if (detail.user_review) {
-            setRating(String(detail.user_review.rating));
-            setReviewText(detail.user_review.review);
+          const normalized: Game = {
+            ...detail,
+            review_count: detail.review_count ?? 0,
+            reviews: detail.reviews ?? [],
+            leaderboard: detail.leaderboard ?? [],
+            is_wishlisted: detail.is_wishlisted ?? false,
+            wishlist_count: detail.wishlist_count ?? 0,
+          };
+          setGame(normalized);
+          if (normalized.user_review) {
+            setRating(String(normalized.user_review.rating));
+            setReviewText(normalized.user_review.review);
           }
         }
       })

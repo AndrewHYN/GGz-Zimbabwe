@@ -21,12 +21,20 @@ interface Message {
 
 interface Conversation {
   id: number;
-  other_participant: Participant;
+  other_participant?: Participant | null;
+  participants?: Participant[];
   last_message: string;
   last_message_time: string;
   unread_count: number;
   updated_at: string;
   messages?: Message[];
+}
+
+function displayParticipant(conversation: Conversation): Participant {
+  if (conversation.other_participant) return conversation.other_participant;
+  const first = (conversation.participants ?? [])[0];
+  if (first) return first;
+  return { id: null, username: null, gamer_tag: "Gamer", avatar: null };
 }
 
 function getCsrfToken() {
@@ -121,6 +129,7 @@ export default function MessagesPage() {
   if (loading) return <div className="mx-auto max-w-7xl px-4 py-8 text-ggz-text-secondary">Loading messages…</div>;
 
   const selected = conversations.find((item) => item.id === selectedId);
+  const selectedOther = selected ? displayParticipant(selected) : null;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:py-8">
@@ -135,20 +144,23 @@ export default function MessagesPage() {
           <div className="max-h-[68vh] overflow-y-auto">
             {conversations.length === 0 ? (
               <div className="p-6 text-sm text-ggz-text-secondary">No conversations yet. Open a gamer profile to start a conversation.</div>
-            ) : conversations.map((conversation) => (
+            ) : conversations.map((conversation) => {
+              const other = displayParticipant(conversation);
+              return (
               <button key={conversation.id} onClick={() => { setDetailLoading(true); setSelectedId(conversation.id); }} className={"flex w-full items-center gap-3 border-b border-ggz-border/70 px-4 py-3 text-left transition " + (selectedId === conversation.id ? "bg-ggz-amber/10" : "hover:bg-ggz-bg-2")}>
                 <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-ggz-bg-2">
-                  {conversation.other_participant.avatar ? <Image src={conversation.other_participant.avatar} alt="" fill sizes="40px" className="object-cover" /> : <div className="flex h-full w-full items-center justify-center text-xs font-bold text-ggz-amber">{(conversation.other_participant.gamer_tag || "G").slice(0, 1).toUpperCase()}</div>}
+                  {other.avatar ? <Image src={other.avatar} alt="" fill sizes="40px" className="object-cover" /> : <div className="flex h-full w-full items-center justify-center text-xs font-bold text-ggz-amber">{(other.gamer_tag || "G").slice(0, 1).toUpperCase()}</div>}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="truncate text-sm font-semibold text-ggz-text-primary">{conversation.other_participant.gamer_tag || conversation.other_participant.username || "Gamer"}</p>
+                    <p className="truncate text-sm font-semibold text-ggz-text-primary">{other.gamer_tag || other.username || "Gamer"}</p>
                     {conversation.unread_count > 0 && <span className="rounded-full bg-ggz-amber px-2 py-0.5 text-[10px] font-bold text-black">{conversation.unread_count}</span>}
                   </div>
                   <p className="truncate text-xs text-ggz-text-muted">{conversation.last_message || "No messages yet"}</p>
                 </div>
               </button>
-            ))}
+              );
+            })}
           </div>
         </aside>
 
@@ -158,10 +170,10 @@ export default function MessagesPage() {
               <div className="flex items-center gap-3 border-b border-ggz-border px-4 py-3">
                 <button onClick={() => setSelectedId(null)} className="lg:hidden rounded-lg border border-ggz-border px-2 py-1 text-xs text-ggz-text-secondary">Back</button>
                 <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full bg-ggz-bg-2">
-                  {selected.other_participant.avatar ? <Image src={selected.other_participant.avatar} alt="" fill sizes="36px" className="object-cover" /> : <div className="flex h-full w-full items-center justify-center text-xs font-bold text-ggz-amber">{(selected.other_participant.gamer_tag || "G").slice(0, 1).toUpperCase()}</div>}
+                  {selectedOther && selectedOther.avatar ? <Image src={selectedOther.avatar} alt="" fill sizes="36px" className="object-cover" /> : <div className="flex h-full w-full items-center justify-center text-xs font-bold text-ggz-amber">{((selectedOther && (selectedOther.gamer_tag || selectedOther.username)) || "G").slice(0, 1).toUpperCase()}</div>}
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate font-semibold text-ggz-text-primary">{selected.other_participant.gamer_tag || selected.other_participant.username || "Gamer"}</p>
+                  <p className="truncate font-semibold text-ggz-text-primary">{(selectedOther && (selectedOther.gamer_tag || selectedOther.username)) || "Gamer"}</p>
                   <p className="text-xs text-ggz-text-muted">GGz conversation</p>
                 </div>
               </div>

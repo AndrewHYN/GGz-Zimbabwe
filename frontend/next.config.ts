@@ -52,6 +52,11 @@ if (process.env.VERCEL_ENV === "production" && !process.env.NEXT_PUBLIC_DJANGO_U
 }
 
 const nextConfig: NextConfig = {
+  // Django requires trailing slashes (APPEND_SLASH). Without this, Next.js
+  // 308-redirects slashed API/proxy paths to slashless ones while Django
+  // 301-redirects them back, producing an infinite redirect loop that breaks
+  // every browser-initiated /api/*, /accounts/* and /media/* request.
+  trailingSlash: true,
   images: {
     remotePatterns,
   },
