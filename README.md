@@ -1,12 +1,15 @@
-# GitHub Codespaces ♥️ Django
+# GGz Zimbabwe
 
-Welcome to your shiny new Codespace running Django! We've got everything fired up and running for you to explore Django.
+GGz is Zimbabwe's gaming ecosystem — discovery, competition, and community.
 
-You've got a blank canvas to work on from a git perspective as well. There's a single initial commit with what you're seeing right now - where you go from here is up to you!
+## Architecture (GGz 2.0)
 
-Everything you do here is contained within this one codespace. There is no repository on GitHub yet. If and when you’re ready you can click "Publish Branch" and we’ll create your repository and push up your project. If you were just exploring then and have no further need for this code then you can simply delete your codespace and it's gone forever.
+- **Public website:** the Next.js 16 application in [`frontend/`](frontend/), deployed to the Vercel project `ggz-frontend` (`https://ggz-frontend.vercel.app`). This is the canonical public UI.
+- **Backend / API:** the Django project in this repository root, deployed separately. It owns the database, authentication, business logic, and the JSON API under `/api/`.
+- The Next.js site consumes the Django API over `NEXT_PUBLIC_DJANGO_URL` (see [`VERCEL_DEPLOY.md`](VERCEL_DEPLOY.md)). Django-rendered pages are legacy surface area being consolidated into Next.js routes; Django models, APIs, and server-side logic remain first-class and must not be removed.
+- The legacy Vercel project `g-gz-zimbabwe` still serves the old Django-rendered UI. Treat it as deprecated infrastructure pending retirement, not as the product frontend.
 
-## installing dependancies
+## Installing dependencies
 
 ```python
 pip install -r requirements.txt
