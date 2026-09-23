@@ -10,8 +10,9 @@ Production must set:
 - `DEBUG=False`
 - `ALLOWED_HOSTS`: comma-separated deployed hostnames only.
 - `CSRF_TRUSTED_ORIGINS`: comma-separated HTTPS origins, including the Vercel production/custom domain and any preview origin that accepts form posts.
+- `FRONTEND_URL`: canonical Next.js site origin (for example `https://ggz-frontend.vercel.app`). Required for OAuth callback redirects and frontend password-reset email links; also appended to `CSRF_TRUSTED_ORIGINS` automatically.
 - `DATABASE_URL`: PostgreSQL connection URL.
-- `GOOGLE_MAPS_API_KEY`: a browser key restricted by HTTP referrer and the required Maps APIs.
+- `GOOGLE_MAPS_API_KEY`: optional browser key restricted by HTTP referrer and the required Maps APIs. Radar falls back to OpenStreetMap when it is unset, so a paid Google Maps key is not required to deploy.
 - `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_EMAIL`, and `DJANGO_SUPERUSER_PASSWORD` when creating the initial admin explicitly.
 - `AI_COMPANION_PROVIDER`, `AI_COMPANION_MODEL`, and `AI_COMPANION_BASE_URL`; set `AI_COMPANION_API_KEY` only for a configured server-side OpenAI-compatible provider.
 - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` enable opt-in background Web Push. The public key is exposed only to authenticated notification pages; the private key remains server-side. A missing VAPID configuration gracefully keeps foreground browser notifications available.

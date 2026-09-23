@@ -1,18 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-
-async function fetchWithTimeout(url: string, options: RequestInit, ms = 20000): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ms);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-  }
-}
+import { apiFetch, apiErrorMessage, dispatchAuthChanged } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -20,6 +11,23 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [providers, setProviders] = useState<{ google: boolean; apple: boolean }>({
+    google: false,
+    apple: false,
+  });
+
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
+    const incoming = new URLSearchParams(window.location.search).get("error");
+    if (incoming) {
+      setError(incoming);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    apiFetch<{ google: boolean; apple: boolean }>("/api/auth/providers/")
+      .then(setProviders)
+      .catch(() => setProviders({ google: false, apple: false }));
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,56 +35,20 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await fetchWithTimeout("/api/csrf/", { credentials: "include" });
-
-      const csrfToken = document.cookie
-        .split('; ')
-        .find((c) => c.startsWith('csrftoken='))
-        ?.split('=')[1] || '';
-
-      const formData = new URLSearchParams();
-      formData.append("username", username);
-      formData.append("password", password);
-      formData.append("csrfmiddlewaretoken", csrfToken);
-
-      const res = await fetchWithTimeout("/accounts/login/", {
+      await apiFetch("/api/auth/login/", {
         method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        credentials: "include",
-        body: formData.toString(),
-        redirect: "manual",
+        body: JSON.stringify({ username, password }),
       });
-
-      if (!(res.type === "opaqueredirect" || res.status === 0 || res.ok || res.status === 302)) {
-        setError("Invalid credentials. Please try again.");
-        setLoading(false);
-        return;
-      }
-
-      const sessionRes = await fetchWithTimeout("/api/me/", {
-        credentials: "include",
-        headers: { "X-Requested-With": "XMLHttpRequest" },
-      });
-
-      if (sessionRes.ok) {
-        const session = await sessionRes.json().catch(() => null);
-        if (session?.authenticated) {
-          router.push("/dashboard");
-          return;
-        }
-      }
-
-      setError("Login completed, but the session could not be verified. Please try again.");
-      setLoading(false);
+      dispatchAuthChanged();
+      router.push("/dashboard");
+      router.refresh();
     } catch (error) {
-      setError(
-        error instanceof DOMException && error.name === "AbortError"
-          ? "The server is taking too long to respond. Check your connection and try again."
-          : "Something went wrong. Please try again."
-      );
+      setError(apiErrorMessage(error, "Something went wrong. Please try again."));
       setLoading(false);
     }
   };
+
+  const hasProviders = providers.google || providers.apple;
 
   return (
     <div className="max-w-[1536px] mx-auto px-4 py-8 flex items-center justify-center min-h-screen">
@@ -100,20 +72,27 @@ export default function LoginPage() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
+              autoComplete="username"
               className="w-full px-3 py-2 bg-ggz-bg-2 border border-ggz-border rounded-[var(--radius-lg)] text-sm focus:outline-none focus:ring-2 focus:ring-ggz-accent"
             />
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium mb-1">
-              Password
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label htmlFor="password" className="block text-sm font-medium">
+                Password
+              </label>
+              <Link href="/auth/forgot-password" className="text-xs text-ggz-accent hover:underline">
+                Forgot password?
+              </Link>
+            </div>
             <input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              autoComplete="current-password"
               className="w-full px-3 py-2 bg-ggz-bg-2 border border-ggz-border rounded-[var(--radius-lg)] text-sm focus:outline-none focus:ring-2 focus:ring-ggz-accent"
             />
           </div>
@@ -127,21 +106,37 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div className="relative my-6">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-ggz-border" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-ggz-bg-1 px-2 text-ggz-muted">or</span>
-          </div>
-        </div>
+        {hasProviders && (
+          <>
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-ggz-border" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-ggz-bg-1 px-2 text-ggz-muted">or</span>
+              </div>
+            </div>
 
-        <a
-          href="/accounts/auth/google/start/"
-          className="flex items-center justify-center gap-2 w-full py-2 border border-ggz-border rounded-[var(--radius-lg)] hover:bg-ggz-bg-2 transition-colors text-sm font-medium"
-        >
-          Continue with Google
-        </a>
+            <div className="space-y-3">
+              {providers.google && (
+                <a
+                  href="/accounts/auth/google/start/"
+                  className="flex items-center justify-center gap-2 w-full py-2 border border-ggz-border rounded-[var(--radius-lg)] hover:bg-ggz-bg-2 transition-colors text-sm font-medium"
+                >
+                  Continue with Google
+                </a>
+              )}
+              {providers.apple && (
+                <a
+                  href="/accounts/auth/apple/start/"
+                  className="flex items-center justify-center gap-2 w-full py-2 border border-ggz-border rounded-[var(--radius-lg)] hover:bg-ggz-bg-2 transition-colors text-sm font-medium"
+                >
+                  Continue with Apple
+                </a>
+              )}
+            </div>
+          </>
+        )}
 
         <p className="text-center text-sm text-ggz-muted mt-6">
           Don&apos;t have an account?{" "}

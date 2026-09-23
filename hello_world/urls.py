@@ -27,6 +27,7 @@ from tournaments import views as tournament_views
 from events import views as event_views
 from hello_world.core import views as core_views
 from hello_world.core import api as api_views
+from hello_world.core import auth_api as auth_api_views
 
 urlpatterns = [
     path("", core_views.index, name="index"),
@@ -50,6 +51,14 @@ urlpatterns = [
     # Next.js frontend API endpoints
     path("api/csrf/", api_views.api_csrf_token, name="api_csrf_token"),
     path("api/me/", api_views.api_me, name="api_me"),
+    path("api/auth/login/", auth_api_views.api_auth_login, name="api_auth_login"),
+    path("api/auth/logout/", auth_api_views.api_auth_logout, name="api_auth_logout"),
+    path("api/auth/register/", auth_api_views.api_auth_register, name="api_auth_register"),
+    path("api/auth/password-reset/", auth_api_views.api_auth_password_reset, name="api_auth_password_reset"),
+    path("api/auth/password-reset/confirm/", auth_api_views.api_auth_password_reset_confirm, name="api_auth_password_reset_confirm"),
+    path("api/auth/password-change/", auth_api_views.api_auth_password_change, name="api_auth_password_change"),
+    path("api/auth/unlink/<str:provider>/", auth_api_views.api_auth_unlink, name="api_auth_unlink"),
+    path("api/auth/providers/", auth_api_views.api_auth_providers, name="api_auth_providers"),
     path("api/games/", api_views.api_games_list, name="api_games_list"),
     path("api/games/<int:game_id>/", api_views.api_game_detail, name="api_game_detail"),
     path("api/games/<int:game_id>/reviews/", api_views.api_game_review_create, name="api_game_review_create"),

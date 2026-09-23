@@ -77,32 +77,12 @@ const nextConfig: NextConfig = {
         destination: `${backendUrl}/accounts/:path*/`,
       },
       {
-        source: "/profiles/signup/",
-        destination: `${backendUrl}/profiles/signup/`,
-      },
-      {
         source: "/media/:path*",
         destination: `${backendUrl}/media/:path*`,
       },
       {
         source: "/static/:path*",
         destination: `${backendUrl}/static/:path*`,
-      },
-      {
-        source: "/privacy",
-        destination: `${backendUrl}/privacy/`,
-      },
-      {
-        source: "/terms",
-        destination: `${backendUrl}/terms/`,
-      },
-      {
-        source: "/cookies",
-        destination: `${backendUrl}/cookies/`,
-      },
-      {
-        source: "/refund",
-        destination: `${backendUrl}/refund/`,
       },
     ];
   },

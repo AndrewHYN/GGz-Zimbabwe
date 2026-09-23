@@ -20,7 +20,7 @@ The legacy scripts/vercel-build.sh is now frontend-only. It exists as a compatib
 
 ## Backend
 
-The Django backend is a separate deployment concern. It retains the production PostgreSQL, migration, authentication, media-storage, and Google Maps environment requirements documented in DEPLOYMENT.md. Do not reintroduce Django migrations into the Next.js Vercel frontend build.
+The Django backend is a separate deployment concern. It retains the production PostgreSQL, migration, authentication, media-storage, and optional Google Maps environment requirements documented in DEPLOYMENT.md. Do not reintroduce Django migrations into the Next.js Vercel frontend build.
 
 ## Deployment verification status
 
@@ -62,6 +62,9 @@ DEBUG=False
 DATABASE_URL=
 ALLOWED_HOSTS=
 CSRF_TRUSTED_ORIGINS=
+# Canonical Next.js origin (OAuth callbacks + password-reset links).
+FRONTEND_URL=https://ggz-frontend.vercel.app
+# Optional. Unset falls back to OpenStreetMap; a paid Maps key is not required.
 GOOGLE_MAPS_API_KEY=
 MAX_UPLOAD_SIZE=4194304
 DJANGO_SUPERUSER_USERNAME=

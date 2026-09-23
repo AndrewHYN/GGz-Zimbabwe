@@ -21,6 +21,7 @@ import {
 } from "@/components/icons";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
+import { apiFetch, dispatchAuthChanged } from "@/lib/api";
 
 interface User {
   id: number;
@@ -98,7 +99,7 @@ export default function Navigation() {
   useClickOutside(communityRef, useCallback(() => setCommunityOpen(false), []));
   useClickOutside(profileRef, useCallback(() => setProfileOpen(false), []));
 
-  useEffect(() => {
+  const refreshUser = useCallback(() => {
     fetch("/api/me/", { credentials: "include", headers: { "X-Requested-With": "XMLHttpRequest" } })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -116,6 +117,16 @@ export default function Navigation() {
       .catch(() => setUser(null))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    refreshUser();
+  }, [refreshUser]);
+
+  useEffect(() => {
+    const handler = () => refreshUser();
+    window.addEventListener("ggz:auth-changed", handler);
+    return () => window.removeEventListener("ggz:auth-changed", handler);
+  }, [refreshUser]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -143,26 +154,14 @@ export default function Navigation() {
     }
   }
 
-  function getCsrfToken(): string {
-    if (typeof document === "undefined") return "";
-    const match = document.cookie.match(/csrftoken=([^;]+)/);
-    return match ? match[1] : "";
-  }
-
   async function handleLogout() {
     try {
-      await fetch("/accounts/logout/", {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "X-CSRFToken": getCsrfToken(),
-          "X-Requested-With": "XMLHttpRequest",
-        },
-      });
+      await apiFetch("/api/auth/logout/", { method: "POST" });
     } catch {
       // Server logout is best-effort; always leave the logged-out UI state.
     } finally {
       setUser(null);
+      dispatchAuthChanged();
       setProfileOpen(false);
       router.push("/");
       router.refresh();

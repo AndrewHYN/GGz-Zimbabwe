@@ -23,7 +23,7 @@ from django.db.models import Case, Count, Exists, F, IntegerField, OuterRef, Q, 
 from django.http import FileResponse, HttpResponseForbidden, JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
-from django.urls import reverse
+from django.urls import NoReverseMatch, reverse
 from django.utils import timezone
 from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_decode
@@ -82,8 +82,33 @@ from hello_world.storage import log_s3_client_error
 logger = logging.getLogger(__name__)
 
 
+def _frontend_origin():
+	return (getattr(settings, "FRONTEND_URL", "") or "http://localhost:3000").rstrip("/")
+
+
+def _safe_oauth_next(request, next_url):
+	target = _safe_redirect_url(request, next_url)
+	if target.startswith("/") and not target.startswith("//"):
+		return target
+	try:
+		return reverse(target)
+	except NoReverseMatch:
+		return "/"
+
+
+def _frontend_redirect(path="/", error=None):
+	if not path.startswith("/") or path.startswith("//"):
+		path = "/"
+	url = f"{_frontend_origin()}{path}"
+	if error:
+		url = f"{url}{'&' if '?' in url else '?'}{urlencode({'error': error})}"
+	return redirect(url)
+
+
 def _provider_redirect_base_url():
-	return settings.SITE_URL.rstrip("/") if getattr(settings, "SITE_URL", "") else "http://localhost:8000"
+	# OAuth callbacks must land on the canonical Next.js origin (rewritten to
+	# this backend) so the session cookie is issued for the public site's host.
+	return _frontend_origin()
 
 
 def _build_provider_redirect_url(provider):
@@ -2392,8 +2417,7 @@ def ggz_logout(request):
 def google_login_start(request):
 	request.session["oauth_next"] = _safe_redirect_url(request, "/")
 	if not _provider_is_configured("google"):
-		messages.error(request, "Google sign-in is not available right now. Please use your GGz password.")
-		return redirect("login")
+		return _frontend_redirect("/auth/login/", error="Google sign-in is not available right now. Please use your GGz password.")
 	redirect_uri = settings.GOOGLE_REDIRECT_URI or _build_provider_redirect_url("google")
 	state = _safe_provider_state(request, "google")
 	params = {
@@ -2411,14 +2435,11 @@ def google_login_start(request):
 def google_login_callback(request):
 	state = request.GET.get("state")
 	if state != request.session.get("oauth_state_google"):
-		messages.error(request, "Google sign-in was interrupted; please try again.")
-		return redirect("login")
+		return _frontend_redirect("/auth/login/", error="Google sign-in was interrupted; please try again.")
 	if request.GET.get("error"):
-		messages.error(request, "Google sign-in was cancelled or failed.")
-		return redirect("login")
+		return _frontend_redirect("/auth/login/", error="Google sign-in was cancelled or failed.")
 	if _rate_limit_exceeded(request, "oauth_google", 10, 300):
-		messages.error(request, "Too many sign-in attempts. Please wait a few minutes and try again.")
-		return redirect("login")
+		return _frontend_redirect("/auth/login/", error="Too many sign-in attempts. Please wait a few minutes and try again.")
 	try:
 		code = request.GET.get("code")
 		if not code:
@@ -2437,21 +2458,17 @@ def google_login_callback(request):
 		request.session.pop("oauth_next", None)
 		login(request, user)
 		request.session.cycle_key()
-		messages.success(request, "You are signed in with Google.")
-		return redirect(_safe_redirect_url(request, next_url))
+		return _frontend_redirect(_safe_oauth_next(request, next_url))
 	except ProviderLinkingError as error:
-		messages.error(request, error.message)
-		return redirect("login")
+		return _frontend_redirect("/auth/login/", error=error.message)
 	except Exception:
-		messages.error(request, "Google sign-in could not be completed. Please try again.")
-		return redirect("login")
+		return _frontend_redirect("/auth/login/", error="Google sign-in could not be completed. Please try again.")
 
 
 def apple_login_start(request):
 	request.session["oauth_next"] = _safe_redirect_url(request, "/")
 	if not _provider_is_configured("apple"):
-		messages.error(request, "Apple sign-in is not available right now. Please use your GGz password.")
-		return redirect("login")
+		return _frontend_redirect("/auth/login/", error="Apple sign-in is not available right now. Please use your GGz password.")
 	redirect_uri = settings.APPLE_REDIRECT_URI or _build_provider_redirect_url("apple")
 	state = _safe_provider_state(request, "apple")
 	nonce = secrets.token_urlsafe(16)
@@ -2471,14 +2488,11 @@ def apple_login_start(request):
 def apple_login_callback(request):
 	state = request.POST.get("state") or request.GET.get("state")
 	if state != request.session.get("oauth_state_apple"):
-		messages.error(request, "Apple sign-in was interrupted; please try again.")
-		return redirect("login")
+		return _frontend_redirect("/auth/login/", error="Apple sign-in was interrupted; please try again.")
 	if request.POST.get("error") or request.GET.get("error"):
-		messages.error(request, "Apple sign-in was cancelled or failed.")
-		return redirect("login")
+		return _frontend_redirect("/auth/login/", error="Apple sign-in was cancelled or failed.")
 	if _rate_limit_exceeded(request, "oauth_apple", 10, 300):
-		messages.error(request, "Too many sign-in attempts. Please wait a few minutes and try again.")
-		return redirect("login")
+		return _frontend_redirect("/auth/login/", error="Too many sign-in attempts. Please wait a few minutes and try again.")
 	try:
 		code = request.POST.get("code") or request.GET.get("code")
 		if not code:
@@ -2494,32 +2508,26 @@ def apple_login_callback(request):
 		request.session.pop("oauth_next", None)
 		login(request, user)
 		request.session.cycle_key()
-		messages.success(request, "You are signed in with Apple.")
-		return redirect(_safe_redirect_url(request, next_url))
+		return _frontend_redirect(_safe_oauth_next(request, next_url))
 	except ProviderLinkingError as error:
-		messages.error(request, error.message)
-		return redirect("login")
+		return _frontend_redirect("/auth/login/", error=error.message)
 	except Exception:
-		messages.error(request, "Apple sign-in could not be completed. Please try again.")
-		return redirect("login")
+		return _frontend_redirect("/auth/login/", error="Apple sign-in could not be completed. Please try again.")
 
 
 @login_required
 def discord_connect_start(request):
-	request.session["oauth_next"] = _safe_redirect_url(request, "account_security")
+	request.session["oauth_next"] = _safe_redirect_url(request, "/accounts/security/")
 	if _rate_limit_exceeded(request, "discord_connect", 10, 300):
-		messages.error(request, "Too many Discord connection attempts. Please wait a few minutes and try again.")
-		return redirect("account_security")
+		return _frontend_redirect("/accounts/security/", error="Too many Discord connection attempts. Please wait a few minutes and try again.")
 	if not discord_is_configured():
-		messages.error(request, "Connecting Discord is not available right now.")
-		return redirect("account_security")
+		return _frontend_redirect("/accounts/security/", error="Connecting Discord is not available right now.")
 	redirect_uri = settings.DISCORD_REDIRECT_URI or _build_provider_redirect_url("discord")
 	state = _safe_provider_state(request, "discord")
 	try:
 		authorize_url = build_authorize_url(state, redirect_uri)
 	except DiscordOAuthError:
-		messages.error(request, "Discord connection is not configured.")
-		return redirect("account_security")
+		return _frontend_redirect("/accounts/security/", error="Discord connection is not configured.")
 	return redirect(authorize_url)
 
 
@@ -2530,18 +2538,14 @@ def discord_connect_callback(request):
 	request.session.pop("oauth_state_discord", None)
 	request.session.modified = True
 	if not saved_state or state != saved_state:
-		messages.error(request, "Discord connection was interrupted; please try again.")
-		return redirect("account_security")
+		return _frontend_redirect("/accounts/security/", error="Discord connection was interrupted; please try again.")
 	if request.GET.get("error"):
-		messages.error(request, "Discord connection was cancelled or failed.")
-		return redirect("account_security")
+		return _frontend_redirect("/accounts/security/", error="Discord connection was cancelled or failed.")
 	if _rate_limit_exceeded(request, "discord_callback", 10, 300):
-		messages.error(request, "Too many Discord connection attempts. Please wait a few minutes and try again.")
-		return redirect("account_security")
+		return _frontend_redirect("/accounts/security/", error="Too many Discord connection attempts. Please wait a few minutes and try again.")
 	code = request.GET.get("code")
 	if not code:
-		messages.error(request, "Discord did not return an authorization code.")
-		return redirect("account_security")
+		return _frontend_redirect("/accounts/security/", error="Discord did not return an authorization code.")
 	redirect_uri = settings.DISCORD_REDIRECT_URI or _build_provider_redirect_url("discord")
 	try:
 		token_response = exchange_code(code, redirect_uri)
@@ -2562,21 +2566,17 @@ def discord_connect_callback(request):
 			metadata["avatar_url"] = avatar_url or ""
 			identity.metadata = metadata
 			identity.save(update_fields=("metadata", "updated_at"))
-		next_url = request.session.get("oauth_next", "account_security")
+		next_url = request.session.get("oauth_next", "/accounts/security/")
 		request.session.pop("oauth_next", None)
 		request.session.modified = True
-		messages.success(request, "Your Discord account is now connected to GGz.")
-		return redirect(_safe_redirect_url(request, next_url))
+		return _frontend_redirect(_safe_oauth_next(request, next_url))
 	except ProviderLinkingError as error:
-		messages.error(request, error.message)
-		return redirect("account_security")
+		return _frontend_redirect("/accounts/security/", error=error.message)
 	except DiscordOAuthError:
-		messages.error(request, "Discord could not confirm your identity. Please try again.")
-		return redirect("account_security")
+		return _frontend_redirect("/accounts/security/", error="Discord could not confirm your identity. Please try again.")
 	except Exception:
 		logger.exception("Discord connect callback failed")
-		messages.error(request, "Discord connection could not be completed. Please try again.")
-		return redirect("account_security")
+		return _frontend_redirect("/accounts/security/", error="Discord connection could not be completed. Please try again.")
 
 
 def unlink_provider(request, provider):

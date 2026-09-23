@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { apiErrorMessage, apiFetch, dispatchAuthChanged } from "@/lib/api";
 
 interface Provider {
   provider: string;
@@ -39,6 +40,16 @@ export default function SecurityPage() {
   const [newPassword1, setNewPassword1] = useState("");
   const [newPassword2, setNewPassword2] = useState("");
   const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
+    const incoming = new URLSearchParams(window.location.search).get("error");
+    if (incoming) {
+      setNotice(incoming);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,22 +106,19 @@ export default function SecurityPage() {
     setAction("password");
     setNotice("");
     try {
-      await ensureCsrf();
-      const form = new FormData();
-      form.append("old_password", oldPassword);
-      form.append("new_password1", newPassword1);
-      form.append("new_password2", newPassword2);
-      const res = await fetch("/accounts/password_change/", {
+      await apiFetch("/api/auth/password-change/", {
         method: "POST",
-        credentials: "include",
-        headers: { "X-CSRFToken": csrfToken() },
-        body: form,
+        body: JSON.stringify({
+          old_password: oldPassword,
+          new_password1: newPassword1,
+          new_password2: newPassword2,
+        }),
       });
-      if (!res.ok) throw new Error("Password change failed. Check your current password.");
+      dispatchAuthChanged();
       setNotice("Password changed. Please sign in again.");
       router.push("/auth/login");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Password change failed");
+      setNotice(apiErrorMessage(error, "Password change failed. Check your current password."));
     } finally {
       setAction(null);
     }
@@ -143,19 +151,14 @@ export default function SecurityPage() {
     setAction("unlink-" + provider);
     setNotice("");
     try {
-      await ensureCsrf();
-      const form = new FormData();
-      const res = await fetch("/accounts/security/unlink/" + encodeURIComponent(provider) + "/", {
+      await apiFetch("/api/auth/unlink/" + encodeURIComponent(provider) + "/", {
         method: "POST",
-        credentials: "include",
-        headers: { "X-CSRFToken": csrfToken() },
-        body: form,
       });
-      if (!res.ok) throw new Error("Unlink failed");
+      dispatchAuthChanged();
       setVersion((value) => value + 1);
       setNotice(provider + " disconnected.");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Unlink failed");
+      setNotice(apiErrorMessage(error, "Unlink failed."));
     } finally {
       setAction(null);
     }

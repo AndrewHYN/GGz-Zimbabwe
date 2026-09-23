@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { apiFetch, apiErrorMessage, dispatchAuthChanged } from "@/lib/api";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -26,43 +27,21 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      await fetch("/api/csrf/", { credentials: "include" });
-
-      const csrfToken = document.cookie
-        .split('; ')
-        .find((c) => c.startsWith('csrftoken='))
-        ?.split('=')[1] || '';
-
-      const formData = new URLSearchParams();
-      formData.append("username", username);
-      formData.append("email", email);
-      formData.append("gamer_tag", gamerTag);
-      formData.append("password1", password1);
-      formData.append("password2", password2);
-      formData.append("csrfmiddlewaretoken", csrfToken);
-
-      const res = await fetch("/profiles/signup/", {
+      await apiFetch("/api/auth/register/", {
         method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        credentials: "include",
-        body: formData.toString(),
-        redirect: "manual",
+        body: JSON.stringify({
+          username,
+          email,
+          gamer_tag: gamerTag,
+          password1,
+          password2,
+        }),
       });
-
-      if (res.type === "opaqueredirect" || res.status === 0) {
-        router.push("/dashboard");
-        return;
-      }
-
-      if (res.ok || res.status === 302) {
-        router.push("/dashboard");
-        return;
-      }
-
-      setError("Registration failed. Please try again.");
-      setLoading(false);
-    } catch {
-      setError("Something went wrong. Please try again.");
+      dispatchAuthChanged();
+      router.push("/dashboard");
+      router.refresh();
+    } catch (error) {
+      setError(apiErrorMessage(error, "Registration failed. Please try again."));
       setLoading(false);
     }
   };
@@ -89,6 +68,7 @@ export default function RegisterPage() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
+              autoComplete="username"
               className="w-full px-3 py-2 bg-ggz-bg-2 border border-ggz-border rounded-[var(--radius-lg)] text-sm focus:outline-none focus:ring-2 focus:ring-ggz-accent"
             />
           </div>
@@ -103,6 +83,7 @@ export default function RegisterPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              autoComplete="email"
               className="w-full px-3 py-2 bg-ggz-bg-2 border border-ggz-border rounded-[var(--radius-lg)] text-sm focus:outline-none focus:ring-2 focus:ring-ggz-accent"
             />
           </div>
@@ -117,6 +98,7 @@ export default function RegisterPage() {
               value={gamerTag}
               onChange={(e) => setGamerTag(e.target.value)}
               required
+              autoComplete="nickname"
               className="w-full px-3 py-2 bg-ggz-bg-2 border border-ggz-border rounded-[var(--radius-lg)] text-sm focus:outline-none focus:ring-2 focus:ring-ggz-accent"
             />
           </div>
@@ -131,6 +113,7 @@ export default function RegisterPage() {
               value={password1}
               onChange={(e) => setPassword1(e.target.value)}
               required
+              autoComplete="new-password"
               className="w-full px-3 py-2 bg-ggz-bg-2 border border-ggz-border rounded-[var(--radius-lg)] text-sm focus:outline-none focus:ring-2 focus:ring-ggz-accent"
             />
           </div>
@@ -145,6 +128,7 @@ export default function RegisterPage() {
               value={password2}
               onChange={(e) => setPassword2(e.target.value)}
               required
+              autoComplete="new-password"
               className="w-full px-3 py-2 bg-ggz-bg-2 border border-ggz-border rounded-[var(--radius-lg)] text-sm focus:outline-none focus:ring-2 focus:ring-ggz-accent"
             />
           </div>

@@ -31,12 +31,13 @@ Required environment variables:
 - `DEBUG`: set to `True` for local development and `False` in production
 - `ALLOWED_HOSTS`: comma-separated hostnames for the current environment
 - `CSRF_TRUSTED_ORIGINS`: comma-separated origins for Django CSRF validation
+- `FRONTEND_URL`: canonical Next.js site origin (defaults to `http://localhost:3000` in development and `https://ggz-frontend.vercel.app` when `VERCEL` is detected). Django uses it for OAuth callback redirects, frontend password-reset links, and it is appended to `CSRF_TRUSTED_ORIGINS` automatically when it starts with `http(s)://`
 - `DB_ENGINE`: defaults to SQLite for local development; set to `django.db.backends.postgresql` for production PostgreSQL
 - `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`: database settings for non-SQLite environments
 - `STATIC_URL`, `STATIC_ROOT`, `MEDIA_URL`, `MEDIA_ROOT`: static/media configuration
-- `GOOGLE_MAPS_PROVIDER`: set to `google` for the production intent of Radar; `osm` remains the safe fallback when no provider key is configured
-- `GOOGLE_MAPS_API_KEY`: Google Maps JavaScript API key for full provider-backed map features and optional Street View/3D behavior
-- `GOOGLE_MAPS_MAP_ID`: optional Google Maps Cloud Map ID for advanced map styling/custom map IDs
+- `GOOGLE_MAPS_PROVIDER`: set to `google` for the production intent of Radar; `osm` (or leaving it unset) remains the safe fallback. A paid Google Maps key is **not** required to run GGz — Radar degrades gracefully to the fallback with no key configured
+- `GOOGLE_MAPS_API_KEY`: optional Google Maps JavaScript API key that unlocks provider-backed map features and optional Street View/3D behavior; leave blank to use the free OSM fallback
+- `GOOGLE_MAPS_MAP_ID`: optional Google Maps Cloud Map ID for advanced map styling/custom map IDs (only used when the Maps key is configured)
 - `GOOGLE_MAPS_DEFAULT_LATITUDE`, `GOOGLE_MAPS_DEFAULT_LONGITUDE`: default center coordinates for the GGz Zimbabwe discovery map
 - Legacy `GGZ_MAP_*` values are still accepted for compatibility, but the canonical project setting is the `GOOGLE_MAPS_*` naming
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: Google OAuth web client values when Google sign-in is enabled
@@ -51,22 +52,23 @@ Focused runbooks: [DATABASE_MIGRATION.md](DATABASE_MIGRATION.md) and [VERCEL_DEP
 
 ## GGz Radar map provider decision
 
-GGz Radar uses the Google Maps Platform as the primary map engine.
+GGz Radar uses the Google Maps Platform as the primary map engine **when an API key is configured**. The Google Maps key is optional, not a hard requirement: with no key, Radar runs on the built-in OpenStreetMap fallback (road tiles, markers, geocoding) and never blocks the page or the product.
 
-Why this is the correct fit for the current product:
+Why Google Maps is the preferred provider when a key is available:
 
-- Street View is a explicit product requirement for physical venue inspection, and Google provides that in the same geographic ecosystem as road, satellite, hybrid, and 3D experiences.
+- Street View is an explicit product requirement for physical venue inspection, and Google provides that in the same geographic ecosystem as road, satellite, hybrid, and 3D experiences.
 - The product goal is a premium gaming discovery layer with map browsing, directions, venue discovery, and future geographic expansion; Google Maps matches that requirement set more directly than a GIS-first stack.
 - The existing GGz app already has a lightweight JSON map API and location data structure, so the architecture can stay simple while still supporting provider-native map features when the API key is present.
 - ArcGIS would be viable if the product shifted toward GIS-heavy planning and geospatial analysis in a later phase, but it is not the better fit for the current requirement mix of Street View, city discovery, venue context, and mapping ease.
 
-The implementation intentionally keeps one primary provider to avoid the unnecessary complexity of mixed-map architecture. When no key is configured, the app gracefully falls back to a safe, non-crashing public-data experience instead of breaking the page.
+The implementation intentionally keeps one primary provider to avoid the unnecessary complexity of mixed-map architecture. When no key is configured, the app gracefully falls back to a safe, non-crashing public-data experience instead of breaking the page — so a paid Google Maps key can be deferred until premium map features are actually needed.
 
 Production-ready guidance:
 
 - Keep `DEBUG=False` in deployed environments.
 - Set `ALLOWED_HOSTS` to the real deployed hostnames instead of leaving it broad.
 - Add the real HTTPS origin(s) to `CSRF_TRUSTED_ORIGINS`.
+- Set `FRONTEND_URL` to the canonical Next.js origin (for example `https://ggz-frontend.vercel.app`) so OAuth callbacks and password-reset emails link to the public site.
 - Use PostgreSQL in production by setting `DB_ENGINE` and the PostgreSQL connection values.
 - Run migrations before serving the app in a new environment.
 - Run `python manage.py collectstatic` to generate static files for deployment.

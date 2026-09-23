@@ -1,108 +1,74 @@
-const API_BASE = process.env.NEXT_PUBLIC_DJANGO_URL || "http://localhost:8000";
+export class ApiError extends Error {
+  status: number;
+  errors?: Record<string, string[]>;
 
-class ApiClient {
-  private baseUrl: string;
-  private csrfToken: string | null = null;
-
-  constructor(baseUrl: string) {
-    this.baseUrl = baseUrl;
-  }
-
-  private getCookie(name: string): string | null {
-    if (typeof document === "undefined") return null;
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop()?.split(";").shift() || null;
-    return null;
-  }
-
-  private async getCsrfToken(): Promise<string> {
-    if (this.csrfToken) return this.csrfToken;
-    
-    try {
-      const response = await fetch(`${this.baseUrl}/accounts/login/`, {
-        credentials: "include",
-      });
-      const html = await response.text();
-      const match = html.match(/name="csrfmiddlewaretoken"\s+value="([^"]+)"/);
-      if (match) {
-        this.csrfToken = match[1];
-        return this.csrfToken;
-      }
-    } catch {
-      // Fall back to cookie
-    }
-
-    const cookieToken = this.getCookie("csrftoken");
-    if (cookieToken) {
-      this.csrfToken = cookieToken;
-      return this.csrfToken;
-    }
-
-    throw new Error("Unable to obtain CSRF token");
-  }
-
-  async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
-    const url = endpoint.startsWith("http") ? endpoint : `${this.baseUrl}${endpoint}`;
-    
-    const headers: Record<string, string> = {
-      "X-Requested-With": "XMLHttpRequest",
-      ...(options.headers as Record<string, string>),
-    };
-
-    if (options.method && options.method !== "GET") {
-      const token = await this.getCsrfToken();
-      headers["X-CSRFToken"] = token;
-    }
-
-    const response = await fetch(url, {
-      ...options,
-      headers,
-      credentials: "include",
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || errorData.message || `API error: ${response.status}`);
-    }
-
-    return response.json();
-  }
-
-  async get<T>(endpoint: string): Promise<T> {
-    return this.request<T>(endpoint, { method: "GET" });
-  }
-
-  async post<T>(endpoint: string, data?: unknown): Promise<T> {
-    const body = data instanceof FormData ? data : data ? JSON.stringify(data) : undefined;
-    const headers: Record<string, string> = data instanceof FormData ? {} : { "Content-Type": "application/json" };
-    return this.request<T>(endpoint, { method: "POST", body, headers });
-  }
-
-  async put<T>(endpoint: string, data: unknown): Promise<T> {
-    return this.request<T>(endpoint, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-  }
-
-  async delete<T>(endpoint: string): Promise<T> {
-    return this.request<T>(endpoint, { method: "DELETE" });
-  }
-
-  async checkAuth(): Promise<{ authenticated: boolean; user?: { id: number; username: string; email: string }; profile?: { gamer_tag: string | null; avatar: string | null } }> {
-    try {
-      const data = await this.get<{ authenticated: boolean; user?: { id: number; username: string; email: string }; profile?: { gamer_tag: string | null; avatar: string | null } }>("/api/me/");
-      return data;
-    } catch {
-      return { authenticated: false };
-    }
+  constructor(message: string, status: number, errors?: Record<string, string[]>) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.errors = errors;
   }
 }
 
-export const api = new ApiClient(API_BASE);
-export default api;
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`));
+  return match ? match[1] : null;
+}
+
+async function fetchWithTimeout(url: string, options: RequestInit, ms = 20000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const method = (options.method || "GET").toUpperCase();
+  const headers = new Headers(options.headers);
+  headers.set("X-Requested-With", "XMLHttpRequest");
+  // fetch() only defaults string bodies to text/plain; Django's JSON auth
+  // API reads request.body exclusively for application/json content types.
+  if (typeof options.body === "string" && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  if (method !== "GET" && method !== "HEAD") {
+    await fetchWithTimeout("/api/csrf/", { credentials: "include" });
+    const token = getCookie("csrftoken");
+    if (token) headers.set("X-CSRFToken", token);
+  }
+
+  const response = await fetchWithTimeout(path, { ...options, headers, credentials: "include" });
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message =
+      data && typeof data.error === "string" && data.error
+        ? data.error
+        : `Request failed (${response.status})`;
+    throw new ApiError(message, response.status, data?.errors);
+  }
+
+  return data as T;
+}
+
+export function dispatchAuthChanged(): void {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("ggz:auth-changed"));
+  }
+}
+
+export function apiErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError) {
+    const fieldMessages = error.errors ? Object.values(error.errors).flat().join(" ") : "";
+    return fieldMessages || error.message;
+  }
+  if (error instanceof Error && error.name === "AbortError") {
+    return "The server is taking too long to respond. Check your connection and try again.";
+  }
+  return fallback;
+}

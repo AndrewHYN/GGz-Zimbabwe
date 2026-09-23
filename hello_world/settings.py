@@ -44,6 +44,14 @@ SITE_URL = config("SITE_URL", default="http://localhost:8000" if not DEPLOYED el
 if not SITE_URL and DEPLOYED:
     SITE_URL = "https://" + (os.environ.get("VERCEL_URL") or os.environ.get("VERCEL_BRANCH_URL") or os.environ.get("VERCEL_PROJECT_PRODUCTION_URL") or "localhost")
 
+# Canonical Next.js origin. Django is the auth/backend authority; OAuth
+# callbacks and password-reset emails must point users back at this origin
+# (the single public UI), never at Django-rendered templates.
+FRONTEND_URL = config(
+    "FRONTEND_URL",
+    default="http://localhost:3000" if not DEPLOYED else "https://ggz-frontend.vercel.app",
+).rstrip("/")
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config("DEBUG", default=not DEPLOYED, cast=bool)
 
@@ -61,6 +69,12 @@ CSRF_TRUSTED_ORIGINS = config(
 
 ALLOWED_HOSTS = list(dict.fromkeys(ALLOWED_HOSTS))
 CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(CSRF_TRUSTED_ORIGINS))
+
+# The canonical Next.js origin must be able to POST to the JSON auth/API
+# endpoints (CSRF origin check) without requiring a manual env change on the
+# backend deployment.
+if FRONTEND_URL.startswith(("http://", "https://")) and FRONTEND_URL not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append(FRONTEND_URL)
 
 for deployed_host_variable in ("VERCEL_URL", "VERCEL_BRANCH_URL", "VERCEL_PROJECT_PRODUCTION_URL"):
     deployed_host = os.environ.get(deployed_host_variable, "").strip()
