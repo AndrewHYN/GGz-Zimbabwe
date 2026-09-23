@@ -142,10 +142,21 @@ def api_game_detail(request, game_id):
 
     from games.views import _compute_game_stats
 
-    from accounts.models import ExternalFeedItem
+    from accounts.models import Block, ExternalFeedItem
     from accounts.views import _visible_posts
 
     viewer = getattr(request.user, 'gamer_profile', None) if request.user.is_authenticated else None
+    blocked_ids = (
+        {
+            value
+            for pair in Block.objects.filter(
+                Q(blocker=viewer) | Q(blocked=viewer)
+            ).values_list('blocker_id', 'blocked_id')
+            for value in pair
+        }
+        if viewer
+        else set()
+    )
     reviews = list(game.reviews.select_related('reviewer').order_by('-created_at')[:20])
     user_review = (
         GameReview.objects.select_related('reviewer').filter(game=game, reviewer=viewer).first()
@@ -155,7 +166,9 @@ def api_game_detail(request, game_id):
     community_posts = list(
         _visible_posts(viewer).filter(game=game).select_related('author').order_by('-created_at')[:5]
     )
-    available_players = list(game.players.order_by('gamer_tag')[:8])
+    available_players = list(
+        game.players.exclude(id__in=blocked_ids).order_by('gamer_tag')[:8]
+    )
     challengers = [
         {'id': player.id, 'gamer_tag': player.gamer_tag}
         for player in available_players
