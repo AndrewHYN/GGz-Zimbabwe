@@ -41,20 +41,15 @@ function useClickOutside(ref: React.RefObject<HTMLElement | null>, handler: () =
 }
 
 function NavDropdown({
-  ref,
   open,
   children,
 }: {
-  ref: React.RefObject<HTMLDivElement | null>;
   open: boolean;
   children: React.ReactNode;
 }) {
   if (!open) return null;
   return (
-    <div
-      ref={ref}
-      className="absolute left-0 top-full mt-1 min-w-[220px] rounded-[var(--radius-md)] border border-ggz-border bg-ggz-bg-1 p-1 shadow-lg animate-fade-in"
-    >
+    <div className="absolute left-0 top-full mt-1 min-w-[220px] rounded-[var(--radius-md)] border border-ggz-border bg-ggz-bg-1 p-1 shadow-lg animate-fade-in">
       {children}
     </div>
   );
@@ -203,7 +198,7 @@ export default function Navigation() {
                 Discover
                 <ChevronDownIcon className={`h-3.5 w-3.5 transition-transform ${discoverOpen ? "rotate-180" : ""}`} />
               </button>
-              <NavDropdown ref={discoverRef} open={discoverOpen}>
+              <NavDropdown open={discoverOpen}>
                 <DropdownLink href="/" pathname={pathname} icon={HomeIcon} label="Home" />
                 <DropdownLink href="/gamers" pathname={pathname} icon={UsersIcon} label="Find Players" />
                 <DropdownLink href="/leaderboards" pathname={pathname} icon={TrophyIcon} label="Rankings" />
@@ -263,7 +258,7 @@ export default function Navigation() {
                 Community
                 <ChevronDownIcon className={`h-3.5 w-3.5 transition-transform ${communityOpen ? "rotate-180" : ""}`} />
               </button>
-              <NavDropdown ref={communityRef} open={communityOpen}>
+              <NavDropdown open={communityOpen}>
                 <DropdownLink href="/feed" pathname={pathname} icon={MessageIcon} label="Community Feed" />
                 <DropdownLink href="/teams" pathname={pathname} icon={UsersIcon} label="Teams" />
                 <DropdownLink href="/events" pathname={pathname} icon={CalendarIcon} label="Events" />
@@ -335,7 +330,7 @@ export default function Navigation() {
                       <ChevronDownIcon className={`hidden sm:block h-3.5 w-3.5 text-ggz-text-secondary transition-transform ${profileOpen ? "rotate-180" : ""}`} />
                     </button>
 
-                    <NavDropdown ref={profileRef} open={profileOpen}>
+                    <NavDropdown open={profileOpen}>
                       <div className="border-b border-ggz-border px-3 py-2 mb-1">
                         <p className="text-sm font-medium text-ggz-text-primary">{user.displayName || user.username}</p>
                         <p className="text-xs text-ggz-text-muted">@{user.username}</p>
