@@ -582,6 +582,29 @@ class GameHubTests(TestCase):
 		self.assertIn("challengers", payload)
 		self.assertIn("game_news", payload)
 
+	def test_game_detail_api_hides_blocked_players_from_discovery_and_challenge(self):
+		game = Game.objects.create(name="Apex Legends")
+		viewer_user = User.objects.create_user(username="gameviewer", password="pass")
+		viewer = GamerProfile.objects.create(user=viewer_user, gamer_tag="GameViewerZW")
+		visible = GamerProfile.objects.create(
+			user=User.objects.create_user(username="gamevisible", password="pass"),
+			gamer_tag="GameVisibleZW",
+		)
+		blocked = GamerProfile.objects.create(
+			user=User.objects.create_user(username="gameblocked", password="pass"),
+			gamer_tag="GameBlockedZW",
+		)
+		game.players.add(viewer, visible, blocked)
+		Block.objects.create(blocker=viewer, blocked=blocked)
+
+		self.client.force_login(viewer_user)
+		payload = self.client.get(reverse("api_game_detail", args=[game.id])).json()
+		available = {item["gamer_tag"] for item in payload["available_players"]}
+		challengers = {item["gamer_tag"] for item in payload["challengers"]}
+		self.assertIn("GameVisibleZW", available)
+		self.assertNotIn("GameBlockedZW", available)
+		self.assertNotIn("GameBlockedZW", challengers)
+
 	def test_game_challenge_api_enforces_eligibility_and_rules(self):
 		game = Game.objects.create(name="Apex Legends")
 		challenger_user = User.objects.create_user(username="challenger", password="pass")
