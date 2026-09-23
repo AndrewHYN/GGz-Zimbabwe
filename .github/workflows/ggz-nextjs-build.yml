@@ -3,9 +3,11 @@ name: GGz Next.js Build
 on:
   push:
     branches:
+      - main
       - feat/ggz-nextjs-ui-2
   pull_request:
     branches:
+      - main
       - feat/ggz-nextjs-ui-2
 
 jobs:
