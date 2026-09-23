@@ -46,8 +46,8 @@ if (parsedBackend && parsedBackend.hostname !== "localhost") {
 }
 
 if (process.env.VERCEL_ENV === "production" && !process.env.NEXT_PUBLIC_DJANGO_URL) {
-  console.warn(
-    "[ggz] NEXT_PUBLIC_DJANGO_URL is not set for a production build; API rewrites and server fetches will fall back to http://localhost:8000 and production data will be empty."
+  throw new Error(
+    "[ggz] NEXT_PUBLIC_DJANGO_URL is required for production builds."
   );
 }
 
