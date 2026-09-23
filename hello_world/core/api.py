@@ -1,6 +1,6 @@
 from django.http import JsonResponse
 from django.middleware.csrf import get_token
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
