@@ -4,6 +4,16 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+async function fetchWithTimeout(url: string, options: RequestInit, ms = 20000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [username, setUsername] = useState("");
@@ -17,7 +27,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await fetch("/api/csrf/", { credentials: "include" });
+      await fetchWithTimeout("/api/csrf/", { credentials: "include" });
 
       const csrfToken = document.cookie
         .split('; ')
@@ -29,7 +39,7 @@ export default function LoginPage() {
       formData.append("password", password);
       formData.append("csrfmiddlewaretoken", csrfToken);
 
-      const res = await fetch("/accounts/login/", {
+      const res = await fetchWithTimeout("/accounts/login/", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         credentials: "include",
@@ -49,8 +59,12 @@ export default function LoginPage() {
 
       setError("Invalid credentials. Please try again.");
       setLoading(false);
-    } catch {
-      setError("Something went wrong. Please try again.");
+    } catch (error) {
+      setError(
+        error instanceof DOMException && error.name === "AbortError"
+          ? "The server is taking too long to respond. Check your connection and try again."
+          : "Something went wrong. Please try again."
+      );
       setLoading(false);
     }
   };

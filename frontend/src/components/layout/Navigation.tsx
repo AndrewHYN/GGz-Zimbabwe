@@ -164,9 +164,13 @@ export default function Navigation() {
           "X-Requested-With": "XMLHttpRequest",
         },
       });
-      router.push("/");
     } catch {
+      // Server logout is best-effort; always leave the logged-out UI state.
+    } finally {
+      setUser(null);
+      setProfileOpen(false);
       router.push("/");
+      router.refresh();
     }
   }
 
