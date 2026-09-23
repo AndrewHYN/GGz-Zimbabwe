@@ -1248,6 +1248,26 @@ class GamerProfileWorkflowTests(TestCase):
 		self.assertContains(response, "TendaiZW")
 		self.assertContains(response, "Following")
 
+	def test_feed_api_respects_block_privacy(self):
+		blocked = GamerProfile.objects.create(
+			user=User.objects.create_user(username="blockedfeed", password="strong-password-123"),
+			gamer_tag="BlockedFeedZW",
+		)
+		visible = GamerProfile.objects.create(
+			user=User.objects.create_user(username="visiblefeed", password="strong-password-123"),
+			gamer_tag="VisibleFeedZW",
+		)
+		Block.objects.create(blocker=self.profile, blocked=blocked)
+		Post.objects.create(author=blocked, body="Blocked feed post")
+		Post.objects.create(author=visible, body="Visible feed post")
+
+		self.client.login(username="tendai", password="strong-password-123")
+		response = self.client.get(reverse("api_feed_list"))
+		self.assertEqual(response.status_code, 200)
+		body = response.json()
+		self.assertIn("Visible feed post", [item["content"] for item in body])
+		self.assertNotIn("Blocked feed post", [item["content"] for item in body])
+
 	def test_feed_following_only_shows_posts_from_followed_users(self):
 		viewer = self.profile
 		followed = GamerProfile.objects.get(gamer_tag="RudoZW")
