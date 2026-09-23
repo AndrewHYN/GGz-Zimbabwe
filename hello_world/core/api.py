@@ -653,11 +653,8 @@ def api_feed_list(request):
         return JsonResponse({'authenticated': False}, status=401)
 
     viewer = getattr(request.user, "gamer_profile", None)
-    posts = (
-        Post.objects.select_related("author", "author__user", "game")
-        .prefetch_related("likes", "comments")
-        .order_by("-created_at")[:50]
-    )
+    from accounts.views import _visible_posts
+    posts = _visible_posts(viewer).order_by("-created_at")[:50]
 
     data = []
     for post in posts:
