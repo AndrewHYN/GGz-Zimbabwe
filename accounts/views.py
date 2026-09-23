@@ -1544,6 +1544,7 @@ def _visible_posts(viewer):
 		blocked_profile_ids = set()
 		for blocker_id, blocked_id in blocked_ids:
 			blocked_profile_ids.update((blocker_id, blocked_id))
+		blocked_profile_ids.discard(viewer.id)
 		posts = posts.exclude(author_id__in=blocked_profile_ids)
 	return posts
 

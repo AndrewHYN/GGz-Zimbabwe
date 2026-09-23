@@ -1258,6 +1258,7 @@ class GamerProfileWorkflowTests(TestCase):
 			gamer_tag="VisibleFeedZW",
 		)
 		Block.objects.create(blocker=self.profile, blocked=blocked)
+		Post.objects.create(author=self.profile, body="Own feed post")
 		Post.objects.create(author=blocked, body="Blocked feed post")
 		Post.objects.create(author=visible, body="Visible feed post")
 
@@ -1265,6 +1266,7 @@ class GamerProfileWorkflowTests(TestCase):
 		response = self.client.get(reverse("api_feed_list"))
 		self.assertEqual(response.status_code, 200)
 		body = response.json()
+		self.assertIn("Own feed post", [item["content"] for item in body])
 		self.assertIn("Visible feed post", [item["content"] for item in body])
 		self.assertNotIn("Blocked feed post", [item["content"] for item in body])
 

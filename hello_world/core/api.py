@@ -153,6 +153,7 @@ def api_game_detail(request, game_id):
                 Q(blocker=viewer) | Q(blocked=viewer)
             ).values_list('blocker_id', 'blocked_id')
             for value in pair
+            if value != viewer.id
         }
         if viewer
         else set()

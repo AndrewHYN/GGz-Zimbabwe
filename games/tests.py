@@ -601,6 +601,7 @@ class GameHubTests(TestCase):
 		payload = self.client.get(reverse("api_game_detail", args=[game.id])).json()
 		available = {item["gamer_tag"] for item in payload["available_players"]}
 		challengers = {item["gamer_tag"] for item in payload["challengers"]}
+		self.assertIn("GameViewerZW", available)
 		self.assertIn("GameVisibleZW", available)
 		self.assertNotIn("GameBlockedZW", available)
 		self.assertNotIn("GameBlockedZW", challengers)
