@@ -47,17 +47,26 @@ export default function LoginPage() {
         redirect: "manual",
       });
 
-      if (res.type === "opaqueredirect" || res.status === 0) {
-        router.push("/dashboard");
+      if (!(res.type === "opaqueredirect" || res.status === 0 || res.ok || res.status === 302)) {
+        setError("Invalid credentials. Please try again.");
+        setLoading(false);
         return;
       }
 
-      if (res.ok || res.status === 302) {
-        router.push("/dashboard");
-        return;
+      const sessionRes = await fetchWithTimeout("/api/me/", {
+        credentials: "include",
+        headers: { "X-Requested-With": "XMLHttpRequest" },
+      });
+
+      if (sessionRes.ok) {
+        const session = await sessionRes.json().catch(() => null);
+        if (session?.authenticated) {
+          router.push("/dashboard");
+          return;
+        }
       }
 
-      setError("Invalid credentials. Please try again.");
+      setError("Login completed, but the session could not be verified. Please try again.");
       setLoading(false);
     } catch (error) {
       setError(
