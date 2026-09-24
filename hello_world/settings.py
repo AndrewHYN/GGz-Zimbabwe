@@ -167,9 +167,9 @@ _csp_directives = [
     "script-src 'self' 'sha256-/42vWjQLbsion3EFyzAiFefID//+R0DF9sAQG03tEBA=' 'sha256-KGvSsUMnP3UBHYwkthVh5H2x0F2WCXOV0xLB1uszeOk=' https://maps.googleapis.com https://cdn.jsdelivr.net",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' data: https://fonts.gstatic.com",
-    "img-src 'self' data: blob: https://cdn.discordapp.com https://*.supabase.co https://*.gstatic.com https://*.googleapis.com https://*.googleusercontent.com https://images.igdb.com",
+    "img-src 'self' data: blob: https://cdn.discordapp.com https://*.supabase.co https://*.gstatic.com https://*.googleapis.com https://*.googleusercontent.com https://images.igdb.com https://static-cdn.jtvnw.net",
     "connect-src 'self' https://maps.googleapis.com https://*.googleapis.com https://*.gstatic.com",
-    "frame-src 'self' https://www.openstreetmap.org https://www.google.com https://maps.google.com https://www.youtube.com https://www.youtube-nocookie.com",
+    "frame-src 'self' https://www.openstreetmap.org https://www.google.com https://maps.google.com https://www.youtube.com https://www.youtube-nocookie.com https://player.twitch.tv",
     "media-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
@@ -337,6 +337,21 @@ IGDB_BASE_URL = config("IGDB_BASE_URL", default="https://api.igdb.com/v4")
 IGDB_TIMEOUT = config("IGDB_TIMEOUT", default=8, cast=int)
 IGDB_SEARCH_CACHE_SECONDS = config("IGDB_SEARCH_CACHE_SECONDS", default=21600, cast=int)
 IGDB_GAME_CACHE_SECONDS = config("IGDB_GAME_CACHE_SECONDS", default=86400, cast=int)
+
+# Twitch Helix (GGz Live) integration. Server-side only: the client secret and
+# app access tokens never leave Django. When TWITCH_* credentials are blank the
+# service falls back to IGDB_CLIENT_ID / IGDB_CLIENT_SECRET (the same Twitch
+# application) unless TWITCH_DISABLE_IGDB_FALLBACK is set. With no credentials
+# at all, /api/live/ degrades to an empty-but-usable response.
+TWITCH_CLIENT_ID = config("TWITCH_CLIENT_ID", default="")
+TWITCH_CLIENT_SECRET = config("TWITCH_CLIENT_SECRET", default="")
+TWITCH_DISABLE_IGDB_FALLBACK = config("TWITCH_DISABLE_IGDB_FALLBACK", default=False, cast=bool)
+TWITCH_AUTH_URL = config("TWITCH_AUTH_URL", default="https://id.twitch.tv/oauth2/token")
+TWITCH_API_BASE_URL = config("TWITCH_API_BASE_URL", default="https://api.twitch.tv/helix")
+TWITCH_TIMEOUT = config("TWITCH_TIMEOUT", default=6, cast=int)
+TWITCH_STREAM_CACHE_SECONDS = config("TWITCH_STREAM_CACHE_SECONDS", default=60, cast=int)
+TWITCH_CATEGORY_CACHE_SECONDS = config("TWITCH_CATEGORY_CACHE_SECONDS", default=604800, cast=int)
+TWITCH_CATEGORY_MISS_CACHE_SECONDS = config("TWITCH_CATEGORY_MISS_CACHE_SECONDS", default=86400, cast=int)
 
 S3_STORAGE_VARIABLES = (
     "AWS_ACCESS_KEY_ID",

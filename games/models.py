@@ -32,6 +32,11 @@ class Game(models.Model):
 	igdb_platforms = models.CharField(max_length=255, blank=True)
 	igdb_summary = models.TextField(blank=True)
 	igdb_last_synced = models.DateTimeField(blank=True, null=True)
+	# Resolved Twitch Helix category id for GGz Live. Populated lazily by
+	# games.services.twitch (never by hand) so stream discovery avoids
+	# per-request category lookups. GGz id != Twitch id by definition.
+	twitch_category_id = models.BigIntegerField(blank=True, null=True)
+	twitch_category_name = models.CharField(max_length=120, blank=True)
 
 	def __str__(self):
 		return self.name

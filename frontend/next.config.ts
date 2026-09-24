@@ -13,6 +13,10 @@ const remotePatterns: NonNullable<NonNullable<NextConfig["images"]>["remotePatte
   },
   {
     protocol: "https",
+    hostname: "static-cdn.jtvnw.net",
+  },
+  {
+    protocol: "https",
     hostname: "cdn.discordapp.com",
   },
   {
@@ -87,12 +91,33 @@ const nextConfig: NextConfig = {
     ];
   },
   async headers() {
+    // Narrow CSP for the public Next.js site (Django already ships its own
+    // CSP for legacy/API responses). Twitch additions are explicit only:
+    // thumbnails (static-cdn.jtvnw.net) and the player iframe
+    // (player.twitch.tv) — no wildcards.
+    const csp = [
+      "default-src 'self'",
+      "base-uri 'self'",
+      "object-src 'none'",
+      "frame-ancestors 'none'",
+      "script-src 'self' 'unsafe-inline' https://maps.googleapis.com https://cdn.jsdelivr.net",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' data: https://fonts.gstatic.com",
+      "img-src 'self' data: blob: https://images.igdb.com https://static-cdn.jtvnw.net https://cdn.discordapp.com https://*.supabase.co https://*.gstatic.com https://*.googleapis.com https://*.googleusercontent.com https://*.google.com https://tile.openstreetmap.org https://*.openstreetmap.org",
+      "frame-src 'self' https://player.twitch.tv https://www.youtube.com https://www.youtube-nocookie.com https://www.openstreetmap.org https://maps.google.com https://www.google.com",
+      "connect-src 'self' https://maps.googleapis.com https://*.googleapis.com https://*.gstatic.com",
+      "media-src 'self' blob:",
+    ].join("; ");
     return [
       {
         source: "/api/:path*",
         headers: [
           { key: "X-Requested-With", value: "XMLHttpRequest" },
         ],
+      },
+      {
+        source: "/:path*",
+        headers: [{ key: "Content-Security-Policy", value: csp }],
       },
     ];
   },

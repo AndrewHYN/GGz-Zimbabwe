@@ -7,10 +7,12 @@ import {
   CalendarIcon,
 } from "@/components/icons";
 import { EventCard, GameCard, TournamentCard } from "@/components/cards";
+import { TwitchStreamCard } from "@/components/live/TwitchStreamCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { LiveIndicator } from "@/components/ui/StatusPill";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { MotionReveal } from "@/components/motion/MotionReveal";
+import type { LivePayload } from "@/lib/live";
 
 const API_BASE = process.env.NEXT_PUBLIC_DJANGO_URL || "http://localhost:8000";
 
@@ -61,6 +63,16 @@ async function fetchList<T>(path: string): Promise<T[]> {
   }
 }
 
+async function fetchLive(): Promise<LivePayload | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/live/`, { next: { revalidate: 60 } });
+    if (!res.ok) return null;
+    return (await res.json()) as LivePayload;
+  } catch {
+    return null;
+  }
+}
+
 const quickLinks = [
   {
     href: "/games",
@@ -101,10 +113,11 @@ const quickLinks = [
 ];
 
 export default async function Home() {
-  const [games, tournaments, events] = await Promise.all([
+  const [games, tournaments, events, live] = await Promise.all([
     fetchList<HomeGame>("/api/games/"),
     fetchList<HomeTournament>("/api/tournaments/"),
     fetchList<HomeEvent>("/api/events/"),
+    fetchLive(),
   ]);
 
   const featuredGames = games.slice(0, 6);
@@ -113,6 +126,7 @@ export default async function Home() {
     .slice(0, 4);
   const upcomingEvents = events.slice(0, 3);
   const liveCount = tournaments.filter((t) => t.status === "Live").length;
+  const liveStreams = live?.available ? (live.streams ?? []).slice(0, 3) : [];
 
   return (
     <div className="animate-page-enter">
@@ -171,6 +185,24 @@ export default async function Home() {
             </div>
           </MotionReveal>
         </section>
+
+        {liveStreams.length > 0 && (
+          <section className="pb-14" data-testid="home-live-section">
+            <MotionReveal>
+              <SectionHeader
+                title="Live Now"
+                description="GGz gamers streaming right now."
+                href="/live"
+                actionLabel="GGz Live"
+              />
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {liveStreams.map((stream) => (
+                  <TwitchStreamCard key={stream.id || stream.broadcaster_login} stream={stream} />
+                ))}
+              </div>
+            </MotionReveal>
+          </section>
+        )}
 
         <section className="pb-14">
           <MotionReveal>

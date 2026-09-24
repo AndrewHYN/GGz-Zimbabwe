@@ -7,6 +7,7 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 from accounts.models import Block, GamerProfile, Notification, Post, Conversation, Message, ConversationParticipant
 from events.models import Event
 from games.models import Game, GameReview, GameWishlist
+from games.services import twitch as twitch_service
 from marketplace.models import Listing
 from teams.models import Team
 from tournaments.models import Tournament
@@ -129,6 +130,7 @@ def api_games_list(request):
             'player_count': game.player_count,
             'free_to_play': game.free_to_play,
             'featured': game.featured,
+            'igdb_id': game.igdb_id,
         })
     return JsonResponse(data, safe=False)
 
@@ -891,6 +893,89 @@ def api_conversation_detail(request, conversation_id):
 def api_map_data(request):
     from accounts.views import map_data
     return map_data(request)
+
+
+_LIVE_CANDIDATE_LIMIT = 16
+
+
+@require_GET
+def api_live(request):
+    """Public GGz Live discovery.
+
+    Modes (one endpoint, no duplicates): ``?channel=<login>`` for a single
+    broadcaster, ``?game=<ggz-game-id>`` for one game's live streams, and the
+    bare path for global discovery with GGz-game grouping. Everything is
+    normalized and cached inside ``games.services.twitch``; this view never
+    talks to Twitch directly and never surfaces upstream errors or secrets.
+    """
+    available = twitch_service.is_configured()
+    channel = (request.GET.get("channel") or "").strip()
+    game_param = request.GET.get("game")
+    language = (request.GET.get("language") or "").strip().lower() or None
+
+    if channel:
+        streams = twitch_service.get_live_streams(channel=channel) if available else []
+        return JsonResponse({
+            "available": available,
+            "mode": "channel",
+            "channel": channel,
+            "streams": streams,
+        })
+
+    if game_param is not None:
+        try:
+            game = Game.objects.get(id=int(game_param))
+        except (Game.DoesNotExist, TypeError, ValueError):
+            return JsonResponse({"error": "Game not found"}, status=404)
+        streams = twitch_service.get_live_streams(game=game) if available else []
+        return JsonResponse({
+            "available": available,
+            "mode": "game",
+            "game": {
+                "id": game.id,
+                "name": game.name,
+                "cover_art_url": game.cover_art_url or None,
+            },
+            "streams": streams,
+        })
+
+    streams = (
+        twitch_service.get_live_streams(first=20, language=language)
+        if available
+        else []
+    )
+    grouped = {}
+    if streams:
+        candidates = Game.objects.order_by("-featured", "-popularity", "name")[:_LIVE_CANDIDATE_LIMIT]
+        category_to_game = {}
+        for candidate in candidates:
+            category = twitch_service.get_game_category(candidate)
+            if category:
+                category_to_game[str(category["id"])] = candidate
+        for stream in streams:
+            match = category_to_game.get(stream.get("game_id"))
+            if not match:
+                continue
+            stream["ggz_game_id"] = match.id
+            stream["ggz_game_name"] = match.name
+            entry = grouped.setdefault(match.id, {
+                "id": match.id,
+                "name": match.name,
+                "cover_art_url": match.cover_art_url or None,
+                "stream_count": 0,
+                "viewers": 0,
+            })
+            entry["stream_count"] += 1
+            entry["viewers"] += stream["viewer_count"]
+    games_live = sorted(grouped.values(), key=lambda entry: entry["viewers"], reverse=True)
+    return JsonResponse({
+        "available": available,
+        "mode": "global",
+        "streams": streams,
+        "games": games_live,
+        "language": language,
+    })
+
 
 @require_GET
 def api_leaderboards(request):

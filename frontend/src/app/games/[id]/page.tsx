@@ -12,6 +12,7 @@ import {
   tournamentTone,
 } from "@/components/ui/StatusPill";
 import { MotionReveal } from "@/components/motion/MotionReveal";
+import { GameLiveStrip } from "@/components/live/GameLiveStrip";
 import Image from "next/image";
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
@@ -579,6 +580,8 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
         </div>
       </section>
       </MotionReveal>
+
+      {game.id != null && <GameLiveStrip gameId={game.id} />}
     </div>
   );
 }

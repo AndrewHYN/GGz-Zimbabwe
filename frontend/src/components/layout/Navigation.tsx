@@ -18,6 +18,7 @@ import {
   MessageIcon,
   HomeIcon,
   CalendarIcon,
+  BroadcastIcon,
 } from "@/components/icons";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
@@ -202,6 +203,7 @@ export default function Navigation() {
                 <DropdownLink href="/gamers" pathname={pathname} icon={UsersIcon} label="Find Players" />
                 <DropdownLink href="/leaderboards" pathname={pathname} icon={TrophyIcon} label="Rankings" />
                 <DropdownLink href="/discover" pathname={pathname} icon={SearchIcon} label="Nearby Gaming" />
+                <DropdownLink href="/live" pathname={pathname} icon={BroadcastIcon} label="GGz Live" />
               </NavDropdown>
             </div>
 
@@ -215,6 +217,24 @@ export default function Navigation() {
               }`}
             >
               Games
+            </Link>
+
+            {/* Live */}
+            <Link
+              href="/live"
+              className={`rounded-[var(--radius-md)] px-3 py-2 text-sm transition-colors ${
+                isActive("/live")
+                  ? "text-ggz-amber"
+                  : "text-ggz-text-secondary hover:bg-ggz-surface hover:text-ggz-text-primary"
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <span className="relative flex h-1.5 w-1.5" aria-hidden="true">
+                  <span className="live-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                </span>
+                Live
+              </span>
             </Link>
 
             {/* Compete */}
@@ -448,6 +468,16 @@ export default function Navigation() {
               >
                 <TrophyIcon className="h-4 w-4" />
                 Compete
+              </Link>
+
+              <Link
+                href="/live"
+                className={`flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm transition-colors ${
+                  isActive("/live") ? "text-ggz-amber" : "text-ggz-text-secondary hover:bg-ggz-surface hover:text-ggz-text-primary"
+                }`}
+              >
+                <BroadcastIcon className="h-4 w-4" />
+                GGz Live
               </Link>
 
               <Link

@@ -139,6 +139,54 @@ Future charts/graphs should plug into the existing pages rather than creating ne
 
 Charts libraries (when introduced) should be lazy-loaded per route to keep the initial bundle lean.
 
+## GGz Live — Twitch + IGDB (M4)
+
+Public live-stream discovery runs entirely server-side through Django. The browser never sees Twitch credentials, and every Twitch failure degrades to a usable empty state.
+
+### Architecture
+
+- `games/services/twitch.py` owns all Twitch Helix traffic: app-access token acquisition (cached until `expires_in - 120s`), typed error handling (401 single retry after clearing the token, 429/timeout/invalid-JSON → typed `TwitchError`s), stream normalization into the GGz-owned `LiveStream` shape, category mapping + persistence, and per-filter stream caches (60s). Views never call Twitch directly and never log secrets.
+- `GET /api/live/` (`hello_world/core/api.py:api_live`) is the **only** live endpoint. Modes via query string: bare path → global discovery (streams grouped per GGz game into `games[]`, streams enriched with `ggz_game_id`/`ggz_game_name`); `?game=<ggz-game-id>` → that game's live streams (404 for unknown ids); `?channel=<twitch-login>` → one broadcaster (precedence over `game`). `?language=` filters the global mode. GET-only.
+- Category mapping order (first hit wins, then persisted forever on the game row): persisted `Game.twitch_category_id` → Twitch `games?igdb_id=` lookup (same IGDB id the catalogue already stores) → exact game name → normalized name (symbols stripped) → no match (negatively cached 24h). Successful mappings persist to `games_game.twitch_category_id/twitch_category_name` (migration `0008`), so each game resolves from Twitch at most once.
+- Caches: access token (lifetime-aware), streams (60s per filter combination), category hits (7 days), category misses (1 day). All sit in Django's default cache.
+
+### Frontend routes & components
+
+- `/live/` — discovery hub: filter chips per GGz game, live-now grid, popular-live-games row, browse footer. Server component; fetches `/api/live/` + `/api/games/` with `revalidate`.
+- `/live/[channel]/` — watch page: responsive Twitch embed (`components/live/TwitchPlayer.tsx`) that mounts `player.twitch.tv` only after layout confirms the correct `parent` hostname and ≥400px width; otherwise a clean "Watch on Twitch" card. Header always offers `https://www.twitch.tv/<login>`.
+- Homepage `Live Now` section and game-detail `GGz LIVE` strip render only when there is at least one live stream; they disappear otherwise — no empty boxes.
+- `components/live/TwitchStreamCard.tsx` (grid card), `GameLiveStrip.tsx` (game page), `lib/live.ts` (shared types + `formatViewers` + `twitchWatchUrl`).
+- CSP: `frame-src https://player.twitch.tv` and `img-src https://static-cdn.jtvnw.net` are allow-listed in Django middleware CSP and the Next.js `headers()` CSP in `frontend/next.config.ts`.
+
+### Environment variables (server-side only — never NEXT_PUBLIC_*)
+
+```bash
+# Reuses the IGDB Twitch application when Twitch names are blank (same app,
+# app access tokens only — no user scopes, no redirect URI).
+TWITCH_CLIENT_ID=
+TWITCH_CLIENT_SECRET=
+TWITCH_DISABLE_IGDB_FALLBACK=False   # True forces live discovery off entirely
+# Optional overrides (defaults shown):
+TWITCH_AUTH_URL=https://id.twitch.tv/oauth2/token
+TWITCH_API_BASE_URL=https://api.twitch.tv/helix
+TWITCH_TIMEOUT=6
+TWITCH_STREAM_CACHE_SECONDS=60
+TWITCH_CATEGORY_CACHE_SECONDS=604800
+TWITCH_CATEGORY_MISS_CACHE_SECONDS=86400
+```
+
+Without any credentials (or with the fallback disabled), `/api/live/` returns `{"available": false, "streams": []}` and the UI renders graceful empty states. The client secret and app access tokens must never reach the browser, HTML, git, or logs — `/api/live/` responses contain only normalized stream data.
+
+### Manual Twitch setup
+
+1. Create an application at https://dev.twitch.tv/console/apps (or reuse the IGDB one): set the OAuth redirect URL to `http://localhost:3000` (unused for app tokens) and note the Client ID + Client Secret.
+2. Put the values in `.env` as `IGDB_CLIENT_ID`/`IGDB_CLIENT_SECRET` (dual-use) or the `TWITCH_*` pair above; restart Django.
+3. `python manage.py migrate` adds the category columns; mappings resolve lazily on first `/api/live/` request and persist.
+
+### Testing note
+
+`games/tests_twitch.py` mocks the network boundary (`twitch.urlopen`) — token flow, mapping, caching, degradation, and all three API modes are covered without credentials. End-to-end runs use a local mock Helix server (`mock_twitch.py`) because real Twitch token endpoints require a whitelisted application.
+
 ## Deployment smoke check
 
 GGz exposes a lightweight health endpoint at `/health/` for deployment and infrastructure checks:

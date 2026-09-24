@@ -78,6 +78,7 @@ urlpatterns = [
     path("api/profiles/gamers/", api_views.api_gamers_list, name="api_gamers_list"),
     path("api/radar/map/", api_views.api_map_data, name="api_radar_map"),
     path("api/leaderboards/", api_views.api_leaderboards, name="api_leaderboards"),
+    path("api/live/", api_views.api_live, name="api_live"),
     path("api/profiles/detail/<str:gamer_tag>/", api_views.api_profile_detail, name="api_profile_detail"),
     path("api/profiles/<str:gamer_tag>/<str:action>/", api_views.api_profile_connection, name="api_profile_connection"),
     path("api/profiles/<str:gamer_tag>/games/<int:game_id>/remove/", api_views.api_profile_game_remove, name="api_profile_game_remove"),
