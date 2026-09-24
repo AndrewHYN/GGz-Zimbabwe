@@ -1,25 +1,25 @@
-import Link from "next/link";
-import Image from "next/image";
-
-const MODE_COLORS: Record<string, string> = {
-  online: "bg-emerald-500/20 text-emerald-400",
-  offline: "bg-blue-500/20 text-blue-400",
-  hybrid: "bg-purple-500/20 text-purple-400",
-};
+import { HoverCard } from "@/components/motion/HoverCard";
+import { MediaFallback } from "@/components/ui/MediaFallback";
+import { SafeImage } from "@/components/ui/SafeImage";
+import { StatusPill, eventModeTone, eventStatusTone } from "@/components/ui/StatusPill";
 
 interface EventCardProps {
   id: number;
   name: string;
-  date: string;
-  location?: string;
+  date: string | null;
+  location?: string | null;
   mode: string;
   banner_image?: string | null;
-  organizer_name?: string;
-  rsvp_count: number;
+  organizer_name?: string | null;
+  game_name?: string | null;
+  rsvp_count?: number | null;
+  status?: string | null;
 }
 
 function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("en-US", {
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return dateStr;
+  return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -34,52 +34,53 @@ export function EventCard({
   mode,
   banner_image,
   organizer_name,
+  game_name,
   rsvp_count,
+  status,
 }: EventCardProps) {
   return (
-    <Link
+    <HoverCard
       href={`/events/${id}`}
-      className="group block overflow-hidden rounded-[var(--radius-lg)] border border-ggz-border bg-ggz-bg-1 transition-colors hover:border-ggz-amber/40"
+      className="group block overflow-hidden rounded-[var(--radius-lg)] border border-ggz-border bg-ggz-bg-1 transition-colors hover:border-ggz-amber/40 hover:shadow-lg hover:shadow-black/20"
     >
       <div className="relative h-44 w-full bg-ggz-bg-2">
-        {banner_image ? (
-          <Image
-            src={banner_image}
-            alt={name}
-            fill
-            className="object-cover transition group-hover:scale-105"
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center text-ggz-text-muted text-sm">
-            No image
-          </div>
-        )}
+        <SafeImage
+          src={banner_image}
+          alt={name}
+          fill
+          sizes="(max-width: 640px) 100vw, 33vw"
+          unoptimized
+          className="object-cover transition-transform duration-500 group-hover:scale-105"
+          fallback={<MediaFallback kind="event" label={name} className="absolute inset-0" />}
+        />
       </div>
 
       <div className="p-5">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-ggz-text-primary group-hover:text-ggz-amber transition-colors">
+        <div className="flex items-start justify-between gap-2">
+          <h2 className="font-semibold text-ggz-text-primary transition-colors group-hover:text-ggz-amber">
             {name}
           </h2>
-          <span
-            className={`ml-2 shrink-0 inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
-              MODE_COLORS[mode] ?? "bg-zinc-500/15 text-zinc-400"
-            }`}
-          >
-            {mode.charAt(0).toUpperCase() + mode.slice(1)}
-          </span>
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
+            {status && <StatusPill label={status} tone={eventStatusTone(status)} />}
+            <StatusPill
+              label={mode.charAt(0).toUpperCase() + mode.slice(1)}
+              tone={eventModeTone(mode)}
+            />
+          </div>
         </div>
 
         <div className="mt-3 space-y-1 text-sm text-ggz-text-secondary">
-          <p>{formatDate(date)}</p>
+          <p>{date ? formatDate(date) : "Date TBD"}</p>
           {location && <p>{location}</p>}
-          {organizer_name && <p className="text-ggz-text-muted">{organizer_name}</p>}
-          <p>
-            <span className="text-ggz-amber">{rsvp_count}</span>{" "}
-            attending
-          </p>
+          <p className="text-ggz-text-muted">{organizer_name ?? "Community event"}</p>
+          {game_name && <p>{game_name}</p>}
+          {typeof rsvp_count === "number" && (
+            <p>
+              <span className="text-ggz-amber">{rsvp_count}</span> attending
+            </p>
+          )}
         </div>
       </div>
-    </Link>
+    </HoverCard>
   );
 }

@@ -3,6 +3,15 @@
 import { Badge } from "@/components/ui/Badge";
 import { GameArtwork } from "@/components/ui/GameArtwork";
 import { StarIcon, ExternalLinkIcon } from "@/components/icons";
+import { SectionHeader } from "@/components/ui/SectionHeader";
+import { Skeleton } from "@/components/ui/Skeleton";
+import {
+  StatusPill,
+  eventStatusTone,
+  tournamentStatusLabel,
+  tournamentTone,
+} from "@/components/ui/StatusPill";
+import { MotionReveal } from "@/components/motion/MotionReveal";
 import Image from "next/image";
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
@@ -246,7 +255,28 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
     }
   }
 
-  if (loading) return <div className="mx-auto max-w-[1536px] px-4 py-8 text-ggz-text-secondary">Loading game…</div>;
+  if (loading)
+    return (
+      <div className="mx-auto max-w-[1536px] px-4 py-8">
+        <Skeleton className="mb-6 h-4 w-32" />
+        <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+          <div className="mx-auto w-full max-w-[280px]">
+            <Skeleton className="aspect-[3/4] w-full rounded-[var(--radius-lg)]" />
+            <Skeleton className="mt-3 h-10 w-full rounded-xl" />
+          </div>
+          <div className="space-y-4">
+            <Skeleton className="h-9 w-2/3" />
+            <div className="flex gap-2">
+              <Skeleton className="h-6 w-16 rounded-full" />
+              <Skeleton className="h-6 w-24 rounded-full" />
+            </div>
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-5/6" />
+            <Skeleton className="h-4 w-2/3" />
+          </div>
+        </div>
+      </div>
+    );
   if (notFound || !game)
     return (
       <div className="mx-auto max-w-[1536px] px-4 py-8 text-center">
@@ -263,7 +293,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
   ].filter((entry): entry is [string, string] => Boolean(entry[1]));
 
   return (
-    <div className="mx-auto max-w-[1536px] px-4 py-8">
+    <div className="mx-auto max-w-[1536px] animate-fade-in px-4 py-8">
       <Link href="/games" className="mb-6 inline-flex items-center gap-2 text-ggz-text-muted transition-colors hover:text-ggz-text-primary">
         ← Back to Games
       </Link>
@@ -311,7 +341,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
 
           {storeLinks.length > 0 && (
             <div className="mt-6">
-              <h2 className="mb-3 text-xl font-semibold">Get the Game</h2>
+              <SectionHeader title="Get the Game" className="mb-3" />
               <div className="flex flex-wrap gap-3">
                 {storeLinks.map(([name, url]) => (
                   <a key={name} href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-ggz-border bg-ggz-surface px-4 py-2 transition-colors hover:bg-ggz-surface-hover">
@@ -326,9 +356,10 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
       </div>
 
       {game.trailer_embed_url && (
-        <section className="mt-8 max-w-3xl">
-          <h2 className="mb-3 text-xl font-semibold">Trailer</h2>
-          <div className="overflow-hidden rounded-[var(--radius-lg)] border border-ggz-border">
+        <MotionReveal>
+          <section className="mt-8 max-w-3xl">
+            <SectionHeader title="Trailer" className="mb-3" />
+            <div className="overflow-hidden rounded-[var(--radius-lg)] border border-ggz-border">
             <iframe
               src={game.trailer_embed_url}
               title={`${game.name} official trailer`}
@@ -339,12 +370,17 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
               className="aspect-video w-full"
             />
           </div>
-        </section>
+          </section>
+        </MotionReveal>
       )}
 
+      <MotionReveal>
       <section className="mt-8 grid gap-6 lg:grid-cols-2">
         <div>
-          <h2 className="mb-3 text-xl font-semibold">Community reviews ({game.review_count})</h2>
+          <SectionHeader
+            title={`Community reviews (${game.review_count})`}
+            className="mb-3"
+          />
           <form onSubmit={submitReview} className="mb-4 rounded-[var(--radius-lg)] border border-ggz-border bg-ggz-bg-1 p-4">
             <div className="flex flex-col gap-3 sm:flex-row">
               <label className="text-sm text-ggz-text-secondary">
@@ -384,7 +420,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
 
         <div>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Leaderboard</h2>
+            <SectionHeader title="Leaderboard" className="mb-0" />
             <Link href={"/leaderboards?game=" + game.id} className="text-sm text-ggz-amber hover:underline">Full rankings</Link>
           </div>
           {game.leaderboard.length === 0 ? (
@@ -409,8 +445,16 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           )}
         </div>
       </section>
+      </MotionReveal>
 
-      <section className="mt-8 grid gap-5 lg:grid-cols-3">
+      <MotionReveal>
+      <section className="mt-8">
+        <SectionHeader
+          title="Tournaments, events & marketplace"
+          description="Everything connected to this game."
+          className="mb-4"
+        />
+        <div className="grid gap-5 lg:grid-cols-3">
         <div className="rounded-[var(--radius-lg)] border border-ggz-border bg-ggz-bg-1 p-5">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="font-semibold text-ggz-text-primary">Players</h2>
@@ -484,9 +528,13 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
             <ul className="mt-3 space-y-2">
               {game.upcoming_tournaments.map((tournament) => (
                 <li key={tournament.id}>
-                  <Link href={"/tournaments/" + tournament.slug} className="block rounded-xl border border-ggz-border bg-ggz-bg-2 p-3 text-sm transition hover:border-ggz-amber/40">
-                    <span className="font-medium text-ggz-text-primary">{tournament.name}</span>
-                    <span className="ml-2 text-xs text-ggz-text-muted">{tournament.status}</span>
+                  <Link href={"/tournaments/" + tournament.slug} className="flex items-center justify-between gap-2 rounded-xl border border-ggz-border bg-ggz-bg-2 p-3 text-sm transition hover:border-ggz-amber/40">
+                    <span className="min-w-0 truncate font-medium text-ggz-text-primary">{tournament.name}</span>
+                    <StatusPill
+                      label={tournamentStatusLabel(tournament.status)}
+                      tone={tournamentTone(tournament.status)}
+                      className="shrink-0"
+                    />
                   </Link>
                 </li>
               ))}
@@ -499,9 +547,9 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
             <ul className="space-y-2">
               {game.related_events.map((event) => (
                 <li key={event.id}>
-                  <Link href={"/events/" + event.id} className="block rounded-xl border border-ggz-border bg-ggz-bg-2 p-3 text-sm transition hover:border-ggz-amber/40">
-                    <span className="font-medium text-ggz-text-primary">{event.name}</span>
-                    <span className="ml-2 text-xs text-ggz-text-muted">{event.status}</span>
+                  <Link href={"/events/" + event.id} className="flex items-center justify-between gap-2 rounded-xl border border-ggz-border bg-ggz-bg-2 p-3 text-sm transition hover:border-ggz-amber/40">
+                    <span className="min-w-0 truncate font-medium text-ggz-text-primary">{event.name}</span>
+                    <StatusPill label={event.status} tone={eventStatusTone(event.status)} className="shrink-0" />
                   </Link>
                 </li>
               ))}
@@ -528,7 +576,9 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
             </a>
           )}
         </div>
+        </div>
       </section>
+      </MotionReveal>
     </div>
   );
 }

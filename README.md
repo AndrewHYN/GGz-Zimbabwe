@@ -104,6 +104,41 @@ python manage.py collectstatic
 python manage.py test
 ```
 
+## Visual system, motion & data-visualization (M3)
+
+The public Next.js site ships a unified visual layer defined in `frontend/src/app/globals.css` and the shared components under `frontend/src/components/`:
+
+- **Tokens** — the `@theme` block defines the palette (`--color-ggz-base`, `--color-ggz-surface`, `--color-ggz-amber`, `--color-ggz-text-*`, `--color-gggz-cyan`, `--color-ggz-red`), radii (`--radius-md`/`--radius-lg`), and font stacks. Pages and components must consume these tokens via utility classes (`text-ggz-text-primary`, `bg-ggz-surface`, …) rather than raw hex values.
+- **Theme** — dark is the default; a `[data-theme="light"]` block overrides the same tokens for light mode (Navigation theme toggle persists the choice). Ambient atmosphere layers are hidden in light mode automatically.
+- **Status vocabulary** — `StatusPill` (`components/ui/StatusPill.tsx`) maps tournament status, event status/mode, and presence states to consistent tones (`live`, `open`, `scheduled`, `closed`, `completed`, `online`, …) with a pulsing `live` variant. Use the exported tone helpers (`tournamentTone`, `eventModeTone`, `presenceTone`) instead of hand-rolled badges.
+- **Artwork & fallbacks** — `GameArtwork`/`SafeImage` render IGDB artwork through `next/image` and fall back to `MediaFallback` (a branded gradient placeholder with contextual copy) when artwork is missing or fails to load.
+- **Cards** — `GameCard`, `TournamentCard`, `EventCard`, `ListingCard`, `GamerCard` (under `components/cards/`) share the same anatomy: `HoverCard` root, artwork slot, `StatusPill`, metadata rows, and an `EmptyState` fallback for empty lists.
+
+### Motion guidance
+
+- `MotionProvider` wraps the app (`layout.tsx`) with `MotionConfig reducedMotion="user"`, so every Motion-for-React animation collapses for users with OS-level reduced-motion enabled (verified: durations become ~0 under emulation).
+- Use `MotionReveal` (viewport reveal: 18px rise, 0.45s, once) for section-level entrances — not for every element.
+- `HoverCard` provides the shared lift interaction (−3px, spring 450/32) and must be the root of any linkable card.
+- Keep motion short, opacity/transform only; avoid animating layout properties (reflows), and do not loop decorative animation besides the ambient background and the `live-ping` indicator.
+
+### Atmosphere
+
+- `GameAmbientBackground` (server component) fetches `/api/games/` (revalidated every 300s) and mounts at most **two** darkened IGDB artworks (opacity ≤0.07, heavy blur) behind the app shell, plus gradient veil overlays. If the games API fails, it degrades to a pure-gradient fallback — no broken state, no layout impact, and artwork `unoptimized` to keep the bundle light.
+- The ambient layers animate with slow transform/opacity-only CSS keyframes (`ambient-drift-a/b`, `ambient-crossfade`, 48–72s) that are disabled under `prefers-reduced-motion`.
+
+### Data-visualization extension points
+
+Future charts/graphs should plug into the existing pages rather than creating new visual languages:
+
+- **Tournament pages** (`/tournaments/`, detail) — bracket/standings views; serializer already exposes `participant_count`, `format`, `status`, `prize_description`.
+- **Game detail** (`/games/[id]/`) — leaderboard and player-performance trends; reviews/activity strip already rendered with `MotionReveal` sections.
+- **Events** (`/events/`) — attendance/RSVP trends (`rsvp_count`, `capacity` are in the list serializer).
+- **Marketplace** (`/marketplace/`) — price-distribution sparklines per category.
+- **Radar/discover** — geo-density heat overlays; the no-key OSM fallback must remain non-blocking.
+- **Twitch/KokonutUI** — not built yet; if added, mount player modules inside `MotionReveal` sections using the same tokens. Do not fabricate analytics numbers — BKLit/BKLit-style metrics must be wired to real backends only.
+
+Charts libraries (when introduced) should be lazy-loaded per route to keep the initial bundle lean.
+
 ## Deployment smoke check
 
 GGz exposes a lightweight health endpoint at `/health/` for deployment and infrastructure checks:

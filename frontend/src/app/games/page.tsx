@@ -1,10 +1,10 @@
 const API_BASE = process.env.NEXT_PUBLIC_DJANGO_URL || "http://localhost:8000";
 
-
-import Link from "next/link";
 import { SearchIcon, FilterIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/Badge";
-import { GameArtwork } from "@/components/ui/GameArtwork";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { GameCard } from "@/components/cards";
+import { MotionReveal } from "@/components/motion/MotionReveal";
 
 const GENRES = ["All", "Action", "RPG", "Sports", "Strategy", "Shooter", "Adventure", "Simulation", "Fighting", "Racing"];
 const PLATFORMS = ["All", "PC", "PlayStation", "Xbox", "Nintendo", "Mobile"];
@@ -97,7 +97,7 @@ function ActiveFilters({ searchParams }: { searchParams: SearchParams }) {
   if (filters.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="mb-6 flex flex-wrap gap-2">
       {filters.map((f) => (
         <Badge key={f.value} className="bg-ggz-amber/10 text-ggz-amber">
           {f.label}
@@ -106,6 +106,11 @@ function ActiveFilters({ searchParams }: { searchParams: SearchParams }) {
     </div>
   );
 }
+
+export const metadata = {
+  title: "Games",
+  description: "Browse the gaming catalogue.",
+};
 
 export default async function GamesPage({
   searchParams,
@@ -116,34 +121,34 @@ export default async function GamesPage({
   const games = await getGames(params);
 
   return (
-    <div className="max-w-[1536px] mx-auto px-4 py-8">
+    <div className="mx-auto max-w-[1536px] px-4 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold">Games</h1>
-        <p className="text-ggz-text-2 mt-1">Browse the gaming catalogue</p>
+        <h1 className="text-3xl font-bold text-ggz-text-primary">Games</h1>
+        <p className="mt-1 text-ggz-text-secondary">Browse the gaming catalogue</p>
       </div>
 
       <form className="mb-6 flex flex-col gap-4">
         <div className="relative">
-          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ggz-text-2" />
+          <SearchIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ggz-text-muted" />
           <input
             type="text"
             name="q"
             placeholder="Search games..."
             defaultValue={params.q}
-            className="w-full bg-ggz-bg-2 border border-ggz-border rounded-[var(--radius-md)] pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:border-ggz-border-strong"
+            className="w-full rounded-[var(--radius-md)] border border-ggz-border bg-ggz-bg-2 py-2.5 pl-10 pr-4 text-sm text-ggz-text-primary focus:border-ggz-border-strong focus:outline-none"
           />
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
-            <FilterIcon className="h-4 w-4 text-ggz-text-2" />
-            <span className="text-sm text-ggz-text-2">Filters</span>
+            <FilterIcon className="h-4 w-4 text-ggz-text-muted" />
+            <span className="text-sm text-ggz-text-tertiary">Filters</span>
           </div>
 
           <select
             name="genre"
             defaultValue={params.genre ?? "All"}
-            className="bg-ggz-bg-2 border border-ggz-border rounded-[var(--radius-md)] px-3 py-1.5 text-sm focus:outline-none focus:border-ggz-border-strong"
+            className="rounded-[var(--radius-md)] border border-ggz-border bg-ggz-bg-2 px-3 py-1.5 text-sm text-ggz-text-primary focus:border-ggz-border-strong focus:outline-none"
           >
             {GENRES.map((g) => (
               <option key={g} value={g}>
@@ -155,7 +160,7 @@ export default async function GamesPage({
           <select
             name="platform"
             defaultValue={params.platform ?? "All"}
-            className="bg-ggz-bg-2 border border-ggz-border rounded-[var(--radius-md)] px-3 py-1.5 text-sm focus:outline-none focus:border-ggz-border-strong"
+            className="rounded-[var(--radius-md)] border border-ggz-border bg-ggz-bg-2 px-3 py-1.5 text-sm text-ggz-text-primary focus:border-ggz-border-strong focus:outline-none"
           >
             {PLATFORMS.map((p) => (
               <option key={p} value={p}>
@@ -167,7 +172,7 @@ export default async function GamesPage({
           <select
             name="sort"
             defaultValue={params.sort ?? "popular"}
-            className="bg-ggz-bg-2 border border-ggz-border rounded-[var(--radius-md)] px-3 py-1.5 text-sm focus:outline-none focus:border-ggz-border-strong"
+            className="rounded-[var(--radius-md)] border border-ggz-border bg-ggz-bg-2 px-3 py-1.5 text-sm text-ggz-text-primary focus:border-ggz-border-strong focus:outline-none"
           >
             {SORT_OPTIONS.map((s) => (
               <option key={s.value} value={s.value}>
@@ -178,7 +183,7 @@ export default async function GamesPage({
 
           <button
             type="submit"
-            className="bg-ggz-amber/10 text-ggz-amber border border-ggz-amber/30 rounded-[var(--radius-md)] px-4 py-1.5 text-sm font-medium hover:bg-ggz-amber/20 transition-colors"
+            className="rounded-[var(--radius-md)] border border-ggz-amber/30 bg-ggz-amber/10 px-4 py-1.5 text-sm font-medium text-ggz-amber transition-colors hover:bg-ggz-amber/20"
           >
             Apply
           </button>
@@ -187,43 +192,29 @@ export default async function GamesPage({
 
       <ActiveFilters searchParams={params} />
 
-      {/* Loading state: Suspense boundary with fallback UI can wrap this section */}
       {games.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-ggz-text-2">
-          <SearchIcon className="h-12 w-12 mb-4 opacity-40" />
-          <p className="text-lg font-medium">No games found</p>
-          <p className="text-sm mt-1">Try adjusting your search or filters</p>
-        </div>
+        <EmptyState
+          icon={<SearchIcon size={40} />}
+          title="No games found"
+          description="Try adjusting your search or filters."
+          action={{ label: "Clear filters", href: "/games" }}
+        />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {games.map((game) => (
-            <Link
-              key={game.id}
-              href={`/games/${game.id}`}
-              className="bg-ggz-bg-1 border border-ggz-border rounded-[var(--radius-lg)] overflow-hidden hover:border-ggz-border-strong transition-all"
-            >
-              <GameArtwork
-                src={game.cover_art_url}
-                alt={game.name}
-                className="aspect-[16/10] w-full"
+        <MotionReveal>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {games.map((game) => (
+              <GameCard
+                key={game.id}
+                id={game.id}
+                title={game.name}
+                genre={game.genre || undefined}
+                platform={game.platform || undefined}
+                year={game.release_year}
+                artwork_url={game.cover_art_url}
               />
-              <div className="p-3">
-                <h2 className="font-semibold truncate">{game.name}</h2>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {game.genre && (
-                    <Badge className="text-xs">{game.genre}</Badge>
-                  )}
-                  {game.platform && (
-                    <Badge className="text-xs">{game.platform}</Badge>
-                  )}
-                </div>
-                {game.release_year && (
-                  <p className="text-xs text-ggz-text-2 mt-2">{game.release_year}</p>
-                )}
-              </div>
-            </Link>
-          ))}
-        </div>
+            ))}
+          </div>
+        </MotionReveal>
       )}
     </div>
   );

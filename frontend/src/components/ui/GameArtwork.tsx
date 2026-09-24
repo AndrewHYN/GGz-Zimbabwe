@@ -1,4 +1,5 @@
-import Image from "next/image";
+import { MediaFallback } from "@/components/ui/MediaFallback";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 interface GameArtworkProps {
   src: string | null;
@@ -10,22 +11,23 @@ interface GameArtworkProps {
 export function GameArtwork({ src, alt, className = "", priority = false }: GameArtworkProps) {
   if (!src) {
     return (
-      <div className={`bg-ggz-bg-2 flex items-center justify-center ${className}`}>
-        <span className="text-ggz-text-muted text-sm font-medium">No artwork</span>
+      <div className={`relative overflow-hidden bg-ggz-bg-2 ${className}`}>
+        <MediaFallback kind="game" label={alt} className="absolute inset-0" />
       </div>
     );
   }
 
   return (
-    <div className={`relative ${className}`}>
-      <Image
+    <div className={`relative overflow-hidden bg-ggz-bg-2 ${className}`}>
+      <SafeImage
         src={src}
         alt={alt}
         fill
-        className="object-cover"
         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-        priority={priority}
+        preload={priority}
         unoptimized
+        className="object-cover transition-transform duration-500 group-hover:scale-105"
+        fallback={<MediaFallback kind="game" label={alt} className="absolute inset-0" />}
       />
     </div>
   );

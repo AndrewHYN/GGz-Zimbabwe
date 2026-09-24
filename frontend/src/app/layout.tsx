@@ -3,6 +3,8 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Navigation from "@/components/layout/Navigation";
 import { Footer } from "@/components/layout/Footer";
+import { MotionProvider } from "@/components/motion/MotionProvider";
+import { GameAmbientBackground } from "@/components/atmosphere/GameAmbientBackground";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -44,9 +46,12 @@ export default function RootLayout({
         />
       </head>
       <body className={`${inter.variable} font-body antialiased`}>
-        <Navigation />
-        <main className="min-h-[calc(100vh-3.5rem)]">{children}</main>
-        <Footer />
+        <MotionProvider>
+          <GameAmbientBackground />
+          <Navigation />
+          <main className="min-h-[calc(100vh-3.5rem)]">{children}</main>
+          <Footer />
+        </MotionProvider>
       </body>
     </html>
   );

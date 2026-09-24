@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { HoverCard } from "@/components/motion/HoverCard";
 import { Avatar } from "@/components/ui/Avatar";
 
 interface GamerCardProps {
@@ -11,21 +11,19 @@ interface GamerCardProps {
 
 export function GamerCard({ gamer_tag, avatar, location, platform, bio }: GamerCardProps) {
   return (
-    <Link
+    <HoverCard
       href={`/profiles/${gamer_tag}`}
-      className="group block rounded-[var(--radius-lg)] border border-ggz-border bg-ggz-bg-1 p-4 transition-all hover:border-ggz-amber hover:bg-ggz-bg-2"
+      className="group block rounded-[var(--radius-lg)] border border-ggz-border bg-ggz-bg-1 p-4 transition-colors hover:border-ggz-amber hover:bg-ggz-bg-2"
     >
-      <div className="flex items-center gap-3 mb-3">
+      <div className="mb-3 flex items-center gap-3">
         <Avatar src={avatar} alt={gamer_tag} size="md" />
-        <span className="text-ggz-text-primary font-semibold group-hover:text-ggz-amber transition-colors">
+        <span className="font-semibold text-ggz-text-primary transition-colors group-hover:text-ggz-amber">
           {gamer_tag}
         </span>
       </div>
       {location && <p className="text-sm text-ggz-text-secondary">{location}</p>}
       {platform && <p className="text-sm text-ggz-text-tertiary">{platform}</p>}
-      {bio && (
-        <p className="text-sm text-ggz-text-muted mt-2 line-clamp-2">{bio}</p>
-      )}
-    </Link>
+      {bio && <p className="mt-2 line-clamp-2 text-sm text-ggz-text-muted">{bio}</p>}
+    </HoverCard>
   );
 }

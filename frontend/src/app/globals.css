@@ -172,6 +172,90 @@ img, picture {
   }
 }
 
+/* Living artwork atmosphere */
+.ggz-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(1100px 560px at 75% -10%, rgba(245, 158, 11, 0.07), transparent 60%),
+    radial-gradient(900px 520px at 8% 110%, rgba(139, 92, 246, 0.06), transparent 55%);
+}
+
+.ggz-ambient__glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(620px 340px at 50% 0%, rgba(245, 158, 11, 0.05), transparent 70%);
+}
+
+.ggz-ambient__layer {
+  position: absolute;
+  inset: -6%;
+  width: 112%;
+  height: 112%;
+  object-fit: cover;
+  filter: blur(8px) saturate(0.9);
+  will-change: transform, opacity;
+}
+
+.ggz-ambient__layer-a {
+  opacity: 0.14;
+  animation: ambient-drift-a 72s ease-in-out infinite alternate;
+}
+
+.ggz-ambient__layer-b {
+  opacity: 0;
+  animation:
+    ambient-crossfade 48s ease-in-out infinite,
+    ambient-drift-b 64s ease-in-out infinite alternate;
+}
+
+.ggz-ambient__veil {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(10, 14, 17, 0.5) 0%, rgba(10, 14, 17, 0.72) 45%, rgba(10, 14, 17, 0.92) 100%),
+    radial-gradient(1000px 520px at 50% 0%, rgba(10, 14, 17, 0.25), transparent 75%);
+}
+
+@keyframes ambient-drift-a {
+  from { transform: scale(1.08) translate3d(-1.5%, -1%, 0); }
+  to { transform: scale(1.12) translate3d(1.5%, 1.5%, 0); }
+}
+
+@keyframes ambient-drift-b {
+  from { transform: scale(1.1) translate3d(2%, 1%, 0); }
+  to { transform: scale(1.06) translate3d(-1.5%, -1.5%, 0); }
+}
+
+@keyframes ambient-crossfade {
+  0%, 40% { opacity: 0; }
+  50%, 90% { opacity: 0.12; }
+  100% { opacity: 0; }
+}
+
+[data-theme="light"] .ggz-ambient__layer,
+[data-theme="light"] .ggz-ambient__veil,
+[data-theme="light"] .ggz-ambient__glow {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .ggz-ambient__layer-a { opacity: 0.1; }
+  .ggz-ambient__layer { filter: blur(6px) saturate(0.9); }
+}
+
+/* Live status pulse */
+@keyframes live-ping {
+  75%, 100% { transform: scale(2.4); opacity: 0; }
+}
+
+.live-ping {
+  animation: live-ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
