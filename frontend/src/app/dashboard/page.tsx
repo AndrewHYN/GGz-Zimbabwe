@@ -1,79 +1,173 @@
 "use client";
-
 import Link from "next/link";
 import { useEffect, useState } from "react";
-
-interface Me {
-  user: { username: string };
-  profile?: { gamer_tag?: string | null };
+import { apiFetch, apiErrorMessage } from "@/lib/api";
+import { eventTime, type Competition } from "@/lib/competition";
+interface Data {
+  profile: { gamer_tag: string; games: { id: number; name: string }[] };
+  organized: Competition[];
+  joined: Competition[];
 }
-
-const features = [
-  ["Find Players", "/gamers", "Discover gamers by identity, location, platform and rank."],
-  ["Games", "/games", "Browse games, artwork, ratings and community activity."],
-  ["Compete", "/tournaments", "Join tournaments, follow matches and track results."],
-  ["Squads", "/teams", "Build teams, invite players and manage rosters."],
-  ["Community", "/feed", "Share posts and follow what the GGz community is doing."],
-  ["Radar", "/discover", "Explore real gaming locations, events and tournament hotspots."],
-  ["Events", "/events", "Find online and local gaming events."],
-  ["Marketplace", "/marketplace", "Buy, sell and save gaming gear."],
-  ["Rankings", "/leaderboards", "See respect, tournament and game performance."],
-  ["Messages", "/messages", "Keep GGz conversations in one place."],
-] as const;
-
-export default function DashboardPage() {
-  const [me, setMe] = useState<Me | null>(null);
+export default function Page() {
+  const [data, setData] = useState<Data | null>(null);
+  const [games, setGames] = useState<{ id: number; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
-
+  const [error, setError] = useState("");
+  const [signedOut, setSignedOut] = useState(false);
+  const [busy, setBusy] = useState(false);
   useEffect(() => {
-    fetch("/api/me/", { credentials: "include", headers: { "X-Requested-With": "XMLHttpRequest" } })
-      .then((res) => {
-        if (!res.ok) throw new Error("Unauthenticated");
-        return res.json();
+    Promise.all([
+      apiFetch<Data>("/api/competition/me/"),
+      apiFetch<{ id: number; name: string }[]>("/api/games/"),
+    ])
+      .then(([d, g]) => {
+        setData(d);
+        setGames(g);
       })
-      .then(setMe)
-      .catch(() => setMe(null))
+      .catch((e) => {
+        setSignedOut(e.status === 401);
+        setError(
+          apiErrorMessage(e, "Could not load your events. Please try again."),
+        );
+      })
       .finally(() => setLoading(false));
   }, []);
-
-  if (loading) return <div className="mx-auto max-w-7xl px-4 py-10 text-ggz-text-secondary">Loading dashboard…</div>;
-
-  if (!me) {
-    return (
-      <div className="mx-auto max-w-3xl px-4 py-16 text-center">
-        <div className="rounded-2xl border border-ggz-border bg-ggz-bg-1 p-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ggz-amber">GGz 2.0</p>
-          <h1 className="mt-3 text-3xl font-bold text-ggz-text-primary">Your gaming command center</h1>
-          <p className="mt-3 text-ggz-text-secondary">Sign in to manage your profile, community activity, squads, tournaments and messages.</p>
-          <Link href="/auth/login" className="mt-6 inline-flex rounded-xl bg-ggz-amber px-5 py-3 font-semibold text-black hover:brightness-110">Log in</Link>
-        </div>
-      </div>
-    );
+  async function choose(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const game = new FormData(e.currentTarget).get("game");
+    setBusy(true);
+    setError("");
+    try {
+      await apiFetch("/api/competition/game/", {
+        method: "POST",
+        body: JSON.stringify({ game }),
+      });
+      setData(await apiFetch<Data>("/api/competition/me/"));
+    } catch (e) {
+      setError(apiErrorMessage(e, "Could not save your game."));
+    } finally {
+      setBusy(false);
+    }
   }
-
-  const name = me.profile?.gamer_tag || me.user.username;
-
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
-      <section className="overflow-hidden rounded-2xl border border-ggz-border bg-ggz-bg-1">
-        <div className="relative border-b border-ggz-border px-6 py-8 sm:px-8">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(245,158,11,0.13),transparent_35%),radial-gradient(circle_at_top_left,rgba(139,92,246,0.12),transparent_38%)]" />
-          <div className="relative">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ggz-amber">Player dashboard</p>
-            <h1 className="mt-2 text-3xl font-bold text-ggz-text-primary">Welcome back, {name}</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-ggz-text-secondary">Everything that makes GGz useful is one step away. Discover gamers, play, compete, meet up, trade gear and stay connected.</p>
-          </div>
-        </div>
-
-        <div className="grid gap-px bg-ggz-border sm:grid-cols-2 lg:grid-cols-3">
-          {features.map(([label, href, detail]) => (
-            <Link key={href} href={href} className="group bg-ggz-bg-1 p-5 transition hover:bg-ggz-bg-2">
-              <p className="font-semibold text-ggz-text-primary transition-colors group-hover:text-ggz-amber">{label}</p>
-              <p className="mt-1 text-sm leading-6 text-ggz-text-secondary">{detail}</p>
+    <div className="arena-container arena-section">
+      <div className="page-heading">
+        <p className="eyebrow">YOUR PLAYER HOME</p>
+        <h1>
+          {data ? `Hey, ${data.profile.gamer_tag}.` : "Your next game."}
+          <br />
+          <em>Make it happen.</em>
+        </h1>
+      </div>
+      {loading ? (
+        <p role="status">Loading your events…</p>
+      ) : signedOut ? (
+        <Link className="arena-button" href="/auth/login/?next=/dashboard/">
+          Sign in ↗
+        </Link>
+      ) : !data ? (
+        <section className="service-notice">
+          <p role="alert">{error}</p>
+          <a href="">Try again</a>
+        </section>
+      ) : (
+        <>
+          {error && (
+            <p className="form-notice error" role="alert">
+              {error}
+            </p>
+          )}
+          <div className="filter-row">
+            <Link className="arena-button" href="/tournaments/">
+              Find a competition ↗
             </Link>
+            <Link
+              className="arena-button secondary"
+              href="/tournaments/create/"
+            >
+              Host an event
+            </Link>
+            <Link className="text-link" href="/messages/">
+              Messages ↗
+            </Link>
+            <Link className="text-link" href="/notifications/">
+              Notifications ↗
+            </Link>
+          </div>
+          <section className="info-panel">
+            <p className="eyebrow">FIRST / PICK WHAT YOU PLAY</p>
+            <h2>
+              {data.profile.games.length
+                ? "Your games"
+                : "Start with your game."}
+            </h2>
+            <p>
+              {data.profile.games.map((g) => g.name).join(" · ") ||
+                "Add your game so you can join its competitions."}
+            </p>
+            <form className="arena-form" onSubmit={choose}>
+              <label>
+                Add a game
+                <select name="game" required defaultValue="">
+                  <option value="" disabled>
+                    Choose a game
+                  </option>
+                  {games
+                    .filter(
+                      (g) => !data.profile.games.some((pg) => pg.id === g.id),
+                    )
+                    .map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <button className="arena-button small" disabled={busy}>
+                {busy ? "Saving…" : "Add game"}
+              </button>
+            </form>
+          </section>
+          {(
+            [
+              ["Your registrations", data.joined],
+              ["Events you’re hosting", data.organized],
+            ] as const
+          ).map(([title, events]) => (
+            <section className="arena-section" key={title}>
+              <div className="section-heading">
+                <h2>{title}</h2>
+              </div>
+              {events.length ? (
+                <div className="event-list">
+                  {events.map((event) => (
+                    <Link
+                      className="event-row"
+                      key={event.id}
+                      href={`/tournaments/${event.slug}/`}
+                    >
+                      <div>
+                        <h3>{event.name}</h3>
+                        <p>
+                          {event.game_name} · {eventTime(event.start_date)} CAT
+                        </p>
+                      </div>
+                      <span className="text-link">{event.status} ↗</span>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="arena-empty">
+                  <p>
+                    No events here yet. Find a competition or plan one with your
+                    community.
+                  </p>
+                </div>
+              )}
+            </section>
           ))}
-        </div>
-      </section>
+        </>
+      )}
     </div>
   );
 }

@@ -24,6 +24,7 @@ from django.conf.urls.static import static
 
 from accounts import views as account_views
 from tournaments import views as tournament_views
+from tournaments import api as competition_api
 from events import views as event_views
 from hello_world.core import views as core_views
 from hello_world.core import api as api_views
@@ -48,6 +49,12 @@ urlpatterns = [
     path("radar/locations/<int:location_id>/rate/", account_views.radar_location_rating_create, name="radar_location_rating_create"),
     path("radar/locations/<int:location_id>/reviews/create/", account_views.radar_location_review_create, name="radar_location_review_create"),
     path("radar/locations/<int:location_id>/reviews/<int:review_id>/delete/", account_views.radar_location_review_delete, name="radar_location_review_delete"),
+    path("api/competition/me/", competition_api.my_competitions),
+    path("api/competition/game/", competition_api.choose_game),
+    path("api/competition/create/", competition_api.create_competition),
+    path("api/competition/<slug:slug>/actions/<str:action>/", competition_api.organizer_action),
+    path("api/competition/<slug:slug>/matches/<int:match_id>/result/", competition_api.record_result),
+    path("ready/", core_views.readiness_check, name="readiness_check"),
     # Next.js frontend API endpoints
     path("api/csrf/", api_views.api_csrf_token, name="api_csrf_token"),
     path("api/me/", api_views.api_me, name="api_me"),

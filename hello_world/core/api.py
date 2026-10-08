@@ -421,7 +421,7 @@ def api_game_wishlist_toggle(request, game_id):
 
 @require_GET
 def api_tournaments_list(request):
-    tournaments = Tournament.objects.select_related('game', 'organizer').prefetch_related('registrations').all()
+    tournaments = Tournament.objects.select_related('game', 'organizer').prefetch_related('registrations').exclude(status__in=('Draft', 'Cancelled'))
     data = []
     for t in tournaments:
         data.append({
@@ -1100,6 +1100,8 @@ def api_tournament_detail(request, slug):
     except Tournament.DoesNotExist:
         return JsonResponse({'error': 'Tournament not found'}, status=404)
     viewer = getattr(request.user, 'gamer_profile', None) if request.user.is_authenticated else None
+    if tournament.status == 'Draft' and (not viewer or tournament.organizer_id != viewer.id):
+        return JsonResponse({'error': 'Tournament not found'}, status=404)
     registration = None
     if viewer:
         registration = TournamentRegistration.objects.filter(tournament=tournament, player=viewer).first()
@@ -1117,6 +1119,8 @@ def api_tournament_detail(request, slug):
             'round': match.round,
             'status': match.status,
             'score': match.score or None,
+            'player_one_id': match.player_one_id,
+            'player_two_id': match.player_two_id,
             'player_one': match.player_one.gamer_tag if match.player_one else None,
             'player_two': match.player_two.gamer_tag if match.player_two else None,
             'winner': match.winner.gamer_tag if match.winner else None,
@@ -1135,6 +1139,10 @@ def api_tournament_detail(request, slug):
         'mode': tournament.mode,
         'entry_type': tournament.entry_type,
         'prize_description': tournament.prize_description or None,
+        'game_id': tournament.game_id,
+        'authenticated': request.user.is_authenticated,
+        'eligible': bool(viewer and viewer.games.filter(pk=tournament.game_id).exists()),
+        'registration_open': bool(tournament.status == 'Registration Open' and tournament.registration_deadline > timezone.now() and registered_count < tournament.max_participants and not tournament.matches.exists()),
         'game_name': tournament.game.name if tournament.game else None,
         'location': tournament.location or None,
         'city': tournament.city or None,
@@ -1158,7 +1166,12 @@ def api_tournament_detail(request, slug):
 @require_POST
 def api_tournament_register(request, slug):
     from tournaments.views import tournament_register
-    return tournament_register(request, slug)
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Sign in to join this event.'}, status=401)
+    response = tournament_register(request, slug)
+    if response.status_code == 403:
+        return JsonResponse({'error': response.content.decode()}, status=403)
+    return response
 
 
 @require_POST

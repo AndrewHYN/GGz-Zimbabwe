@@ -16,8 +16,19 @@ from .models import Challenge, Tournament, TournamentInvitation, TournamentMatch
 from teams.models import Team, TeamMembership
 
 
+def _json_action(request):
+	return request.headers.get("x-requested-with") == "XMLHttpRequest"
+
+
+def _bracket_error(request, slug, message):
+	if _json_action(request):
+		return JsonResponse({"ok": False, "error": message}, status=409)
+	messages.error(request, message)
+	return redirect("tournament_manage", slug=slug)
+
+
 def tournament_list(request):
-	tournaments = Tournament.objects.select_related("game", "organizer").prefetch_related("registrations")
+	tournaments = Tournament.objects.select_related("game", "organizer").prefetch_related("registrations").exclude(status="Draft")
 	query = request.GET.get("q", "").strip()
 	if query:
 		tournaments = tournaments.filter(Q(name__icontains=query) | Q(description__icontains=query) | Q(game__name__icontains=query) | Q(location__icontains=query))
@@ -37,6 +48,9 @@ def tournament_list(request):
 def tournament_detail(request, slug):
 	tournament = get_object_or_404(Tournament.objects.select_related("game", "organizer__user").prefetch_related("registrations__player", "invitations", "matches__player_one", "matches__player_two"), slug=slug)
 	player = getattr(request.user, "gamer_profile", None)
+	if tournament.status == "Draft" and player != tournament.organizer:
+		from django.http import Http404
+		raise Http404("Tournament not found")
 	registration = TournamentRegistration.objects.filter(tournament=tournament, player=player).first() if player else None
 	invitation = TournamentInvitation.objects.filter(tournament=tournament, player=player).first() if player else None
 	pending_challenges = []
@@ -209,6 +223,8 @@ def tournament_cancel(request, slug):
 		return HttpResponseForbidden("This action requires POST.")
 	tournament.status = "Cancelled"
 	tournament.save(update_fields=("status",))
+	if _json_action(request):
+		return JsonResponse({"ok": True, "message": "Event cancelled."})
 	messages.success(request, "The tournament was cancelled.")
 	return redirect("tournament_manage", slug=tournament.slug)
 
@@ -236,17 +252,14 @@ def generate_bracket(request, slug):
 	if request.method != "POST":
 		return HttpResponseForbidden("This action requires POST.")
 	if tournament.format != "1v1":
-		messages.error(request, "Only 1v1 tournaments can generate a bracket.")
-		return redirect("tournament_manage", slug=slug)
+		return _bracket_error(request, slug, "Only 1v1 tournaments can generate a bracket.")
 	with transaction.atomic():
 		tournament = Tournament.objects.select_for_update().get(pk=tournament.pk)
 		if tournament.matches.exists():
-			messages.error(request, "This tournament already has a bracket.")
-			return redirect("tournament_manage", slug=slug)
+			return _bracket_error(request, slug, "This tournament already has a bracket.")
 		players = list(TournamentRegistration.objects.filter(tournament=tournament, status="Registered").order_by("joined_at", "id").values_list("player_id", flat=True))
 		if len(players) < 2:
-			messages.error(request, "At least two registered players are required.")
-			return redirect("tournament_manage", slug=slug)
+			return _bracket_error(request, slug, "At least two registered players are required.")
 		size = 1
 		while size < len(players):
 			size *= 2
@@ -271,6 +284,8 @@ def generate_bracket(request, slug):
 				match.score = "Bye"
 				match.save(update_fields=("winner", "status", "score"))
 				_advance_winner(match)
+	if _json_action(request):
+		return JsonResponse({"ok": True, "message": "Bracket created. Registration is locked."})
 	messages.success(request, "The tournament bracket was generated.")
 	return redirect("tournament_manage", slug=slug)
 
@@ -463,7 +478,11 @@ def match_result(request, match_id):
 							tournament.save(update_fields=("status",))
 						GamerProfile.objects.filter(id=winner.id).update(tournament_wins=F("tournament_wins") + 1)
 						notify(winner, player, "match", f"You won {locked_match.tournament.name}", f"/tournaments/{locked_match.tournament.slug}/")
+					if _json_action(request):
+						return JsonResponse({"ok": True, "message": "Result saved."})
 					return redirect("tournament_detail", slug=locked_match.tournament.slug)
+	if _json_action(request):
+		return JsonResponse({"ok": False, "error": "Check the winner and score.", "errors": dict(form.errors)}, status=400)
 	return render(request, "tournaments/match_form.html", {"form": form, "match": match, "tournament": match.tournament})
 
 @login_required

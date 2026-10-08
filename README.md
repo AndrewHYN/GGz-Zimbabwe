@@ -1,6 +1,10 @@
 # GGz Zimbabwe
 
-GGz is Zimbabwe's gaming ecosystem — discovery, competition, and community.
+GGz connects local players through small competitions, public venues and recorded results.
+
+The current launch scope and practical partnership plan are in [docs/LOCAL_LAUNCH.md](docs/LOCAL_LAUNCH.md). The pilot supports free 1v1 events with 2–32 players. Otaku Konnect and ZEGA are prospective collaborators; no affiliation is claimed.
+
+Process liveness is `/health/`. Database and migration readiness is `/ready/`; a successful build or liveness response alone is not release evidence.
 
 ## Architecture (GGz 2.0)
 

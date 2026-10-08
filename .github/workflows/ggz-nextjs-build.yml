@@ -5,10 +5,12 @@ on:
     branches:
       - main
       - feat/ggz-nextjs-ui-2
+      - feat/ggz-local-competition-launch
   pull_request:
     branches:
       - main
       - feat/ggz-nextjs-ui-2
+      - feat/ggz-local-competition-launch
 
 jobs:
   build:
@@ -35,6 +37,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Frontend lint
+        run: npm run lint
 
       - name: Production build
         run: npm run build

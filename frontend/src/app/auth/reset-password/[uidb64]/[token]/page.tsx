@@ -102,7 +102,7 @@ export default function ResetPasswordPage({ params }: ResetPasswordPageProps) {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2 bg-ggz-accent text-white font-semibold rounded-[var(--radius-lg)] hover:opacity-90 disabled:opacity-50 transition-opacity"
+              className="w-full py-2 bg-ggz-accent text-black font-semibold rounded-[var(--radius-lg)] hover:opacity-90 disabled:opacity-50 transition-opacity"
             >
               {loading ? "Saving..." : "Set new password"}
             </button>
