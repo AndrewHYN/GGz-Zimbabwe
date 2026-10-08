@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ArenaArt } from "@/components/competition/ArenaArt";
+import { safeNext } from "@/lib/competition";
 import { apiFetch, apiErrorMessage, dispatchAuthChanged } from "@/lib/api";
 
 export default function LoginPage() {
@@ -11,7 +13,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [providers, setProviders] = useState<{ google: boolean; apple: boolean }>({
+  const [providers, setProviders] = useState<{
+    google: boolean;
+    apple: boolean;
+  }>({
     google: false,
     apple: false,
   });
@@ -40,10 +45,14 @@ export default function LoginPage() {
         body: JSON.stringify({ username, password }),
       });
       dispatchAuthChanged();
-      router.push("/dashboard");
+      router.push(
+        safeNext(new URLSearchParams(window.location.search).get("next")),
+      );
       router.refresh();
     } catch (error) {
-      setError(apiErrorMessage(error, "Something went wrong. Please try again."));
+      setError(
+        apiErrorMessage(error, "Something went wrong. Please try again."),
+      );
       setLoading(false);
     }
   };
@@ -51,19 +60,35 @@ export default function LoginPage() {
   const hasProviders = providers.google || providers.apple;
 
   return (
-    <div className="max-w-[1536px] mx-auto px-4 py-8 flex items-center justify-center min-h-screen">
-      <div className="w-full max-w-md bg-ggz-bg-1 border border-ggz-border rounded-[var(--radius-lg)] p-8">
+    <div className="arena-container auth-stage">
+      <div className="auth-art">
+        <p className="eyebrow">YOUR NEXT MATCH STARTS HERE</p>
+        <ArenaArt />
+        <h2>
+          Good games.
+          <br />
+          Great people.
+        </h2>
+        <p>Join the local scene. Find your next competition.</p>
+      </div>
+      <div className="auth-panel">
         <h1 className="text-2xl font-bold text-center mb-6">Log in to GGz</h1>
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-[var(--radius-lg)] p-3 mb-4">
+          <div
+            role="alert"
+            className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-[var(--radius-lg)] p-3 mb-4"
+          >
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="username" className="block text-sm font-medium mb-1">
+            <label
+              htmlFor="username"
+              className="block text-sm font-medium mb-1"
+            >
               Username
             </label>
             <input
@@ -82,7 +107,10 @@ export default function LoginPage() {
               <label htmlFor="password" className="block text-sm font-medium">
                 Password
               </label>
-              <Link href="/auth/forgot-password" className="text-xs text-ggz-accent hover:underline">
+              <Link
+                href="/auth/forgot-password"
+                className="text-xs text-ggz-accent hover:underline"
+              >
                 Forgot password?
               </Link>
             </div>
@@ -100,7 +128,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2 bg-ggz-accent text-white font-semibold rounded-[var(--radius-lg)] hover:opacity-90 disabled:opacity-50 transition-opacity"
+            className="w-full py-2 bg-ggz-accent text-black font-semibold rounded-[var(--radius-lg)] hover:opacity-90 disabled:opacity-50 transition-opacity"
           >
             {loading ? "Logging in..." : "Log in"}
           </button>
@@ -140,7 +168,21 @@ export default function LoginPage() {
 
         <p className="text-center text-sm text-ggz-muted mt-6">
           Don&apos;t have an account?{" "}
-          <Link href="/auth/register" className="text-ggz-accent hover:underline">
+          <Link
+            href="/auth/register"
+            onClick={(e) => {
+              const next = new URLSearchParams(window.location.search).get(
+                "next",
+              );
+              if (next) {
+                e.preventDefault();
+                router.push(
+                  "/auth/register/?next=" + encodeURIComponent(safeNext(next)),
+                );
+              }
+            }}
+            className="text-ggz-accent hover:underline"
+          >
             Sign up
           </Link>
         </p>

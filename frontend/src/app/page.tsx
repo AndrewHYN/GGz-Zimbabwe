@@ -1,316 +1,147 @@
 import Link from "next/link";
+import { ArenaArt } from "@/components/competition/ArenaArt";
 import {
-  GamepadIcon,
-  TrophyIcon,
-  UsersIcon,
-  StoreIcon,
-  CalendarIcon,
-} from "@/components/icons";
-import { EventCard, GameCard, TournamentCard } from "@/components/cards";
-import { TwitchStreamCard } from "@/components/live/TwitchStreamCard";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { LiveIndicator } from "@/components/ui/StatusPill";
-import { SectionHeader } from "@/components/ui/SectionHeader";
-import { MotionReveal } from "@/components/motion/MotionReveal";
-import type { LivePayload } from "@/lib/live";
-
-const API_BASE = process.env.NEXT_PUBLIC_DJANGO_URL || "http://localhost:8000";
-
-interface HomeGame {
-  id: number;
-  name: string;
-  genre?: string | null;
-  platform?: string | null;
-  release_year?: number | null;
-  cover_art_url?: string | null;
-}
-
-interface HomeTournament {
-  id: number;
-  name: string;
-  slug: string;
-  game_name?: string | null;
-  status?: string | null;
-  format?: string | null;
-  start_date?: string | null;
-  participant_count?: number;
-  location?: string | null;
-  prize_description?: string | null;
-}
-
-interface HomeEvent {
-  id: number;
-  name: string;
-  start_date?: string | null;
-  location?: string | null;
-  mode?: string | null;
-  status?: string | null;
-  banner?: string | null;
-  game_name?: string | null;
-  organization_name?: string | null;
-  organizer_name?: string | null;
-  rsvp_count?: number;
-}
-
-async function fetchList<T>(path: string): Promise<T[]> {
-  try {
-    const res = await fetch(`${API_BASE}${path}`, { next: { revalidate: 60 } });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return (Array.isArray(data) ? data : data.results ?? []) as T[];
-  } catch {
-    return [];
-  }
-}
-
-async function fetchLive(): Promise<LivePayload | null> {
-  try {
-    const res = await fetch(`${API_BASE}/api/live/`, { next: { revalidate: 60 } });
-    if (!res.ok) return null;
-    return (await res.json()) as LivePayload;
-  } catch {
-    return null;
-  }
-}
-
-const quickLinks = [
-  {
-    href: "/games",
-    icon: GamepadIcon,
-    label: "Discover Games",
-    description: "Browse the game catalogue.",
-  },
-  {
-    href: "/tournaments",
-    icon: TrophyIcon,
-    label: "Compete",
-    description: "Join tournaments and climb the ranks.",
-  },
-  {
-    href: "/gamers",
-    icon: UsersIcon,
-    label: "Find Players",
-    description: "Connect with gamers across Zimbabwe.",
-  },
-  {
-    href: "/events",
-    icon: CalendarIcon,
-    label: "Events",
-    description: "LANs, meetups, and online nights.",
-  },
-  {
-    href: "/marketplace",
-    icon: StoreIcon,
-    label: "Marketplace",
-    description: "Trade gear and in-game items.",
-  },
-  {
-    href: "/feed",
-    icon: UsersIcon,
-    label: "Community",
-    description: "Share clips, builds, and banter.",
-  },
-];
-
+  CompetitionCard,
+  ServiceNotice,
+} from "@/components/competition/CompetitionCard";
+import { serverList } from "@/lib/server-data";
+import type { Competition } from "@/lib/competition";
 export default async function Home() {
-  const [games, tournaments, events, live] = await Promise.all([
-    fetchList<HomeGame>("/api/games/"),
-    fetchList<HomeTournament>("/api/tournaments/"),
-    fetchList<HomeEvent>("/api/events/"),
-    fetchLive(),
-  ]);
-
-  const featuredGames = games.slice(0, 6);
-  const upcomingTournaments = tournaments
-    .filter((t) => t.status !== "Completed")
-    .slice(0, 4);
-  const upcomingEvents = events.slice(0, 3);
-  const liveCount = tournaments.filter((t) => t.status === "Live").length;
-  const liveStreams = live?.available ? (live.streams ?? []).slice(0, 3) : [];
-
+  const { items, unavailable } =
+    await serverList<Competition>("/api/tournaments/");
+  const events = items
+    .filter((event) => ["Registration Open", "Live"].includes(event.status))
+    .slice(0, 3);
   return (
-    <div className="animate-page-enter">
-      <div className="mx-auto max-w-[1536px] px-4">
-        <section className="py-14 text-center md:py-20">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-ggz-amber">
-            Zimbabwe&apos;s gaming world
-          </p>
-          <h1 className="text-4xl font-bold tracking-tight text-ggz-text-primary md:text-6xl">
-            GGz<span className="text-ggz-amber">.</span>
-          </h1>
-          <p className="mx-auto mt-4 max-w-2xl text-base text-ggz-text-secondary md:text-lg">
-            Discover games, compete in tournaments, and find players across Zimbabwe.
-          </p>
-
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5 text-sm text-ggz-text-secondary">
-            <span className="rounded-full border border-ggz-border bg-ggz-bg-1/70 px-3 py-1">
-              {games.length} games
-            </span>
-            {liveCount > 0 ? (
-              <span className="flex items-center rounded-full border border-emerald-500/30 bg-ggz-bg-1/70 px-3 py-1">
-                <LiveIndicator label={`${liveCount} live tournament${liveCount === 1 ? "" : "s"}`} />
-              </span>
-            ) : (
-              <span className="rounded-full border border-ggz-border bg-ggz-bg-1/70 px-3 py-1">
-                {tournaments.length} tournaments
-              </span>
-            )}
-            <span className="rounded-full border border-ggz-border bg-ggz-bg-1/70 px-3 py-1">
-              {events.length} events
-            </span>
-          </div>
-        </section>
-
-        <section className="pb-14">
-          <MotionReveal>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              {quickLinks.map((link) => {
-                const Icon = link.icon;
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className="group flex flex-col items-center gap-2 rounded-[var(--radius-lg)] border border-ggz-border bg-ggz-bg-1 p-4 text-center transition-all hover:border-ggz-border-strong hover:bg-ggz-bg-2"
-                  >
-                    <Icon className="text-ggz-amber transition-transform group-hover:scale-110" size={24} />
-                    <span className="font-medium text-ggz-text-primary group-hover:text-ggz-amber">
-                      {link.label}
-                    </span>
-                    <span className="text-xs leading-snug text-ggz-text-muted">
-                      {link.description}
-                    </span>
-                  </Link>
-                );
-              })}
+    <div className="arena-home">
+      <div className="arena-container">
+        <section className="arena-hero">
+          <div className="hero-copy">
+            <p className="eyebrow">
+              <span className="signal-dot" /> ZIMBABWE / PRESS START
+            </p>
+            <h1>
+              YOUR PEOPLE.
+              <br />
+              YOUR GAME.
+              <br />
+              <em>YOUR MOVE.</em>
+            </h1>
+            <p className="hero-description">
+              Find local players. Join a competition. Make the next match one to
+              remember.
+            </p>
+            <div className="hero-actions">
+              <Link className="arena-button" href="/tournaments/">
+                Find a competition <span>↗</span>
+              </Link>
+              <Link className="arena-button secondary" href="/gamers/">
+                Meet the players
+              </Link>
             </div>
-          </MotionReveal>
-        </section>
-
-        {liveStreams.length > 0 && (
-          <section className="pb-14" data-testid="home-live-section">
-            <MotionReveal>
-              <SectionHeader
-                title="Live Now"
-                description="GGz gamers streaming right now."
-                href="/live"
-                actionLabel="GGz Live"
-              />
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {liveStreams.map((stream) => (
-                  <TwitchStreamCard key={stream.id || stream.broadcaster_login} stream={stream} />
-                ))}
-              </div>
-            </MotionReveal>
-          </section>
-        )}
-
-        <section className="pb-14">
-          <MotionReveal>
-            <SectionHeader
-              title="Featured Games"
-              description="What the community is playing right now."
-              href="/games"
-              actionLabel="View all"
-            />
-            {featuredGames.length === 0 ? (
-              <EmptyState
-                icon={<GamepadIcon size={40} />}
-                title="No games yet"
-                description="The catalogue is warming up. Check back soon."
-                action={{ label: "Explore games", href: "/games" }}
-              />
-            ) : (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {featuredGames.map((game) => (
-                  <GameCard
-                    key={game.id}
-                    id={game.id}
-                    title={game.name}
-                    genre={game.genre ?? undefined}
-                    platform={game.platform ?? undefined}
-                    year={game.release_year ?? null}
-                    artwork_url={game.cover_art_url ?? null}
-                  />
-                ))}
-              </div>
-            )}
-          </MotionReveal>
-        </section>
-
-        <section className="pb-14">
-          <MotionReveal>
-            <SectionHeader
-              title="Compete"
-              description="Tournaments open for registration and live brackets."
-              href="/tournaments"
-              actionLabel="View all"
-            />
-            {upcomingTournaments.length === 0 ? (
-              <EmptyState
-                icon={<TrophyIcon size={40} />}
-                title="No tournaments right now"
-                description="New brackets are announced regularly — check back soon."
-                action={{ label: "Browse tournaments", href: "/tournaments" }}
-              />
-            ) : (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {upcomingTournaments.map((tournament) => (
-                  <TournamentCard
-                    key={tournament.id}
-                    id={tournament.id}
-                    slug={tournament.slug}
-                    name={tournament.name}
-                    game_name={tournament.game_name || "Unknown game"}
-                    format={tournament.format || ""}
-                    status={tournament.status || ""}
-                    start_date={tournament.start_date ?? null}
-                    participant_count={tournament.participant_count ?? 0}
-                    location={tournament.location ?? null}
-                    prize_description={tournament.prize_description ?? null}
-                  />
-                ))}
-              </div>
-            )}
-          </MotionReveal>
-        </section>
-
-        <section className="pb-24">
-          <MotionReveal>
-            <SectionHeader
-              title="Upcoming Events"
-              description="LANs, meetups, and community nights."
-              href="/events"
-              actionLabel="View all"
-            />
-            {upcomingEvents.length === 0 ? (
-              <EmptyState
-                icon={<CalendarIcon size={40} />}
-                title="No upcoming events"
-                description="When the community plans something, it lands here."
-                action={{ label: "Browse events", href: "/events" }}
-              />
-            ) : (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {upcomingEvents.map((event) => (
-                  <EventCard
-                    key={event.id}
-                    id={event.id}
-                    name={event.name}
-                    date={event.start_date ?? null}
-                    location={event.location ?? undefined}
-                    mode={event.mode || "offline"}
-                    banner_image={event.banner ?? null}
-                    organizer_name={event.organization_name ?? event.organizer_name ?? undefined}
-                    game_name={event.game_name ?? undefined}
-                    rsvp_count={event.rsvp_count ?? null}
-                    status={event.status ?? null}
-                  />
-                ))}
-              </div>
-            )}
-          </MotionReveal>
+            <p className="hero-note">
+              Play on your console, PC or phone. GGz brings the people together.
+            </p>
+          </div>
+          <ArenaArt />
         </section>
       </div>
+      <div className="arena-ticker" aria-hidden="true">
+        <span>GOOD GAMES. GREAT PEOPLE.</span>
+        <b>✳</b>
+        <span>FROM THE LOCAL SCENE.</span>
+        <b>✳</b>
+        <span>MAKE YOUR MOVE.</span>
+      </div>
+      <section className="arena-container arena-section">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">01 / FIND YOUR NEXT MATCH</p>
+            <h2>Step into the arena.</h2>
+          </div>
+          <Link className="text-link" href="/tournaments/">
+            All competitions ↗
+          </Link>
+        </div>
+        {unavailable ? (
+          <ServiceNotice />
+        ) : events.length ? (
+          <div className="competition-grid">
+            {events.map((event, index) => (
+              <CompetitionCard key={event.id} event={event} index={index} />
+            ))}
+          </div>
+        ) : (
+          <div className="arena-empty">
+            <span className="empty-number">READY?</span>
+            <div>
+              <h3>The next bracket starts with you.</h3>
+              <p>
+                No competitions are open right now. Find other players or plan a
+                small event.
+              </p>
+              <Link className="text-link" href="/organize/">
+                Host your first event ↗
+              </Link>
+            </div>
+          </div>
+        )}
+      </section>
+      <section className="arena-container arena-section">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">02 / NO COMPLICATED SETUP</p>
+            <h2>Show up. Play. Repeat.</h2>
+          </div>
+        </div>
+        <div className="steps-grid">
+          {[
+            [
+              "01",
+              "Pick your game",
+              "Find a competition for the game and platform you play.",
+            ],
+            [
+              "02",
+              "Save your spot",
+              "Create a profile, join the event and read the organizer’s instructions.",
+            ],
+            [
+              "03",
+              "Make it count",
+              "Play your match. Follow the results. Come back for the next one.",
+            ],
+          ].map(([n, title, text]) => (
+            <div className="step-card" key={n}>
+              <span>{n}</span>
+              <h3>{title}</h3>
+              <p>{text}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+      <section className="arena-container arena-section">
+        <div className="community-banner">
+          <div>
+            <p className="eyebrow">BUILT WITH THE LOCAL SCENE IN MIND</p>
+            <h2>
+              Small events.
+              <br />
+              Big community energy.
+            </h2>
+            <p>
+              For gaming cafés, clubs and community organizers: one place for
+              registrations, brackets and results.
+            </p>
+            <Link className="arena-button" href="/organize/">
+              Let’s build your next event ↗
+            </Link>
+          </div>
+          <span className="community-symbol" aria-hidden="true">
+            ↗
+          </span>
+        </div>
+      </section>
     </div>
   );
 }

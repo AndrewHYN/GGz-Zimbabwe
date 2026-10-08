@@ -165,3 +165,24 @@ def global_search(request):
         "events": page(Event.objects.filter(name__icontains=query), "events") if query else [],
         "search_params": {key: params_for(key) for key in ("gamers", "games", "posts", "listings", "tournaments", "teams", "events")},
     })
+
+
+def readiness_check(request):
+    """Readiness differs from liveness: check migrations and representative reads."""
+    import logging
+    from django.db import connection
+    from django.db.migrations.executor import MigrationExecutor
+    from accounts.models import GamerProfile
+    from games.models import Game
+    from tournaments.models import Tournament
+    from django.http import JsonResponse
+    try:
+        executor = MigrationExecutor(connection)
+        if executor.migration_plan(executor.loader.graph.leaf_nodes()):
+            return JsonResponse({"status": "unavailable", "service": "GGz"}, status=503)
+        for model in (Game, GamerProfile, Tournament):
+            list(model.objects.values()[:1])
+    except Exception:
+        logging.getLogger(__name__).exception("GGz readiness failed")
+        return JsonResponse({"status": "unavailable", "service": "GGz"}, status=503)
+    return JsonResponse({"status": "ready", "service": "GGz"})

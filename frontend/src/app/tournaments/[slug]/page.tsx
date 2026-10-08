@@ -1,197 +1,425 @@
 "use client";
-
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
-
-interface Participant {
-  gamer_tag: string;
-  avatar?: string | null;
-  status: string;
-}
-
-interface Match {
-  id: number;
-  round: number;
-  status: string;
-  score?: string | null;
-  player_one?: string | null;
-  player_two?: string | null;
-  winner?: string | null;
-}
-
-interface TournamentDetail {
-  id: number;
-  name: string;
-  slug: string;
-  description?: string | null;
-  rules?: string | null;
-  format: string;
-  status: string;
-  mode: string;
-  entry_type: string;
-  prize_description?: string | null;
-  game_name?: string | null;
-  location?: string | null;
-  city?: string | null;
-  start_date?: string | null;
-  registration_deadline?: string | null;
-  max_participants: number;
-  participant_count: number;
-  organizer: { gamer_tag?: string | null; avatar?: string | null };
-  is_organizer: boolean;
-  registration_status?: string | null;
-  participants: Participant[];
-  matches: Match[];
-}
-
-function csrfToken() {
-  if (typeof document === "undefined") return "";
-  return document.cookie.match(/(?:^|; )csrftoken=([^;]+)/)?.[1] ?? "";
-}
-
-export default function TournamentDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+import { apiFetch, apiErrorMessage } from "@/lib/api";
+import { eventTime, type CompetitionDetail } from "@/lib/competition";
+export default function Page({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
   const { slug } = use(params);
-  const [tournament, setTournament] = useState<TournamentDetail | null>(null);
+  const [event, setEvent] = useState<CompetitionDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
-  const [action, setAction] = useState(false);
+  const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [version, setVersion] = useState(0);
-
+  const [busy, setBusy] = useState("");
+  const [missing, setMissing] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
   useEffect(() => {
-    let cancelled = false;
-    fetch("/api/tournaments/" + encodeURIComponent(slug) + "/", { credentials: "include" })
-      .then((res) => {
-        if (cancelled) return null;
-        if (res.status === 404) {
-          setNotFound(true);
-          return null;
+    let alive = true;
+    apiFetch<CompetitionDetail>(`/api/tournaments/${encodeURIComponent(slug)}/`)
+      .then((data) => {
+        if (alive) setEvent(data);
+      })
+      .catch((e) => {
+        if (alive) {
+          setMissing(e.status === 404);
+          setError(
+            apiErrorMessage(e, "Could not load this event. Please try again."),
+          );
         }
-        if (!res.ok) throw new Error("Failed");
-        return res.json() as Promise<TournamentDetail>;
-      })
-      .then((detail) => {
-        if (!cancelled && detail) setTournament(detail);
-      })
-      .catch(() => {
-        if (!cancelled) setTournament(null);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (alive) setLoading(false);
       });
     return () => {
-      cancelled = true;
+      alive = false;
     };
-  }, [slug, version]);
-
-  async function mutate(kind: "register" | "leave") {
-    if (!tournament || action) return;
-    setAction(true);
+  }, [slug]);
+  async function mutate(path: string, body?: unknown) {
+    if (busy) return;
+    setBusy(path);
     setNotice("");
+    setError("");
     try {
-      if (!csrfToken()) await fetch("/api/csrf/", { credentials: "include" });
-      const res = await fetch("/api/tournaments/" + encodeURIComponent(slug) + "/" + kind + "/", {
+      const response = await apiFetch<{ message?: string }>(path, {
         method: "POST",
-        credentials: "include",
-        headers: { "X-CSRFToken": csrfToken(), "X-Requested-With": "XMLHttpRequest" },
+        ...(body ? { body: JSON.stringify(body) } : {}),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || data.message || "Action failed");
-      setNotice(data.message || (kind === "register" ? "Registered." : "Registration withdrawn."));
-      setVersion((value) => value + 1);
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Action failed");
+      setNotice(response.message || "Saved.");
+      setEvent(
+        await apiFetch<CompetitionDetail>(
+          `/api/tournaments/${encodeURIComponent(slug)}/`,
+        ),
+      );
+      setConfirmCancel(false);
+    } catch (e) {
+      setError(
+        apiErrorMessage(e, "Could not complete that action. Please try again."),
+      );
     } finally {
-      setAction(false);
+      setBusy("");
     }
   }
-
-  if (loading) return <div className="mx-auto max-w-5xl px-4 py-8 text-ggz-text-secondary">Loading tournament…</div>;
-  if (notFound || !tournament)
+  if (loading)
     return (
-      <div className="mx-auto max-w-3xl px-4 py-16 text-center">
-        <div className="rounded-2xl border border-ggz-border bg-ggz-bg-1 p-8">
-          <h1 className="text-2xl font-bold text-ggz-text-primary">Tournament not found</h1>
-          <Link href="/tournaments" className="mt-6 inline-block rounded-xl bg-ggz-amber px-5 py-2 text-sm font-semibold text-black">Back to tournaments</Link>
-        </div>
+      <div className="arena-container arena-section" role="status">
+        Loading the competition…
       </div>
     );
-
-  const registered = tournament.registration_status === "Registered";
-  const registrationOpen = tournament.status === "Registration Open";
-
-  return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
-      <Link href="/tournaments" className="text-sm text-ggz-text-muted hover:text-ggz-amber">← All tournaments</Link>
-      <div className="mt-3 rounded-2xl border border-ggz-border bg-ggz-bg-1 p-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ggz-amber">{tournament.game_name || "GGz tournament"}</p>
-        <h1 className="mt-1 text-3xl font-bold text-ggz-text-primary">{tournament.name}</h1>
-        <div className="mt-3 flex flex-wrap gap-2 text-xs">
-          <span className="rounded-full bg-purple-500/15 px-2.5 py-1 text-purple-300">{tournament.format}</span>
-          <span className="rounded-full bg-ggz-amber/20 px-2.5 py-1 text-ggz-amber">{tournament.status}</span>
-          <span className="rounded-full bg-ggz-bg-2 px-2.5 py-1 text-ggz-text-secondary capitalize">{tournament.mode}</span>
-        </div>
-        {tournament.description && <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-ggz-text-secondary">{tournament.description}</p>}
-        <div className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
-          <p className="text-ggz-text-secondary">Starts: <span className="text-ggz-text-primary">{tournament.start_date ? new Date(tournament.start_date).toLocaleString() : "TBD"}</span></p>
-          <p className="text-ggz-text-secondary">Players: <span className="text-ggz-text-primary">{tournament.participant_count} / {tournament.max_participants}</span></p>
-          <p className="text-ggz-text-secondary">Entry: <span className="text-ggz-text-primary">{tournament.entry_type}</span></p>
-          <p className="text-ggz-text-secondary">Organizer: <span className="text-ggz-text-primary">{tournament.organizer.gamer_tag || "GGz"}</span></p>
-        </div>
-        {tournament.prize_description && <p className="mt-3 text-sm text-ggz-amber">Prize: {tournament.prize_description}</p>}
-        <div className="mt-5 flex flex-wrap gap-2">
-          {registered ? (
-            <button onClick={() => mutate("leave")} disabled={action} className="rounded-xl border border-ggz-border bg-ggz-bg-2 px-5 py-2 text-sm font-semibold text-ggz-text-primary hover:border-red-400/50 disabled:opacity-40">
-              {action ? "Working…" : "Leave tournament"}
-            </button>
-          ) : registrationOpen ? (
-            <button onClick={() => mutate("register")} disabled={action} className="rounded-xl bg-ggz-amber px-5 py-2 text-sm font-semibold text-black hover:brightness-110 disabled:opacity-40">
-              {action ? "Working…" : "Register"}
-            </button>
-          ) : (
-            <span className="text-sm text-ggz-text-muted">Registration is currently {tournament.status.toLowerCase()}.</span>
+  if (!event)
+    return (
+      <div className="arena-container arena-section">
+        <section className="info-panel">
+          <h1>{missing ? "Event not found" : "Taking a short timeout."}</h1>
+          <p role="alert">
+            {missing
+              ? "This event is unavailable or still a private draft."
+              : error}
+          </p>
+          <Link className="arena-button secondary" href="/tournaments/">
+            All competitions ↗
+          </Link>
+          {!missing && (
+            <a className="text-link" href="">
+              {" "}
+              Try again
+            </a>
           )}
-        </div>
-        {notice && <p className="mt-3 text-sm text-ggz-text-secondary" role="status">{notice}</p>}
-        {tournament.rules && (
-          <div className="mt-6 border-t border-ggz-border pt-4">
-            <h2 className="font-semibold text-ggz-text-primary">Rules</h2>
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ggz-text-secondary">{tournament.rules}</p>
-          </div>
-        )}
+        </section>
       </div>
-
-      <div className="mt-5 grid gap-5 lg:grid-cols-2">
-        <section className="rounded-2xl border border-ggz-border bg-ggz-bg-1 p-5">
-          <h2 className="font-semibold text-ggz-text-primary">Participants ({tournament.participants.length})</h2>
-          {tournament.participants.length === 0 ? (
-            <p className="mt-3 text-sm text-ggz-text-muted">No registrations yet.</p>
-          ) : (
-            <ul className="mt-3 space-y-2">
-              {tournament.participants.map((player) => (
-                <li key={player.gamer_tag}>
-                  <Link href={"/profiles/" + encodeURIComponent(player.gamer_tag)} className="text-sm text-ggz-text-secondary hover:text-ggz-amber">{player.gamer_tag}</Link>
-                </li>
-              ))}
-            </ul>
+    );
+  const joined = event.registration_status === "Registered";
+  const registrationOpen = event.registration_open;
+  const next = encodeURIComponent(`/tournaments/${slug}/`);
+  const actionBase = `/api/competition/${encodeURIComponent(slug)}/actions/`;
+  const rounds = Array.from(
+    new Set(event.matches.map((match) => match.round)),
+  ).sort((a, b) => a - b);
+  return (
+    <div className="arena-container arena-section">
+      <Link className="text-link" href="/tournaments/">
+        ← All competitions
+      </Link>
+      <div className="page-heading" style={{ marginTop: 25 }}>
+        <p className="eyebrow">
+          {event.game_name} / {event.status}
+        </p>
+        <h1>{event.name}</h1>
+        <p>{event.description}</p>
+      </div>
+      {error && (
+        <p className="form-notice error" role="alert">
+          {error}
+        </p>
+      )}
+      {notice && (
+        <p className="form-notice success" role="status">
+          {notice}
+        </p>
+      )}
+      <div className="detail-layout">
+        <div>
+          <section className="info-panel" style={{ marginTop: 0 }}>
+            <h2>The game plan</h2>
+            <dl className="detail-meta">
+              <div>
+                <dt>Start · Zimbabwe time</dt>
+                <dd>{eventTime(event.start_date)} CAT</dd>
+              </div>
+              <div>
+                <dt>Where</dt>
+                <dd>
+                  {event.mode === "online" ? "Online" : "In person"} ·{" "}
+                  {event.location || "Read the organizer’s instructions"}
+                </dd>
+              </div>
+              <div>
+                <dt>Entry / format</dt>
+                <dd>
+                  {event.entry_type} · {event.format}
+                </dd>
+              </div>
+              <div>
+                <dt>Hosted by</dt>
+                <dd>
+                  <Link
+                    className="text-link"
+                    href={`/profiles/${encodeURIComponent(event.organizer.gamer_tag)}/`}
+                  >
+                    {event.organizer.gamer_tag}
+                  </Link>
+                </dd>
+              </div>
+              <div>
+                <dt>Registration closes</dt>
+                <dd>{eventTime(event.registration_deadline)} CAT</dd>
+              </div>
+              <div>
+                <dt>Players</dt>
+                <dd>
+                  {event.participant_count} / {event.max_participants}
+                </dd>
+              </div>
+            </dl>
+            {event.prize_description && <p>Prize: {event.prize_description}</p>}
+            <h2>Read before you join</h2>
+            <p className="detail-rules">
+              {event.rules ||
+                "The organizer has not added instructions yet. Check with them before joining."}
+            </p>
+            <Link className="text-link" href="/help/">
+              Fair play and safety guide ↗
+            </Link>
+          </section>
+          {event.is_organizer && (
+            <section className="info-panel">
+              <p className="eyebrow">ORGANIZER CONTROLS</p>
+              <h2>Run a good event.</h2>
+              <p>
+                Share this page with players. Close registration when everyone
+                is ready, then generate the bracket. Registration locks once the
+                bracket exists.
+              </p>
+              <div className="organizer-actions">
+                {!event.matches.length &&
+                  !["Completed", "Cancelled", "Live"].includes(
+                    event.status,
+                  ) && (
+                    <>
+                      <button
+                        className="arena-button small"
+                        disabled={!!busy}
+                        onClick={() =>
+                          mutate(
+                            actionBase +
+                              (event.status === "Registration Open"
+                                ? "close"
+                                : "open") +
+                              "/",
+                          )
+                        }
+                      >
+                        {event.status === "Registration Open"
+                          ? "Close registration"
+                          : "Open registration"}
+                      </button>
+                      <button
+                        className="arena-button secondary small"
+                        disabled={
+                          !!busy ||
+                          event.participant_count < 2 ||
+                          event.status === "Draft"
+                        }
+                        onClick={() => mutate(actionBase + "bracket/")}
+                      >
+                        Start bracket ↗
+                      </button>
+                    </>
+                  )}
+                {!["Completed", "Cancelled"].includes(event.status) && (
+                  <button
+                    className="arena-button secondary small"
+                    disabled={!!busy}
+                    onClick={() => setConfirmCancel(true)}
+                  >
+                    Cancel event
+                  </button>
+                )}
+              </div>
+              {confirmCancel && (
+                <div className="form-notice">
+                  <p>This stops the competition for all registered players.</p>
+                  <div className="organizer-actions">
+                    <button
+                      className="arena-button small"
+                      disabled={!!busy}
+                      onClick={() => mutate(actionBase + "cancel/")}
+                    >
+                      Confirm cancellation
+                    </button>
+                    <button
+                      className="arena-button secondary small"
+                      onClick={() => setConfirmCancel(false)}
+                    >
+                      Keep event
+                    </button>
+                  </div>
+                </div>
+              )}
+            </section>
           )}
-        </section>
-        <section className="rounded-2xl border border-ggz-border bg-ggz-bg-1 p-5">
-          <h2 className="font-semibold text-ggz-text-primary">Bracket ({tournament.matches.length})</h2>
-          {tournament.matches.length === 0 ? (
-            <p className="mt-3 text-sm text-ggz-text-muted">Bracket has not been generated yet.</p>
+          <section className="info-panel">
+            <p className="eyebrow">MATCHUPS / RESULTS</p>
+            <h2>The bracket</h2>
+            {!event.matches.length ? (
+              <p>Matchups appear when the organizer starts the bracket.</p>
+            ) : (
+              rounds.map((round) => (
+                <div key={round}>
+                  <h3 className="eyebrow" style={{ marginBlock: 25 }}>
+                    ROUND {round}
+                  </h3>
+                  <div className="match-grid">
+                    {event.matches
+                      .filter((match) => match.round === round)
+                      .map((match) => (
+                        <article className="match-card" key={match.id}>
+                          <p className="eyebrow">{match.status}</p>
+                          <h3>
+                            {match.player_one || "Awaiting player"}{" "}
+                            <span className="muted">vs</span>{" "}
+                            {match.player_two || "Awaiting player"}
+                          </h3>
+                          {match.winner && (
+                            <p className="muted">
+                              {match.winner} won · {match.score}
+                            </p>
+                          )}
+                          {event.is_organizer &&
+                            event.status === "Live" &&
+                            match.status !== "Completed" &&
+                            match.player_one_id &&
+                            match.player_two_id && (
+                              <form
+                                onSubmit={(e) => {
+                                  e.preventDefault();
+                                  const form = new FormData(e.currentTarget);
+                                  mutate(
+                                    `/api/competition/${slug}/matches/${match.id}/result/`,
+                                    Object.fromEntries(form.entries()),
+                                  );
+                                }}
+                              >
+                                <label>
+                                  Winner
+                                  <select
+                                    name="winner"
+                                    required
+                                    defaultValue=""
+                                  >
+                                    <option value="" disabled>
+                                      Select the winner
+                                    </option>
+                                    <option value={match.player_one_id}>
+                                      {match.player_one}
+                                    </option>
+                                    <option value={match.player_two_id}>
+                                      {match.player_two}
+                                    </option>
+                                  </select>
+                                </label>
+                                <label>
+                                  Score
+                                  <input
+                                    name="score"
+                                    required
+                                    pattern="\d+\s*-\s*\d+"
+                                    placeholder="2-0"
+                                  />
+                                </label>
+                                <button
+                                  className="arena-button small"
+                                  disabled={!!busy}
+                                >
+                                  Save result
+                                </button>
+                              </form>
+                            )}
+                        </article>
+                      ))}
+                  </div>
+                </div>
+              ))
+            )}
+          </section>
+        </div>
+        <aside className="info-panel detail-sidebar">
+          <p className="eyebrow">YOUR PLACE IN THE BRACKET</p>
+          <h2>{joined ? "You’re on the list." : "Ready to play?"}</h2>
+          {joined ? (
+            <>
+              <p>Read the instructions above and be ready at check-in.</p>
+              {!event.matches.length && (
+                <button
+                  className="arena-button secondary"
+                  disabled={!!busy}
+                  onClick={() => mutate(`/api/tournaments/${slug}/leave/`)}
+                >
+                  Withdraw registration
+                </button>
+              )}
+            </>
+          ) : !event.authenticated ? (
+            <>
+              <p>Sign in or create your profile to join.</p>
+              <Link className="arena-button" href={`/auth/login/?next=${next}`}>
+                Sign in to join ↗
+              </Link>
+              <p>
+                <Link
+                  className="text-link"
+                  href={`/auth/register/?next=${next}`}
+                >
+                  Create an account
+                </Link>
+              </p>
+            </>
+          ) : !event.eligible ? (
+            <>
+              <p>Add {event.game_name} to your games before registering.</p>
+              <button
+                className="arena-button"
+                disabled={!!busy}
+                onClick={() =>
+                  mutate("/api/competition/game/", { game: event.game_id })
+                }
+              >
+                I play this game ↗
+              </button>
+            </>
+          ) : registrationOpen ? (
+            <>
+              <p>
+                {event.max_participants - event.participant_count} places
+                available.
+              </p>
+              <button
+                className="arena-button"
+                disabled={!!busy}
+                onClick={() => mutate(`/api/tournaments/${slug}/register/`)}
+              >
+                {busy ? "Working…" : "Join competition ↗"}
+              </button>
+            </>
           ) : (
-            <ul className="mt-3 space-y-2">
-              {tournament.matches.map((match) => (
-                <li key={match.id} className="rounded-xl border border-ggz-border bg-ggz-bg-2 p-3 text-sm">
-                  <p className="text-ggz-text-primary">Round {match.round} · {match.status}</p>
-                  <p className="mt-1 text-ggz-text-secondary">{match.player_one || "TBD"} vs {match.player_two || "TBD"}</p>
-                  {match.score && <p className="mt-1 text-xs text-ggz-text-muted">Score: {match.score}{match.winner ? " · Winner: " + match.winner : ""}</p>}
-                </li>
-              ))}
-            </ul>
+            <p>
+              {event.participant_count >= event.max_participants
+                ? "This competition is full."
+                : "Registration is currently closed."}
+            </p>
           )}
-        </section>
+          <p className="muted" style={{ marginTop: 24 }}>
+            Have a question? Use the contact or referee instructions in the
+            event rules.
+          </p>
+          <h3 className="eyebrow" style={{ marginTop: 30 }}>
+            PLAYERS / {event.participant_count}
+          </h3>
+          <ul>
+            {event.participants.map((p) => (
+              <li key={p.gamer_tag}>
+                <Link
+                  className="text-link"
+                  href={`/profiles/${encodeURIComponent(p.gamer_tag)}/`}
+                >
+                  {p.gamer_tag}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </aside>
       </div>
     </div>
   );
