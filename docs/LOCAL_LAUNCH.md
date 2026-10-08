@@ -45,5 +45,8 @@ No schema migration is added by this change. First inspect the real runtime trac
 - Django: 509 tests passed (15 new pilot tests), with cloud metadata access explicitly disabled.
 - Next.js production build and TypeScript passed. ESLint: no errors; one pre-existing messaging dependency warning.
 - No model changes or new schema migrations.
-- Browser visual and full deployed-flow verification remain pending: local browser launch was blocked by environment socket restrictions.
-- Remote branch publication was blocked by automatic approval review pending explicit authorization to push to AndrewHYN/GGz-Zimbabwe. No production release was made.
+- Published to `feat/ggz-local-competition-launch` after explicit project authorization; draft PR: https://github.com/AndrewHYN/GGz-Zimbabwe/pull/3. The published implementation tree matches the locally verified tree exactly.
+- GitHub Django and Next.js checks passed for implementation commit `c91edb7b6bb0ed688dc5c1a38486c5f7041c503e`; Vercel frontend preview reached READY.
+- Hosted browser verification is blocked by Vercel Authentication. Authenticated preview fetch and backend runtime/build logs return 403 for the `andrewhyn` scope. The connected Vercel account needs access to this team and both GGz projects.
+- Backend environment metadata includes a production-only secret `DATABASE_URL`; its value cannot be read through this connection. A backend preview needs its own test database and Django configuration before write-flow testing. Do not use production data for rehearsal.
+- No merge or production release was made. Release still requires a working backend, verified readiness, email delivery and a complete hosted competition rehearsal.
