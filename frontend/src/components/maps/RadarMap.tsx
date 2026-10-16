@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import Script from "next/script";
 
 declare global {
@@ -31,7 +31,7 @@ export default function RadarMap({ points }: RadarMapProps) {
   const elementRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<unknown>(null);
 
-  function initializeMap() {
+  const initializeMap = useCallback(() => {
     if (!elementRef.current || !window.google?.maps) return;
 
     const first = points[0];
@@ -55,11 +55,11 @@ export default function RadarMap({ points }: RadarMapProps) {
         label: point.kind === "radar_location" ? "G" : point.kind === "venue" ? "V" : "E",
       });
     }
-  }
+  }, [points]);
 
   useEffect(() => {
     initializeMap();
-  }, [points]);
+  }, [initializeMap]);
 
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
@@ -68,8 +68,8 @@ export default function RadarMap({ points }: RadarMapProps) {
       <div className="grid min-h-[520px] place-items-center rounded-2xl border border-ggz-border bg-[radial-gradient(circle_at_20%_20%,rgba(245,158,11,0.12),transparent_25%),radial-gradient(circle_at_75%_30%,rgba(139,92,246,0.14),transparent_28%),linear-gradient(135deg,#0e1720,#0a0e14)] p-8 text-center">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ggz-amber">GGz Radar</p>
-          <h2 className="mt-2 text-xl font-semibold text-ggz-text-primary">Map provider not configured</h2>
-          <p className="mt-2 max-w-md text-sm leading-6 text-ggz-text-secondary">Radar is connected to real GGz coordinates. Add NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in the Next.js deployment to enable the interactive Google map, Street View controls and full map navigation.</p>
+          <h2 className="mt-2 text-xl font-semibold text-ggz-text-primary">Explore the local scene</h2>
+          <p className="mt-2 max-w-md text-sm leading-6 text-ggz-text-secondary">Browse gaming venues and events in the results alongside this map. The interactive map is currently unavailable.</p>
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="rounded-xl border border-ggz-border bg-black/20 p-3"><p className="text-xl font-bold text-ggz-text-primary">{points.length}</p><p className="text-xs text-ggz-text-muted">Visible points</p></div>
             <div className="rounded-xl border border-ggz-border bg-black/20 p-3"><p className="text-xl font-bold text-ggz-text-primary">Zimbabwe</p><p className="text-xs text-ggz-text-muted">Default region</p></div>

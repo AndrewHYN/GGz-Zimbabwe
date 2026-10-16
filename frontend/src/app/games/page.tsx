@@ -1,4 +1,5 @@
-const API_BASE = process.env.NEXT_PUBLIC_DJANGO_URL || "http://localhost:8000";
+import { serverFetch } from "@/lib/server/fetch";
+const API_BASE = "http://ggz.internal";
 
 import { SearchIcon, FilterIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/Badge";
@@ -37,7 +38,7 @@ interface SearchParams {
 
 async function getGames(searchParams: SearchParams) {
   try {
-    const res = await fetch(`${API_BASE}/api/games/`, { next: { revalidate: 60 } });
+    const res = await serverFetch(`${API_BASE}/api/games/`, { next: { revalidate: 60 } });
     if (!res.ok) return [];
     const data = await res.json();
     let games = (data.results ?? data) as Game[];
@@ -83,9 +84,7 @@ async function getGames(searchParams: SearchParams) {
     }
 
     return games;
-  } catch {
-    return [];
-  }
+  } catch (error) { throw error; }
 }
 
 function ActiveFilters({ searchParams }: { searchParams: SearchParams }) {

@@ -1,4 +1,6 @@
-const API_BASE = process.env.NEXT_PUBLIC_DJANGO_URL || "http://localhost:8000";
+import Link from "next/link";
+import { serverFetch } from "@/lib/server/fetch";
+const API_BASE = "http://ggz.internal";
 
 import { CalendarIcon } from "@/components/icons";
 import { EventCard } from "@/components/cards";
@@ -27,20 +29,19 @@ export const metadata = {
 export default async function EventsPage() {
   let events: Event[] = [];
   try {
-    const res = await fetch(`${API_BASE}/api/events/`, {
+    const res = await serverFetch(`${API_BASE}/api/events/`, {
       cache: "no-store",
     });
     if (res.ok) {
       const data = await res.json();
       events = data.results ?? data;
     }
-  } catch {
-    // Render an empty state when the Django API is unavailable.
-  }
+  } catch (error) { throw error; }
 
   return (
     <div className="mx-auto max-w-[1536px] px-4 py-8">
       <div className="mb-8">
+        <Link href="/events/create" className="ggz-primary mb-4 inline-flex">Create an event</Link>
         <h1 className="text-3xl font-bold text-ggz-text-primary">Events</h1>
         <p className="mt-1 text-ggz-text-secondary">Upcoming gaming events</p>
       </div>

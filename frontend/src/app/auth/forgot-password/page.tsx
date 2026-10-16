@@ -1,4 +1,5 @@
 "use client";
+import { AuthLayout } from "@/components/AuthLayout";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -29,8 +30,8 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="max-w-[1536px] mx-auto px-4 py-8 flex items-center justify-center min-h-screen">
-      <div className="w-full max-w-md bg-ggz-bg-1 border border-ggz-border rounded-[var(--radius-lg)] p-8">
+    <AuthLayout>
+      <div className="w-full max-w-md bg-ggz-bg-1 border border-ggz-border rounded-3xl p-8 shadow-2xl">
         <h1 className="text-2xl font-bold text-center mb-6">Reset your password</h1>
 
         {error && (
@@ -69,7 +70,7 @@ export default function ForgotPasswordPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2 bg-ggz-accent text-white font-semibold rounded-[var(--radius-lg)] hover:opacity-90 disabled:opacity-50 transition-opacity"
+              className="w-full py-2 bg-ggz-accent text-black font-semibold rounded-[var(--radius-lg)] hover:opacity-90 disabled:opacity-50 transition-opacity"
             >
               {loading ? "Sending..." : "Send reset link"}
             </button>
@@ -83,6 +84,6 @@ export default function ForgotPasswordPage() {
           </Link>
         </p>
       </div>
-    </div>
+    </AuthLayout>
   );
 }

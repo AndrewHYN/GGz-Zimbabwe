@@ -32,7 +32,7 @@ export default function ResetPasswordPage({ params }: ResetPasswordPageProps) {
         method: "POST",
         body: JSON.stringify({
           uidb64,
-          token,
+          token: new URLSearchParams(window.location.search).get("token") || token,
           new_password1: password1,
           new_password2: password2,
         }),

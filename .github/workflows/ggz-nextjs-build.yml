@@ -5,10 +5,12 @@ on:
     branches:
       - main
       - feat/ggz-nextjs-ui-2
+      - fix/nextjs-only-platform
   pull_request:
     branches:
       - main
       - feat/ggz-nextjs-ui-2
+      - fix/nextjs-only-platform
 
 jobs:
   build:
@@ -35,6 +37,15 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: TypeScript
+        run: npm run typecheck
+
+      - name: Native platform integration tests
+        run: npm test
 
       - name: Production build
         run: npm run build

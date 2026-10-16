@@ -61,7 +61,7 @@ export default function DiscoverPage() {
       <div className="mb-6">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ggz-amber">GGz Radar</p>
         <h1 className="mt-1 text-3xl font-bold text-ggz-text-primary">Nearby gaming</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-ggz-text-secondary">The original GGz map system is now exposed through the 2.0 shell: public venues, organizations, events, tournaments and gamer hotspots.</p>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-ggz-text-secondary">Find your next gaming spot, local event or community meetup.</p>
       </div>
 
       <div className="rounded-2xl border border-ggz-border bg-ggz-bg-1 p-4">

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { TournamentManager } from "@/components/TournamentManager";
 import { use, useEffect, useState } from "react";
 
 interface Participant {
@@ -118,10 +119,11 @@ export default function TournamentDetailPage({ params }: { params: Promise<{ slu
     );
 
   const registered = tournament.registration_status === "Registered";
-  const registrationOpen = tournament.status === "Registration Open";
+  const registrationOpen = ["Registration Open", "Open"].includes(tournament.status);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
+      {tournament.is_organizer && <TournamentManager slug={slug} status={tournament.status} matches={tournament.matches} refresh={() => setVersion(v => v + 1)} />}
       <Link href="/tournaments" className="text-sm text-ggz-text-muted hover:text-ggz-amber">← All tournaments</Link>
       <div className="mt-3 rounded-2xl border border-ggz-border bg-ggz-bg-1 p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ggz-amber">{tournament.game_name || "GGz tournament"}</p>

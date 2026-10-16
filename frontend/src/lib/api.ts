@@ -30,8 +30,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   const method = (options.method || "GET").toUpperCase();
   const headers = new Headers(options.headers);
   headers.set("X-Requested-With", "XMLHttpRequest");
-  // fetch() only defaults string bodies to text/plain; Django's JSON auth
-  // API reads request.body exclusively for application/json content types.
+  // Set a JSON content type for string bodies.
   if (typeof options.body === "string" && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }

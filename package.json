@@ -7,6 +7,12 @@
   },
   "scripts": {
     "build": "cd frontend && npm run build",
-    "lint": "cd frontend && npm run lint"
+    "lint": "cd frontend && npm run lint",
+    "dev": "npm --prefix frontend run dev --",
+    "start": "npm --prefix frontend run start --",
+    "test": "npm --prefix frontend test",
+    "typecheck": "npm --prefix frontend run typecheck",
+    "test:http": "npm --prefix frontend run test:http",
+    "test:browser": "npm --prefix frontend run test:browser"
   }
 }

@@ -1,6 +1,7 @@
+import { serverFetch } from "@/lib/server/fetch";
 import Image from "next/image";
 
-const API_BASE = process.env.NEXT_PUBLIC_DJANGO_URL || "http://localhost:8000";
+const API_BASE = "http://ggz.internal";
 
 interface AmbientGame {
   cover_art_url?: string | null;
@@ -8,7 +9,7 @@ interface AmbientGame {
 
 async function getAmbientArt(): Promise<string[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/games/`, { next: { revalidate: 300 } });
+    const res = await serverFetch(`${API_BASE}/api/games/`, { next: { revalidate: 300 } });
     if (!res.ok) return [];
     const data = await res.json();
     const games: AmbientGame[] = Array.isArray(data) ? data : data.games || data.results || [];

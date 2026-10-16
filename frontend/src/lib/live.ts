@@ -1,4 +1,4 @@
-// Shared GGz Live data shapes (server + client safe). The Django API always
+// Shared GGz Live data shapes (server + client safe). The Next.js API always
 // returns this normalized structure — the raw Twitch payload never crosses
 // the wire.
 

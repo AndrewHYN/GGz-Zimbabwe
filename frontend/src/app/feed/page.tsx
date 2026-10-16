@@ -3,6 +3,7 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { apiFetch } from "@/lib/api";
 
 interface Post {
   id: number;
@@ -80,7 +81,7 @@ export default function FeedPage() {
       const form = new FormData();
       form.append("body", body.trim());
       if (game) form.append("game", game);
-      if (image) form.append("image", image);
+      if (image) { const upload = new FormData(); upload.append("image", image); const result = await apiFetch<{ url: string }>("/api/uploads", { method: "POST", body: upload }); form.append("image", result.url); }
 
       const res = await fetch("/api/feed/create/", {
         method: "POST",

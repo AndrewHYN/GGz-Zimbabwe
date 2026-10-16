@@ -1,4 +1,5 @@
-const API_BASE = process.env.NEXT_PUBLIC_DJANGO_URL || "http://localhost:8000";
+import { serverFetch } from "@/lib/server/fetch";
+const API_BASE = "http://ggz.internal";
 
 import Link from "next/link";
 import { TrophyIcon } from "@/components/icons";
@@ -40,20 +41,18 @@ export default async function TournamentsPage({
 
   let tournaments: Tournament[] = [];
   try {
-    const res = await fetch(`${API_BASE}/api/tournaments/`, {
+    const res = await serverFetch(`${API_BASE}/api/tournaments/`, {
       cache: "no-store",
     });
     if (res.ok) {
       const data = await res.json();
       tournaments = data.results ?? data;
     }
-  } catch {
-    // Render an empty state when the Django API is unavailable.
-  }
+  } catch (error) { throw error; }
 
   if (statusFilter !== "all") {
     tournaments = tournaments.filter((t: Tournament) => {
-      if (statusFilter === "registration") return t.status === "Registration Open";
+      if (statusFilter === "registration") return ["Open", "Registration Open"].includes(t.status);
       if (statusFilter === "live") return t.status === "Live";
       return t.status === "Completed";
     });
@@ -62,6 +61,7 @@ export default async function TournamentsPage({
   return (
     <div className="mx-auto max-w-[1536px] px-4 py-8">
       <div className="mb-8">
+        <Link href="/tournaments/create" className="ggz-primary mb-4 inline-flex">Host a tournament</Link>
         <h1 className="text-3xl font-bold text-ggz-text-primary">Compete</h1>
         <p className="mt-1 text-ggz-text-secondary">Tournaments and competitions</p>
       </div>

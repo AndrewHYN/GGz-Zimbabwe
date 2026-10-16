@@ -1,3 +1,4 @@
+import { serverFetch } from "@/lib/server/fetch";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { TwitchStreamCard } from "@/components/live/TwitchStreamCard";
@@ -8,7 +9,7 @@ import { MotionReveal } from "@/components/motion/MotionReveal";
 import { GamepadIcon, BroadcastIcon } from "@/components/icons";
 import { formatViewers, type LiveGameSummary, type LivePayload } from "@/lib/live";
 
-const API_BASE = process.env.NEXT_PUBLIC_DJANGO_URL || "http://localhost:8000";
+const API_BASE = "http://ggz.internal";
 
 export const metadata: Metadata = {
   title: "GGz Live",
@@ -24,7 +25,7 @@ interface FilterGame {
 async function fetchLive(game?: string): Promise<LivePayload | null> {
   try {
     const path = game ? `/api/live/?game=${encodeURIComponent(game)}` : "/api/live/";
-    const res = await fetch(`${API_BASE}${path}`, { next: { revalidate: 30 } });
+    const res = await serverFetch(`${API_BASE}${path}`, { next: { revalidate: 30 } });
     if (!res.ok) return null;
     return (await res.json()) as LivePayload;
   } catch {
@@ -34,7 +35,7 @@ async function fetchLive(game?: string): Promise<LivePayload | null> {
 
 async function fetchGames(): Promise<FilterGame[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/games/`, { next: { revalidate: 60 } });
+    const res = await serverFetch(`${API_BASE}/api/games/`, { next: { revalidate: 60 } });
     if (!res.ok) return [];
     const data = await res.json();
     return (Array.isArray(data) ? data : data.results ?? []) as FilterGame[];

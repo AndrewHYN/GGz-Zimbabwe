@@ -1,4 +1,5 @@
 "use client";
+import { TeamActions } from "@/components/TeamActions";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -37,6 +38,7 @@ interface TeamDetail {
 export default function TeamDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
   const [team, setTeam] = useState<TeamDetail | null>(null);
+  const [version,setVersion]=useState(0);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -55,7 +57,7 @@ export default function TeamDetailPage({ params }: { params: Promise<{ slug: str
       })
       .catch(() => setTeam(null))
       .finally(() => setLoading(false));
-  }, [slug]);
+  }, [slug,version]);
 
   if (loading) return <div className="mx-auto max-w-5xl px-4 py-8 text-ggz-text-secondary">Loading team…</div>;
   if (notFound || !team)
@@ -107,7 +109,7 @@ export default function TeamDetailPage({ params }: { params: Promise<{ slug: str
       </div>
 
       <section className="mt-5 rounded-2xl border border-ggz-border bg-ggz-bg-1 p-5">
-        <h2 className="font-semibold text-ggz-text-primary">Roster ({team.roster.length})</h2>
+        <TeamActions slug={slug} isMember={team.is_member} isOwner={team.is_manager} refresh={()=>setVersion(v=>v+1)} /><h2 className="font-semibold text-ggz-text-primary">Roster ({team.roster.length})</h2>
         {team.roster.length === 0 ? (
           <p className="mt-3 text-sm text-ggz-text-muted">No members yet.</p>
         ) : (
