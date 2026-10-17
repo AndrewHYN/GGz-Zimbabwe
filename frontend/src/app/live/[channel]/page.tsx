@@ -1,3 +1,4 @@
+import { serverFetch } from "@/lib/server/fetch";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
@@ -7,7 +8,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { formatViewers, twitchWatchUrl, type LivePayload } from "@/lib/live";
 import { BroadcastIcon, ExternalLinkIcon } from "@/components/icons";
 
-const API_BASE = process.env.NEXT_PUBLIC_DJANGO_URL || "http://localhost:8000";
+const API_BASE = "http://ggz.internal";
 
 export const metadata: Metadata = {
   title: "Watch live",
@@ -16,7 +17,7 @@ export const metadata: Metadata = {
 
 async function fetchChannel(channel: string): Promise<LivePayload | null> {
   try {
-    const res = await fetch(
+    const res = await serverFetch(
       `${API_BASE}/api/live/?channel=${encodeURIComponent(channel)}`,
       { next: { revalidate: 30 } },
     );

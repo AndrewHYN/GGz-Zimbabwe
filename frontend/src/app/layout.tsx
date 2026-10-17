@@ -31,6 +31,8 @@ export const metadata: Metadata = {
   },
 };
 
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({
   children,
 }: {
@@ -46,10 +48,11 @@ export default function RootLayout({
         />
       </head>
       <body className={`${inter.variable} font-body antialiased`}>
+        <a href="#main-content" className="ggz-skip">Skip to content</a>
         <MotionProvider>
           <GameAmbientBackground />
           <Navigation />
-          <main className="min-h-[calc(100vh-3.5rem)]">{children}</main>
+          <main id="main-content" className="min-h-[calc(100vh-3.5rem)]">{children}</main>
           <Footer />
         </MotionProvider>
       </body>

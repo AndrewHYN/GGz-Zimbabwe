@@ -1,4 +1,6 @@
-const API_BASE = process.env.NEXT_PUBLIC_DJANGO_URL || "http://localhost:8000";
+import Link from "next/link";
+import { serverFetch } from "@/lib/server/fetch";
+const API_BASE = "http://ggz.internal";
 
 import type { Metadata } from "next";
 import { StoreIcon } from "@/components/icons";
@@ -56,18 +58,17 @@ export default async function MarketplacePage({
 
   let listings: Listing[] = [];
   try {
-    const res = await fetch(apiUrl.toString(), { cache: "no-store" });
+    const res = await serverFetch(apiUrl.toString(), { cache: "no-store" });
     if (res.ok) {
       const data = await res.json();
       listings = data.results ?? data;
     }
-  } catch {
-    // keep listings empty on failure
-  }
+  } catch (error) { throw error; }
 
   return (
     <div className="mx-auto max-w-[1536px] px-4 py-8">
       <div className="mb-8">
+        <Link href="/marketplace/create" className="ggz-primary mb-4 inline-flex">Sell your gear</Link>
         <h1 className="text-3xl font-bold text-ggz-text-primary">Marketplace</h1>
         <p className="mt-1 text-ggz-text-secondary">Buy and sell gaming gear</p>
       </div>

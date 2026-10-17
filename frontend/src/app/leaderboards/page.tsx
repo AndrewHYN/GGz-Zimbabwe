@@ -52,7 +52,7 @@ function LeaderboardsView() {
         return res.json();
       })
       .then((data) => {
-        if (!cancelled && data) setEntries(data.results ?? []);
+        if (!cancelled && data) setEntries(Array.isArray(data) ? data : data.results ?? []);
       })
       .catch(() => {
         if (!cancelled) setEntries([]);
@@ -73,7 +73,7 @@ function LeaderboardsView() {
           <h1 className="mt-1 text-3xl font-bold text-ggz-text-primary">{game ? "Game leaderboard" : "Community leaderboard"}</h1>
           <p className="mt-2 max-w-xl text-sm leading-6 text-ggz-text-secondary">Rankings use real GGz profile and competition data rather than placeholder scores.</p>
         </div>
-        <select value={game} onChange={(e) => { setLoading(true); setGame(e.target.value); }} className="h-10 rounded-xl border border-ggz-border bg-ggz-bg-2 px-3 text-sm text-ggz-text-primary outline-none focus:border-ggz-amber">
+        <select aria-label="Rankings game" value={game} onChange={(e) => { setLoading(true); setGame(e.target.value); }} className="h-10 rounded-xl border border-ggz-border bg-ggz-bg-2 px-3 text-sm text-ggz-text-primary outline-none focus:border-ggz-amber">
           <option value="">Global rankings</option>
           {games.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
         </select>

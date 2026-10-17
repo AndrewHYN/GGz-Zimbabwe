@@ -1,4 +1,5 @@
 "use client";
+import { AuthLayout } from "@/components/AuthLayout";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -51,8 +52,8 @@ export default function LoginPage() {
   const hasProviders = providers.google || providers.apple;
 
   return (
-    <div className="max-w-[1536px] mx-auto px-4 py-8 flex items-center justify-center min-h-screen">
-      <div className="w-full max-w-md bg-ggz-bg-1 border border-ggz-border rounded-[var(--radius-lg)] p-8">
+    <AuthLayout>
+      <div className="w-full max-w-md bg-ggz-bg-1 border border-ggz-border rounded-3xl p-8 shadow-2xl">
         <h1 className="text-2xl font-bold text-center mb-6">Log in to GGz</h1>
 
         {error && (
@@ -100,7 +101,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2 bg-ggz-accent text-white font-semibold rounded-[var(--radius-lg)] hover:opacity-90 disabled:opacity-50 transition-opacity"
+            className="w-full py-2 bg-ggz-accent text-black font-semibold rounded-[var(--radius-lg)] hover:opacity-90 disabled:opacity-50 transition-opacity"
           >
             {loading ? "Logging in..." : "Log in"}
           </button>
@@ -119,21 +120,9 @@ export default function LoginPage() {
 
             <div className="space-y-3">
               {providers.google && (
-                <a
-                  href="/accounts/auth/google/start/"
-                  className="flex items-center justify-center gap-2 w-full py-2 border border-ggz-border rounded-[var(--radius-lg)] hover:bg-ggz-bg-2 transition-colors text-sm font-medium"
-                >
-                  Continue with Google
-                </a>
+                <button type="button" onClick={async()=>{try {const result=await apiFetch<{url:string}>("/api/auth/sign-in/social",{method:"POST",body:JSON.stringify({provider:"google",callbackURL:"/dashboard"})});window.location.assign(result.url);}catch(error){setError(apiErrorMessage(error,"Google sign-in is temporarily unavailable."));}}} className="flex items-center justify-center gap-2 w-full py-3 border border-ggz-border rounded-xl hover:bg-ggz-bg-2 transition-colors text-sm font-medium">Continue with Google</button>
               )}
-              {providers.apple && (
-                <a
-                  href="/accounts/auth/apple/start/"
-                  className="flex items-center justify-center gap-2 w-full py-2 border border-ggz-border rounded-[var(--radius-lg)] hover:bg-ggz-bg-2 transition-colors text-sm font-medium"
-                >
-                  Continue with Apple
-                </a>
-              )}
+
             </div>
           </>
         )}
@@ -145,6 +134,6 @@ export default function LoginPage() {
           </Link>
         </p>
       </div>
-    </div>
+    </AuthLayout>
   );
 }

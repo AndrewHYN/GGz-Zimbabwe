@@ -1,3 +1,4 @@
+import { serverFetch } from "@/lib/server/fetch";
 import Link from "next/link";
 
 interface Team {
@@ -13,8 +14,8 @@ interface Team {
 }
 
 async function fetchTeams(): Promise<Team[]> {
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_DJANGO_URL || "http://localhost:8000"}/api/teams/`,
+  const res = await serverFetch(
+    `${"http://ggz.internal"}/api/teams/`,
     { cache: "no-store" }
   );
   if (!res.ok) return [];

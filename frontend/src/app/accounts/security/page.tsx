@@ -1,4 +1,5 @@
 "use client";
+import { ProfileEditor } from "@/components/ProfileEditor";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -115,6 +116,7 @@ export default function SecurityPage() {
         }),
       });
       dispatchAuthChanged();
+      await apiFetch("/api/auth/logout", {method:"POST",body:"{}"});
       setNotice("Password changed. Please sign in again.");
       router.push("/auth/login");
     } catch (error) {
@@ -219,7 +221,7 @@ export default function SecurityPage() {
                 {item.connected ? (
                   <button type="button" onClick={() => unlinkProvider(item.provider)} disabled={action === "unlink-" + item.provider} className="rounded-lg px-3 py-1.5 text-xs text-red-400 hover:bg-red-400/10 disabled:opacity-40">Unlink</button>
                 ) : item.available ? (
-                  <a href={"/accounts/auth/" + item.provider + "/start/"} className="rounded-lg bg-ggz-amber px-3 py-1.5 text-xs font-semibold text-black hover:brightness-110">Connect</a>
+                  <button type="button" onClick={async()=>{try{const result=await apiFetch<{url:string}>("/api/auth/link-social",{method:"POST",body:JSON.stringify({provider:item.provider,callbackURL:"/accounts/security"})});window.location.assign(result.url);}catch(error){setNotice(apiErrorMessage(error,"Provider could not be connected."));}}} className="rounded-lg bg-ggz-amber px-3 py-1.5 text-xs font-semibold text-black hover:brightness-110">Connect</button>
                 ) : null}
               </span>
             </div>
@@ -235,6 +237,7 @@ export default function SecurityPage() {
         </button>
       </section>
 
+      <ProfileEditor />
       {notice && <p className="mt-4 text-sm text-ggz-text-secondary" role="status">{notice}</p>}
     </div>
   );

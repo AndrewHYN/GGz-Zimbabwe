@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
+import { apiFetch } from "@/lib/api";
 
 interface Participant {
   id: number | null;
@@ -50,6 +52,7 @@ export default function MessagesPage() {
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [error,setError]=useState("");
   const [composer, setComposer] = useState("");
 
   useEffect(() => {
@@ -70,7 +73,7 @@ export default function MessagesPage() {
   useEffect(() => {
     if (selectedId == null) return;
     let cancelled = false;
-    fetch("/api/messages/" + selectedId + "/", { credentials: "include" })
+    const load = () => fetch("/api/messages/" + selectedId + "/", { credentials: "include" })
       .then((res) => {
         if (cancelled) return null;
         if (!res.ok) throw new Error("Conversation unavailable");
@@ -87,14 +90,19 @@ export default function MessagesPage() {
       .finally(() => {
         if (!cancelled) setDetailLoading(false);
       });
+    load();
+    void apiFetch(`/api/messages/${selectedId}/read`,{method:"POST",body:"{}"}).catch(()=>{});
+    const timer=setInterval(load,5000);
     return () => {
+      clearInterval(timer);
       cancelled = true;
     };
   }, [selectedId]);
 
+  const messageCount = conversations.find(item => item.id === selectedId)?.messages?.length;
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [selectedId, conversations.find((item) => item.id === selectedId)?.messages?.length]);
+  }, [selectedId, messageCount]);
 
   async function sendMessage(event: React.FormEvent) {
     event.preventDefault();
@@ -121,6 +129,8 @@ export default function MessagesPage() {
           : item
       ));
       setComposer("");
+    } catch(error) {
+      setError(error instanceof Error ? error.message : "Message could not be sent.");
     } finally {
       setSending(false);
     }
@@ -135,9 +145,10 @@ export default function MessagesPage() {
     <div className="mx-auto max-w-7xl px-4 py-6 sm:py-8">
       <div className="mb-5">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ggz-amber">Direct chat</p>
-        <h1 className="mt-1 text-3xl font-bold text-ggz-text-primary">Messages</h1>
+        <h1 className="mt-1 text-3xl font-bold text-ggz-text-primary">Messages</h1><Link href="/invitations" className="mt-2 inline-block text-sm text-ggz-amber underline">Message requests and invitations →</Link>
       </div>
 
+      {error && <p role="alert" className="mb-4 text-sm text-red-400">{error}</p>}
       <div className="overflow-hidden rounded-2xl border border-ggz-border bg-ggz-bg-1 lg:grid lg:grid-cols-[320px_1fr]">
         <aside className={"border-r border-ggz-border " + (selected ? "hidden lg:block" : "block")}>
           <div className="border-b border-ggz-border px-4 py-3 text-xs font-semibold uppercase tracking-wide text-ggz-text-muted">{conversations.length} conversations</div>

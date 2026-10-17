@@ -10,7 +10,7 @@ interface ProfileData {
   id: number; gamer_tag: string; username: string; avatar?: string | null; cover?: string | null; bio?: string | null; location?: string | null;
   platform?: string | null; rank: string; availability: string; respect_points: number; respect_level: string; tournament_wins: number;
   matches_played: number; match_wins: number; win_percentage: number; follower_count: number; following_count: number; is_following: boolean;
-  is_friend: boolean; is_self: boolean; presence: string; games: Game[];
+  has_friend_request?: boolean; is_friend: boolean; is_self: boolean; presence: string; games: Game[];
 }
 interface ProfilePageProps { params: Promise<{ gamerTag: string }>; }
 
@@ -142,6 +142,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
             <div className="mt-5 flex flex-wrap gap-2">
               <button onClick={() => profileAction(profile.is_following ? "unfollow" : "follow")} disabled={!!action} className={"rounded-xl px-4 py-2 text-sm font-semibold transition " + (profile.is_following ? "border border-ggz-border bg-ggz-bg-2 text-ggz-text-primary hover:border-ggz-amber/50" : "bg-ggz-amber text-black hover:brightness-110")}>{action === "follow" || action === "unfollow" ? "Saving…" : profile.is_following ? "Following" : "Follow"}</button>
               <button onClick={startMessage} disabled={!!action} className="rounded-xl border border-ggz-border bg-ggz-bg-2 px-4 py-2 text-sm font-semibold text-ggz-text-primary transition hover:border-ggz-amber/50">{action === "message" ? "Opening…" : "Message"}</button>
+              {!profile.is_friend && <button onClick={()=>profileAction(profile.has_friend_request ? "accept" : "friend")} disabled={!!action} className="rounded-xl border border-ggz-border px-4 py-2 text-sm font-semibold">{profile.has_friend_request ? "Accept friend request" : "Add friend"}</button>}
               <button onClick={() => profileAction("respect")} disabled={!!action} className="rounded-xl border border-ggz-border bg-ggz-bg-2 px-4 py-2 text-sm font-semibold text-ggz-text-primary transition hover:border-ggz-amber/50">{action === "respect" ? "Sending…" : "Give Respect"}</button>
               <button onClick={() => profileAction("report")} disabled={!!action} className="rounded-xl px-3 py-2 text-sm text-ggz-text-muted transition hover:bg-ggz-bg-2 hover:text-ggz-text-primary">Report</button>
               <button onClick={() => profileAction("block")} disabled={!!action} className="rounded-xl px-3 py-2 text-sm text-red-400 transition hover:bg-red-400/10">Block</button>

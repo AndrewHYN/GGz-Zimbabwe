@@ -1,3 +1,4 @@
+import { serverFetch } from "@/lib/server/fetch";
 import Link from "next/link";
 import {
   GamepadIcon,
@@ -14,7 +15,7 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { MotionReveal } from "@/components/motion/MotionReveal";
 import type { LivePayload } from "@/lib/live";
 
-const API_BASE = process.env.NEXT_PUBLIC_DJANGO_URL || "http://localhost:8000";
+const API_BASE = "http://ggz.internal";
 
 interface HomeGame {
   id: number;
@@ -54,18 +55,16 @@ interface HomeEvent {
 
 async function fetchList<T>(path: string): Promise<T[]> {
   try {
-    const res = await fetch(`${API_BASE}${path}`, { next: { revalidate: 60 } });
+    const res = await serverFetch(`${API_BASE}${path}`, { next: { revalidate: 60 } });
     if (!res.ok) return [];
     const data = await res.json();
     return (Array.isArray(data) ? data : data.results ?? []) as T[];
-  } catch {
-    return [];
-  }
+  } catch (error) { throw error; }
 }
 
 async function fetchLive(): Promise<LivePayload | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/live/`, { next: { revalidate: 60 } });
+    const res = await serverFetch(`${API_BASE}/api/live/`, { next: { revalidate: 60 } });
     if (!res.ok) return null;
     return (await res.json()) as LivePayload;
   } catch {
@@ -122,7 +121,7 @@ export default async function Home() {
 
   const featuredGames = games.slice(0, 6);
   const upcomingTournaments = tournaments
-    .filter((t) => t.status !== "Completed")
+    .filter((t) => !["Completed", "Cancelled", "Draft"].includes(t.status || ""))
     .slice(0, 4);
   const upcomingEvents = events.slice(0, 3);
   const liveCount = tournaments.filter((t) => t.status === "Live").length;
@@ -131,33 +130,19 @@ export default async function Home() {
   return (
     <div className="animate-page-enter">
       <div className="mx-auto max-w-[1536px] px-4">
-        <section className="py-14 text-center md:py-20">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-ggz-amber">
-            Zimbabwe&apos;s gaming world
-          </p>
-          <h1 className="text-4xl font-bold tracking-tight text-ggz-text-primary md:text-6xl">
-            GGz<span className="text-ggz-amber">.</span>
-          </h1>
-          <p className="mx-auto mt-4 max-w-2xl text-base text-ggz-text-secondary md:text-lg">
-            Discover games, compete in tournaments, and find players across Zimbabwe.
-          </p>
-
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5 text-sm text-ggz-text-secondary">
-            <span className="rounded-full border border-ggz-border bg-ggz-bg-1/70 px-3 py-1">
-              {games.length} games
-            </span>
-            {liveCount > 0 ? (
-              <span className="flex items-center rounded-full border border-emerald-500/30 bg-ggz-bg-1/70 px-3 py-1">
-                <LiveIndicator label={`${liveCount} live tournament${liveCount === 1 ? "" : "s"}`} />
-              </span>
-            ) : (
-              <span className="rounded-full border border-ggz-border bg-ggz-bg-1/70 px-3 py-1">
-                {tournaments.length} tournaments
-              </span>
-            )}
-            <span className="rounded-full border border-ggz-border bg-ggz-bg-1/70 px-3 py-1">
-              {events.length} events
-            </span>
+        <section className="ggz-home-hero">
+          <div className="relative z-10">
+            <p className="ggz-eyebrow mb-5">Zimbabwe. Logged in.</p>
+            <h1 className="ggz-hero-heading">Your people.<br/>Your game.<br/><span>Good games.</span></h1>
+            <p className="mt-6 max-w-md text-base leading-7 text-ggz-text-secondary">From the first friendly to the final round. Find your squad, run a tournament, and make your mark on Zimbabwe’s gaming scene.</p>
+            <div className="mt-8 flex flex-wrap gap-3"><Link href="/gamers" className="ggz-primary">Find your players <span aria-hidden="true" className="ml-5">↗</span></Link><Link href="/tournaments" className="rounded-xl border border-ggz-border-strong px-5 py-3 font-semibold transition hover:bg-ggz-bg-2">Enter the arena</Link></div>
+            <div className="mt-9 flex flex-wrap gap-6 text-xs text-ggz-text-secondary"><span><strong className="mr-2 text-base text-ggz-text-primary">{games.length}</strong>games to explore</span><span><strong className="mr-2 text-base text-ggz-text-primary">{tournaments.length}</strong>community tournaments</span>{liveCount>0 && <LiveIndicator label={`${liveCount} live now`}/>}</div>
+          </div>
+          <div className="ggz-arena" aria-hidden="true">
+            <div className="ggz-arena-top"><span>GGz / PLAYER NETWORK</span><span className="text-ggz-amber">ZWE · +263</span></div>
+            <div className="ggz-arena-word">PLAY<br/><span>LOCAL.</span></div>
+            <GamepadIcon size={200} className="ggz-arena-controller"/>
+            <div className="ggz-arena-bottom"><span>FIND YOUR NEXT GG.</span><span>01 — ∞</span></div>
           </div>
         </section>
 
