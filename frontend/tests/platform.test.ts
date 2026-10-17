@@ -72,6 +72,9 @@ describe("Native Next.js platform", () => {
       password2: "Strong-password-123",
     });
     expect(response.status, await response.clone().text()).toBe(200);
+    expect(
+      (await list("profile")).some((p) => p.gamer_tag === "GamerTest"),
+    ).toBe(true);
     const cookie = response.headers
       .getSetCookie()
       .map((c) => c.split(";")[0])
@@ -95,6 +98,12 @@ describe("Native Next.js platform", () => {
       password: "Strong-password-123",
     });
     expect(login.status, await login.clone().text()).toBe(200);
+  });
+  it("rejects malformed and oversized request bodies before authentication", async () => {
+    const request = (body: string) => handle(new Request("http://localhost:3000/api/auth/login", {method:"POST", headers:{origin:"http://localhost:3000","content-type":"application/json"},body}));
+    expect((await request("null")).status).toBe(400);
+    expect((await request("[]")).status).toBe(400);
+    expect((await request("x".repeat(100001))).status).toBe(413);
   });
   it("rejects cross-site writes and anonymous mutations", async () => {
     const res = await handle(
@@ -195,6 +204,12 @@ describe("Native Next.js platform", () => {
     expect(detail.likes).toBeUndefined();
   });
   it("keeps messages private and blocks unwanted contact", async () => {
+    const request = await write("messages/start/Alice", {});
+    expect(request.conversation_id).toBeUndefined();
+    const pending = (await list("message_request")).find(
+      (r) => r.sender_id === owner.id && r.recipient_id === alice.id,
+    )!;
+    await write(`message-requests/${pending.id}/accept`, {}, alice);
     const c = await write("messages/start/Alice", {});
     await write(`messages/${c.conversation_id}/send`, {
       content: "Hello Alice",

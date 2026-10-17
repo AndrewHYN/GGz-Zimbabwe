@@ -58,11 +58,29 @@ export async function list(kind: string, db?: Database): Promise<RecordData[]> {
     .execute();
   return rows.map((row) => ({ ...row.data, id: Number(row.id) }));
 }
-export async function find(kind: string, id: string | number, db?: Database) {
-  return (await list(kind, db)).find(
-    (row) => String(row.id) === String(id) || row.slug === id,
-  );
+export async function find(
+  kind: string,
+  id: string | number,
+  db?: Database,
+): Promise<RecordData | undefined> {
+  const numeric = Number(id);
+  const row = await (db ?? (await database()))
+    .selectFrom("ggz_entity")
+    .select(["id", "data"])
+    .where("kind", "=", kind)
+    .where((eb) =>
+      eb.or([
+        ...(Number.isSafeInteger(numeric) && numeric > 0
+          ? [eb("id", "=", numeric)]
+          : []),
+        sql<boolean>`data->>'slug' = ${String(id)}`,
+      ]),
+    )
+    .limit(1)
+    .executeTakeFirst();
+  return row ? { ...row.data, id: Number(row.id) } : undefined;
 }
+
 export async function insert(
   kind: string,
   data: Omit<RecordData, "id">,

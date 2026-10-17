@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import RadarMap from "@/components/maps/RadarMap";
 import { useEffect, useMemo, useState } from "react";
 
@@ -86,7 +87,7 @@ export default function DiscoverPage() {
                   {item.event_count != null && <span>{item.event_count} events</span>}
                   {item.tournament_count != null && <span>{item.tournament_count} tournaments</span>}
                 </div>
-                <p className="mt-2 text-[10px] text-ggz-text-muted">{item.latitude.toFixed(4)}, {item.longitude.toFixed(4)}</p>
+                <p className="mt-2 text-[10px] text-ggz-text-muted">{item.latitude.toFixed(4)}, {item.longitude.toFixed(4)}</p>{item.url?.startsWith("/venues/")&&<Link href={item.url} className="mt-2 inline-block text-xs font-semibold text-ggz-amber underline">View venue →</Link>}
               </div>
             ))}
             {!loading && items.length === 0 && <p className="p-5 text-sm text-ggz-text-secondary">No public Radar results match that search.</p>}

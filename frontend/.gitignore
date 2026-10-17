@@ -43,3 +43,8 @@ next-env.d.ts
 /.local-db/
 /playwright-report/
 /test-results/
+
+/.migration/
+*.legacy.json
+
+/.browser-cache/

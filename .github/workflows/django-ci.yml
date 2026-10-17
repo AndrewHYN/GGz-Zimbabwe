@@ -1,12 +1,8 @@
 name: Django Check and Tests
 
+# Archived implementation: run manually for source-migration comparisons only.
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+  workflow_dispatch:
 
 jobs:
   backend:

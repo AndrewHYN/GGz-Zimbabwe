@@ -35,6 +35,11 @@ export async function handle(request: Request): Promise<Response> {
         413,
       );
     }
+    if (writing)
+      request = await boundedRequest(
+        request,
+        path[0] === "uploads" ? 4 * 1024 * 1024 : 100000,
+      );
     if (path[0] === "csrf")
       return Response.json(
         { ok: true },
@@ -63,7 +68,14 @@ export async function handle(request: Request): Promise<Response> {
           apple: false,
         });
       if (writing) {
-        const data = await request.json().catch(() => ({}));
+        const data = await request
+          .clone()
+          .json()
+          .catch(() => ({}));
+        check(
+          data && typeof data === "object" && !Array.isArray(data),
+          "Supply a JSON object.",
+        );
         let endpoint = "";
         let body: Record<string, unknown> = {};
         if (path[1] === "login") {
@@ -132,13 +144,18 @@ export async function handle(request: Request): Promise<Response> {
         if (endpoint) {
           const headers = new Headers(request.headers);
           headers.delete("content-length");
-          return authentication.handler(
+          const response = await authentication.handler(
             new Request(new URL(`/api/auth/${endpoint}`, url), {
               method: "POST",
               headers,
               body: JSON.stringify(body),
             }),
           );
+          if (path[1] === "register" && response.ok) {
+            const created = await response.clone().json();
+            if (created.user) await ensureProfile(created.user);
+          }
+          return response;
         }
       }
       return authentication.handler(request);
@@ -147,6 +164,12 @@ export async function handle(request: Request): Promise<Response> {
       headers: request.headers,
     });
     const viewer = session ? await ensureProfile(session.user) : undefined;
+    if (viewer)
+      check(
+        !viewer.suspended_at,
+        "This account is suspended. Contact GGz support.",
+        403,
+      );
     if (path[0] === "security" && path[1] === "overview") {
       check(session && viewer, "Please log in.", 401);
       const accounts = await authentication.api.listUserAccounts({
@@ -168,7 +191,7 @@ export async function handle(request: Request): Promise<Response> {
               display_name: session.user.name,
               available: Boolean(
                 process.env.GOOGLE_CLIENT_ID &&
-                  process.env.GOOGLE_CLIENT_SECRET,
+                process.env.GOOGLE_CLIENT_SECRET,
               ),
             },
           ],
@@ -181,6 +204,7 @@ export async function handle(request: Request): Promise<Response> {
       return Response.json(
         {
           authenticated: true,
+          staff_role: await (await import("./management")).staffRole(viewer),
           user: {
             id: session.user.id,
             username: viewer.username,
@@ -208,6 +232,10 @@ export async function handle(request: Request): Promise<Response> {
       body = request.headers.get("content-type")?.includes("application/json")
         ? await request.json()
         : Object.fromEntries(await request.formData());
+      check(
+        body && typeof body === "object" && !Array.isArray(body),
+        "Supply a JSON object.",
+      );
       // Uploaded files use the storage endpoint; never silently discard an attachment.
       check(
         !Object.values(body).some((v) => v instanceof File && v.size > 0),
@@ -237,4 +265,35 @@ export async function handle(request: Request): Promise<Response> {
       { status: 503 },
     );
   }
+}
+
+async function boundedRequest(request: Request, limit: number) {
+  const reader = request.body?.getReader();
+  if (!reader) return request;
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    length += value.byteLength;
+    if (length > limit) {
+      await reader.cancel();
+      throw new HttpError(413, "Request is too large.");
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  const headers = new Headers(request.headers);
+  headers.delete("content-length");
+  headers.delete("transfer-encoding");
+  return new Request(request.url, {
+    method: request.method,
+    headers,
+    body: bytes,
+  });
 }

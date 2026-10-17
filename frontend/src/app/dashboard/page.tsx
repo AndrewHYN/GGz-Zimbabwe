@@ -4,11 +4,15 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 interface Me {
+  staff_role?: string | null;
   user: { username: string };
   profile?: { gamer_tag?: string | null };
 }
 
 const features = [
+  ["Challenges", "/challenges", "Accept challenges, schedule games and confirm results."],
+  ["Invitations", "/invitations", "Respond to squad and ownership invitations."],
+  ["Organizations", "/organizations", "Manage your community, venues and public presence."],
   ["Find Players", "/gamers", "Discover gamers by identity, location, platform and rank."],
   ["Games", "/games", "Browse games, artwork, ratings and community activity."],
   ["Compete", "/tournaments", "Join tournaments, follow matches and track results."],
@@ -55,6 +59,7 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
+      {me.staff_role&&<Link href="/admin" className="ggz-primary mb-5">Open moderation desk</Link>}
       <section className="overflow-hidden rounded-2xl border border-ggz-border bg-ggz-bg-1">
         <div className="relative border-b border-ggz-border px-6 py-8 sm:px-8">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(245,158,11,0.13),transparent_35%),radial-gradient(circle_at_top_left,rgba(139,92,246,0.12),transparent_38%)]" />

@@ -1,4 +1,6 @@
+import { readManagement, mutateManagement, rankings } from "./management";
 import { z } from "zod";
+import { sql } from "kysely";
 import {
   atomic,
   find,
@@ -41,7 +43,13 @@ export function summary(profile?: RecordData) {
     : { gamer_tag: "GGz", avatar: null };
 }
 export async function ensureProfile(
-  user: { id: string; name: string; email: string; image?: string | null },
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    image?: string | null;
+    username?: string | null;
+  },
   tag?: string,
 ) {
   return atomic(async (db) => {
@@ -62,7 +70,7 @@ export async function ensureProfile(
       "profile",
       {
         user_id: user.id,
-        username: user.name,
+        username: user.username || user.name,
         gamer_tag: gamerTag,
         avatar: user.image || null,
         cover: null,
@@ -153,7 +161,9 @@ export async function publicList(
   viewer?: RecordData,
   db?: Database,
 ): Promise<RecordData[]> {
-  const entries = await list(kind, db);
+  const entries = (await list(kind, db)).filter(
+    (e) => !e.hidden && !e.suspended_at,
+  );
   if (kind === "profile")
     return entries
       .filter(
@@ -171,11 +181,19 @@ export async function publicList(
         ["Available", "Reserved"].includes(e.status) ||
         e.seller_id === viewer?.id,
     );
-  if (kind === "post")
+  if (kind === "post") {
+    const profiles = await list("profile", db);
     return entries
       .filter(
         (p) =>
           !viewer?.blocked.includes(p.author.id) &&
+          profiles.some(
+            (a) =>
+              a.id === p.author.id &&
+              !a.hidden &&
+              !a.suspended_at &&
+              !a.blocked.includes(viewer?.id),
+          ) &&
           (p.visibility !== "Private" || p.author.id === viewer?.id),
       )
       .map((p) => ({
@@ -187,6 +205,7 @@ export async function publicList(
         likes: undefined,
         saves: undefined,
       }));
+  }
   return entries;
 }
 
@@ -205,6 +224,7 @@ const tournamentSchema = z.object({
   status: z.enum(["Draft", "Open"]).default("Draft"),
 });
 const eventSchema = z.object({
+  organization_id: z.coerce.number().int().positive().optional(),
   name: text(120),
   description: text(5000),
   start_date: z.iso.datetime({ offset: true }),
@@ -241,6 +261,8 @@ export async function readPlatform(
   viewer?: RecordData,
 ): Promise<unknown> {
   const [area, key, action] = path;
+  const managed = await readManagement(path, query, viewer);
+  if (managed) return managed.value;
   if (area === "profiles" && key === "edit") {
     check(viewer, "Please log in.", 401);
     return {
@@ -266,7 +288,11 @@ export async function readPlatform(
       (p) => p.gamer_tag.toLowerCase() === action?.toLowerCase(),
     );
     check(
-      p && !p.blocked.includes(viewer?.id) && !viewer?.blocked.includes(p.id),
+      p &&
+        !p.hidden &&
+        !p.suspended_at &&
+        !p.blocked.includes(viewer?.id) &&
+        !viewer?.blocked.includes(p.id),
       "Profile not found.",
       404,
     );
@@ -298,8 +324,26 @@ export async function readPlatform(
   }
   if (area === "radar") {
     const q = (query.get("q") || "").toLowerCase();
-    const venues = (await list("venue")).filter((p) =>
-      `${p.name} ${p.location}`.toLowerCase().includes(q),
+    const managed = await readManagement(["venues"], query, undefined);
+    const standalone = (await list("standalone_venue"))
+      .filter((v) => v.public_visible && !v.hidden)
+      .map(
+        (v): RecordData => ({
+          ...v,
+          kind: "venue",
+          url: `/venues/standalone-${v.id}`,
+        }),
+      );
+    const venues = [
+      ...((managed?.value as RecordData[]) ?? []).filter(
+        (v) => v.public_visible,
+      ),
+      ...standalone,
+    ].filter(
+      (v) =>
+        `${v.name} ${v.city} ${v.address}`.toLowerCase().includes(q) &&
+        Number.isFinite(v.latitude) &&
+        Number.isFinite(v.longitude),
     );
     return {
       hotspots: [],
@@ -397,6 +441,7 @@ export async function readPlatform(
     );
     return {
       ...entity,
+      in_library: Boolean(viewer?.games.includes(entity.id)),
       reviews,
       review_count: reviews.length,
       average_rating: reviews.length
@@ -407,7 +452,7 @@ export async function readPlatform(
       wishlist_count: (await list("profile")).filter((p) =>
         p.wishlist?.includes(entity.id),
       ).length,
-      leaderboard: [],
+      leaderboard: await rankings(entity.id),
       available_players: players,
       challengers: players.filter((p) => p.id !== viewer?.id),
       community_posts: (await publicList("post", viewer)).filter(
@@ -439,7 +484,10 @@ export async function readPlatform(
       ...entity,
       is_organizer: entity.organizer_id === viewer?.id,
       is_rsvped: entity.attendees.some((p: RecordData) => p.id === viewer?.id),
-      spots_remaining: Math.max(0, entity.capacity - entity.attendees.length),
+      spots_remaining:
+        entity.capacity == null
+          ? null
+          : Math.max(0, entity.capacity - entity.attendees.length),
     };
   if (kind === "team")
     return {
@@ -467,6 +515,24 @@ export async function mutatePlatform(
     // Re-read the current profile inside the write transaction to prevent stale updates.
     const actor = await find("profile", viewer.id, db);
     check(actor, "Profile not found.", 404);
+    check(
+      !actor.suspended_at,
+      "This account is suspended. Contact GGz support.",
+      403,
+    );
+    const window = Math.floor(Date.now() / 60000);
+    const limited = await sql<{
+      count: number;
+    }>`insert into ggz_write_limit(subject,window_index,count) values(${actor.user_id},${window},1) on conflict(subject) do update set window_index=excluded.window_index,count=case when ggz_write_limit.window_index=excluded.window_index then ggz_write_limit.count+1 else 1 end returning count`.execute(
+      db,
+    );
+    check(
+      limited.rows[0].count <= 90,
+      "Too many actions. Please wait a minute.",
+      429,
+    );
+    const managed = await mutateManagement(path, body, actor, db);
+    if (managed) return managed.value;
     const [area, key, action, fourth] = path;
     if (area === "security" && key === "presence") {
       actor.show_online_status =
@@ -664,10 +730,20 @@ export async function mutatePlatform(
           new Date(input.start_date).getTime() > Date.now(),
           "Start date must be in the future.",
         );
+        const organization = input.organization_id
+          ? await find("organization", input.organization_id, db)
+          : undefined;
+        if (input.organization_id)
+          check(
+            organization?.owner_id === actor.id,
+            "Only an organization owner can publish on its behalf.",
+            403,
+          );
         return insert(
           "event",
           {
             ...input,
+            organization_name: organization?.name ?? null,
             organizer_id: actor.id,
             organizer: summary(actor),
             organizer_name: actor.gamer_tag,
@@ -725,7 +801,8 @@ export async function mutatePlatform(
           "You are already registered.",
         );
         check(
-          item[field].length < (item.max_participants || item.capacity),
+          (item.max_participants || item.capacity) == null ||
+            item[field].length < (item.max_participants || item.capacity),
           "This event is full.",
         );
         item[field].push({ ...summary(actor), status: "Registered" });
@@ -871,7 +948,12 @@ export async function mutatePlatform(
         );
       }
       const post = await find("post", action, db);
-      check(post, "Post not found.", 404);
+      check(
+        post &&
+          (await publicList("post", actor, db)).some((p) => p.id === post.id),
+        "Post not found.",
+        404,
+      );
       check(!actor.blocked.includes(post.author.id), "Post unavailable.", 403);
       if (fourth === "comments") {
         const bodyText = text(2000).parse(body.body || body.content);
@@ -962,7 +1044,7 @@ export async function mutatePlatform(
     }
     if (area === "marketplace") {
       const listing = await find("listing", key, db);
-      check(listing, "Listing not found.", 404);
+      check(listing && !listing.hidden, "Listing not found.", 404);
       if (action === "save") {
         listing.saves = listing.saves.includes(actor.id)
           ? listing.saves.filter((id: number) => id !== actor.id)
@@ -1080,6 +1162,42 @@ async function startConversation(
       c.participants.includes(actor.id) &&
       c.participants.includes(other.id),
   );
+  if (!conversation && !actor.friends.includes(other.id)) {
+    const existing = (await list("message_request", db)).find(
+      (r) => r.sender_id === actor.id && r.recipient_id === other.id,
+    );
+    check(
+      existing?.status !== "Declined",
+      "This player declined your message request.",
+      403,
+    );
+    if (!existing) {
+      await insert(
+        "message_request",
+        {
+          sender_id: actor.id,
+          sender: summary(actor),
+          recipient_id: other.id,
+          recipient: summary(other),
+          status: "Pending",
+          created_at: now(),
+        },
+        db,
+      );
+      await notify(
+        other.id,
+        actor,
+        `${actor.gamer_tag} wants to message you.`,
+        "/invitations",
+        db,
+      );
+    }
+    return {
+      ok: true,
+      message:
+        "Message request sent. The player must accept before you can chat.",
+    };
+  }
   conversation ??= await insert(
     "conversation",
     { participants: [actor.id, other.id], messages: [], updated_at: now() },

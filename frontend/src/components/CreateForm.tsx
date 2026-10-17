@@ -7,10 +7,17 @@ import { apiFetch, apiErrorMessage } from "@/lib/api";
 type Kind = "tournaments" | "events" | "marketplace";
 export function CreateForm({ kind }: { kind: Kind }) {
   const router = useRouter();
+  const [organizations, setOrganizations] = useState<
+    { id: number; name: string; is_owner: boolean }[]
+  >([]);
   const [games, setGames] = useState<{ id: number; name: string }[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => {
+    if (kind === "events")
+      apiFetch<typeof organizations>("/api/organizations")
+        .then((rows) => setOrganizations(rows.filter((o) => o.is_owner)))
+        .catch(() => {});
     if (kind === "tournaments")
       apiFetch<typeof games>("/api/games")
         .then(setGames)
@@ -32,6 +39,7 @@ export function CreateForm({ kind }: { kind: Kind }) {
       if (data[field])
         data[field] = new Date(String(data[field])).toISOString();
     try {
+      if (data.organization_id === "") delete data.organization_id;
       if (data.image instanceof File && data.image.size > 0) {
         const upload = new FormData();
         upload.append("image", data.image);
@@ -96,6 +104,19 @@ export function CreateForm({ kind }: { kind: Kind }) {
               placeholder="What should players know?"
             />
           </label>
+          {kind === "events" && organizations.length > 0 && (
+            <label>
+              Organizing community
+              <select name="organization_id" defaultValue="">
+                <option value="">My personal event</option>
+                {organizations.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           {kind === "tournaments" && (
             <>
               <label>

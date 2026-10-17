@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 
 interface Participant {
@@ -144,7 +145,7 @@ export default function MessagesPage() {
     <div className="mx-auto max-w-7xl px-4 py-6 sm:py-8">
       <div className="mb-5">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ggz-amber">Direct chat</p>
-        <h1 className="mt-1 text-3xl font-bold text-ggz-text-primary">Messages</h1>
+        <h1 className="mt-1 text-3xl font-bold text-ggz-text-primary">Messages</h1><Link href="/invitations" className="mt-2 inline-block text-sm text-ggz-amber underline">Message requests and invitations →</Link>
       </div>
 
       {error && <p role="alert" className="mb-4 text-sm text-red-400">{error}</p>}

@@ -8,7 +8,7 @@ Python runtime requirement.
 
 **Release status: held.** This is not a completed production migration. Read
 [NEXTJS_MIGRATION_STATUS.md](NEXTJS_MIGRATION_STATUS.md) for verified work,
-remaining parity gaps and the production access blocker. Git deployments are
+verification results and production release gates. Git deployments are
 currently disabled to prevent an unverified migration from going live.
 
 ## Development
@@ -37,12 +37,14 @@ Both smoke commands start and stop their own local production server.
 ## Data and integrations
 
 The explicit migration creates new `ggz_*` tables. It never runs in the build or
-on a request, and it does not alter the existing application tables. A production
-data importer and reconciliation are still required before release. Use the
-read-only `npm run db:inventory` command to inspect the identified legacy database.
+on a request, and it does not alter the existing application tables. The record-preserving importer, dry-run report and guarded rollback are implemented.
+A real source export must still be inspected and reconciled before release; see
+the migration commands in `NEXTJS_MIGRATION_STATUS.md`. Use the read-only
+`npm run db:inventory` command to inspect the identified legacy database.
 
 Google login, SMTP recovery, S3-compatible image storage, Twitch live discovery
-and the map use the environment settings listed in `frontend/.env.example`.
+use the environment settings listed in `frontend/.env.example`.
+The public venue map also works through OpenStreetMap without a key.
 Credentials stay server-side. Do not copy another project's credentials.
 
 The old Python code and [historical README](LEGACY_DJANGO_README.md) are retained

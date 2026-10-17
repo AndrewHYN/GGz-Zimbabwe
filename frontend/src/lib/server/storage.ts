@@ -1,4 +1,5 @@
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import sharp from "sharp";
 import { check } from "./platform";
 export async function uploadImage(file: File, userId: string) {
   check(
@@ -26,6 +27,25 @@ export async function uploadImage(file: File, userId: string) {
     "Image uploads are temporarily unavailable.",
     503,
   );
+  let image: Buffer;
+  try {
+    image = await sharp(bytes, { limitInputPixels: 20_000_000 })
+      .rotate()
+      .resize({
+        width: 2560,
+        height: 2560,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .webp({ quality: 88 })
+      .timeout({ seconds: 10 })
+      .toBuffer();
+  } catch {
+    check(
+      false,
+      "This image is damaged or too large to process. Choose another image.",
+    );
+  }
   const client = new S3Client({
     endpoint: process.env.AWS_S3_ENDPOINT_URL,
     region: process.env.AWS_S3_REGION_NAME || "eu-west-1",
@@ -35,13 +55,13 @@ export async function uploadImage(file: File, userId: string) {
       secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
     },
   });
-  const key = `uploads/${userId}/${crypto.randomUUID()}.${extension}`;
+  const key = `uploads/${userId}/${crypto.randomUUID()}.webp`;
   await client.send(
     new PutObjectCommand({
       Bucket: process.env.AWS_STORAGE_BUCKET_NAME,
       Key: key,
-      Body: bytes,
-      ContentType: extension === "jpg" ? "image/jpeg" : `image/${extension}`,
+      Body: image,
+      ContentType: "image/webp",
       CacheControl: "public, max-age=31536000, immutable",
     }),
   );

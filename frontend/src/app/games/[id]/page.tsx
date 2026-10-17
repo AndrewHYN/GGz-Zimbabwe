@@ -1,4 +1,5 @@
 "use client";
+import { LibraryButton } from "@/components/management/LibraryButton";
 
 import { Badge } from "@/components/ui/Badge";
 import { GameArtwork } from "@/components/ui/GameArtwork";
@@ -76,6 +77,7 @@ interface GameNewsItem {
 
 interface Game {
   id: number;
+  in_library?: boolean;
   name: string;
   description: string;
   genre: string;
@@ -282,6 +284,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
     return (
       <div className="mx-auto max-w-[1536px] px-4 py-8 text-center">
         <h1 className="mb-4 text-3xl font-bold">Game Not Found</h1>
+
         <p className="mb-6 text-ggz-text-muted">The game you are looking for does not exist or could not be loaded.</p>
         <Link href="/games" className="text-ggz-amber hover:underline">Back to Games</Link>
       </div>
@@ -317,6 +320,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
 
         <div className="min-w-0">
           <h1 className="text-3xl font-bold">{game.name}</h1>
+<LibraryButton gameId={game.id} inLibrary={game.in_library??false}/>
           <div className="mb-4 mt-3 flex flex-wrap gap-2">
             {game.genre && <Badge>{game.genre}</Badge>}
             {game.platform && <Badge>{game.platform}</Badge>}

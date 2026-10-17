@@ -26,6 +26,9 @@ export function Footer() {
             <h3 className="text-sm font-semibold text-ggz-text-primary mb-3">Community</h3>
             <div className="space-y-2">
               <Link href="/feed" className="block text-sm text-ggz-text-muted hover:text-ggz-text-primary transition-colors">Feed</Link>
+              <Link href="/organizations" className="block text-sm text-ggz-text-muted hover:text-ggz-text-primary">Organizations & venues</Link>
+              <Link href="/invitations" className="block text-sm text-ggz-text-muted hover:text-ggz-text-primary">Invitations</Link>
+              <Link href="/challenges" className="block text-sm text-ggz-text-muted hover:text-ggz-text-primary">Challenges</Link>
               <Link href="/teams" className="block text-sm text-ggz-text-muted hover:text-ggz-text-primary transition-colors">Teams</Link>
               <Link href="/gamers" className="block text-sm text-ggz-text-muted hover:text-ggz-text-primary transition-colors">Find Players</Link>
               <Link href="/leaderboards" className="block text-sm text-ggz-text-muted hover:text-ggz-text-primary transition-colors">Rankings</Link>

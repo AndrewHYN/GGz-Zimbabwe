@@ -104,7 +104,7 @@ export default function TeamDetailPage({ params }: { params: Promise<{ slug: str
               </div>
             ))}
           </div>
-          {team.is_manager && <p className="mt-4 text-sm text-ggz-amber">You manage this team.</p>}
+          {team.is_manager && <p className="mt-4 text-sm text-ggz-amber">You manage this team. <Link href={`/teams/${slug}/manage`} className="ml-2 underline">Manage roster and invitations →</Link></p>}
         </div>
       </div>
 

@@ -1,78 +1,114 @@
 # GGz Next.js consolidation — release held
 
-This branch is an implementation checkpoint, not a completed production migration.
-The deployed site and existing database have not been changed.
+The application uses Next.js for both pages and API handlers. Better Auth manages
+accounts and PostgreSQL stores community data. Django is retained only as source
+migration/reference material, with its CI workflow manual-only. No Django proxy,
+Python process or second runtime is needed. Automatic Vercel Git deployments remain
+disabled in both configuration locations. No production site or source data has
+been changed.
 
-## Runtime
+## Implemented
 
-`frontend/` contains the standalone Next.js application, native API handlers,
-Better Auth accounts/sessions, and PostgreSQL persistence. The frontend no longer
-rewrites requests to Django or reads `NEXT_PUBLIC_DJANGO_URL`.
+- Registration, username/email login, sessions, logout, password change/recovery,
+  optional Google OAuth and legacy PBKDF2 password compatibility.
+- Private profiles, editing, follows, friend requests, respect, blocks, library.
+- Tournament drafts/publishing, player invitations, registration/withdrawal,
+  locked capacity, elimination brackets/byes, results and cancellation.
+- Events, organization association, owner editing/lifecycle, capacity-limited
+  RSVPs, organization promotion requests and audited staff promotion review.
+- Teams, roster/captain management, invitations and recipient-approved ownership
+  transfers. Owners retain control until a transfer is accepted.
+- Organization/venue management, reviews/ratings, private coordinates, public
+  venue discovery and a working OpenStreetMap fallback.
+- Challenge acceptance/scheduling, opponent-confirmed results, disputes, staff
+  resolution and game-specific rankings derived from completed results.
+- Feed posts/comments/likes/saves/reports; marketplace listing/saving/sold status.
+- Private messaging with recipient-approved requests, unread state/notifications.
+- Staff-only reports, content moderation, verification, account suspension and
+  audit history. Staff roles come from a protected database table.
+- Server-side image validation, decoded/re-encoded WebP uploads and media CSP;
+  Twitch category mapping, token refresh and upstream error handling.
+- Origin checks, streamed request-size limits, write throttling, private API
+  responses, blocked/suspended account enforcement and database RLS/revoked grants.
 
-Legacy Python source remains available for schema/data migration and comparison.
-It is not imported, built or started by the Next.js application. Do not delete it
-until the real production records have been inventoried, migrated and reconciled.
+## Verification
 
-## Implemented and locally exercised
+Lint, TypeScript, production build and native integration tests are run from
+`frontend/`. Tests cover ownership/permissions, private venues, hidden content,
+capacity/brackets, messages, invitations, challenge disputes/rankings, migration
+references/counts/credentials/rollback, password recovery, OAuth request forwarding,
+image decoding and mocked S3/Twitch integrations. Browser checks cover desktop and
+mobile routes plus real signup, tournament draft/publish, organization/venue,
+team invitation/ownership transfer, two-player result confirmation and moderation.
+Final local results: 31 integration tests, 9 HTTP routes, 14 desktop routes,
+5 mobile routes and all authenticated browser flows passed; desktop/mobile and
+management screenshots inspected. Mocked provider checks do not establish that
+production credentials or hosted callback URLs work.
 
-- Email/password registration, username or email login, persistent sessions, logout.
-- Private profiles, profile editing, follows, friend requests, respect, blocks.
-- Tournament drafts, publishing, registration, capacity locking, withdrawals,
-  single-elimination brackets including byes, results, completion and cancellation.
-- Event creation, capacity-limited RSVPs and withdrawal.
-- Team creation, joining and leaving with owner protection.
-- Feed posts, comments, likes, saves and reports.
-- Private conversations and sending with blocked-contact checks.
-- Marketplace listing creation, saves, reports, seller-only sold status.
-- Server-side image upload and Twitch discovery adapters.
-- Native data access for server-rendered pages and a visible data-error boundary.
-- Gaming homepage, account layout, forms, keyboard focus and reduced-motion support.
+## Data migration runbook
 
-## Latest local verification
+Use Node 24. Configure `.env.local` from `.env.example`. Run `npm run db:migrate`
+explicitly against a backed-up target database; migrations never run during builds
+or requests. They create separate `ggz_*` tables and leave legacy tables unchanged.
+Use a server role owning those tables; never expose it to browser clients.
 
-- ESLint and TypeScript: passed.
-- Integration tests: 11 passed, including five-player brackets with byes.
-- Production build: passed.
-- HTTP checks: 9 routes passed.
-- Final browser run: 11 desktop routes and 5 mobile routes passed.
-- Authenticated browser signup → dashboard and tournament draft → publish: passed.
-- Final desktop and mobile screenshots inspected.
-- Lockfile consistency: `npm ci --dry-run --ignore-scripts` passed.
+1. Inventory the actual source with `npm run db:inventory`. Do not infer the
+   application database from the inactive historical Supabase media project.
+2. Set `LEGACY_DATABASE_URL` to the verified source. Export with
+   `npm run db:legacy -- export /private/path/source.legacy.json`.
+   Export uses a read-only repeatable-read transaction and creates a mode-0600
+   snapshot without overwriting an existing file. Snapshots contain credentials
+   and private messages: keep them outside Git and public storage.
+3. Dry-run with `npm run db:legacy -- inspect /private/path/source.legacy.json`.
+   Resolve every reported reference, duplicate login/tag or media issue. Set
+   `MEDIA_PUBLIC_URL` only to the verified HTTPS location containing legacy files.
+   Identity corrections can use `--overrides=/private/path/overrides.json`, with
+   `users` keyed by legacy user ID (`email`/`username`) and `gamerTags` keyed by
+   legacy profile ID. Original snapshot/archive records stay unchanged.
+4. Review the source/target counts, warnings and SHA-256 fingerprint. Import into
+   an empty native target with `npm run db:legacy -- import
+   /private/path/source.legacy.json --fingerprint=<reviewed-sha256>` (one line).
+   Supply the same overrides when used during inspection. Import is transactional,
+   preserves numeric IDs per entity kind, private relationships/messages, legacy
+   password hashes and staff roles; every source row is also archived privately.
+   Repeating the same import is idempotent; different snapshots or existing native
+   records are refused. Reconcile the actual records/media before releasing.
+5. `npm run db:legacy -- rollback <fingerprint>` only removes an unchanged import.
+   It refuses rollback after entity, account/staff, session or verification activity.
+   It never deletes source tables. After activity, restore/migrate through a reviewed
+   backup procedure instead of attempting to force rollback.
 
-## Release blockers and remaining work
+Legacy completed challenges lack a directly recorded winner. They enter a visible
+staff reconciliation queue and do not create guessed ranking points. Staff can
+record a winner with evidence; existing imported profile totals are preserved.
+Historical external-feed records and obsolete push subscriptions are retained
+privately for traceability, not reactivated against old third-party endpoints.
 
-1. Vercel environment access returns 403 for team `andrewhyn`; local CLI is logged out.
-   The production database URL and integration settings cannot be verified here.
-2. Inventory the actual production PostgreSQL database using `db:inventory`.
-   The historical Supabase `urwolkhnjkbmblfqinlf` project was storage and is inactive;
-   it must not be assumed to be the production application database.
-3. Implement and dry-run a record-preserving importer against the inventoried
-   production schema. Compare user, relationship, message, post, event, team,
-   marketplace and tournament counts and references. This importer is NOT complete.
-4. Verify hosted Google OAuth callbacks, SMTP recovery, S3 uploads, IGDB/Twitch category mapping and credentials
-   and map configuration with the real GGz settings.
-5. Complete parity work for legacy organization/venue administration, moderation,
-   team invitations/ownership transfer, challenge acceptance/scheduling, and
-   game-specific rankings. These are NOT claimed complete by this checkpoint.
-6. Verify authenticated browser flows and desktop/mobile screenshots for the final
-   commit; then verify the real migrated data before releasing.
+Manage staff explicitly with `npm run staff -- <exact-email> admin` or
+`moderator`, and `npm run staff -- <exact-email> revoke`; the CLI prints usage if
+arguments are incomplete. Users cannot grant roles from the app.
 
-Automatic Git deployments are disabled in both Vercel configuration locations.
-No deployment should be enabled until all release blockers above are cleared.
-Do not merge this branch into production as a finished full fix.
+## Production release gates
 
-## Local commands
+The remaining gates require the actual environment and source records: inventory,
+reviewed import/reconciliation, verification of live Google callbacks/SMTP/S3/Twitch
+credentials, and hosted end-to-end checks. Vercel access was unavailable in the
+previous session; this follow-up intentionally performs no Vercel operations.
+Keep deployment disabled until those gates pass. Do not present local fixtures as
+production migration evidence.
 
-From `frontend/`, install with `npm ci`. Supply `.env.local` using `.env.example`.
-For local tests, a fresh secret of at least 32 characters and
-`GGZ_LOCAL_DATABASE=./.local-db` replace a remote database. No provider credentials
-are needed for the core local flows. Run `npm run db:migrate`, then `npm run db:seed`.
-The seed is local-only and creates catalogue entries, not fake community activity.
+## Local checks
 
-Checks: `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`,
-`npm run test:http`, `npm run test:browser`.
+From `frontend/`: `npm ci`; configure a fresh secret of at least 32 characters,
+`BETTER_AUTH_URL=http://127.0.0.1:3000` and
+`GGZ_LOCAL_DATABASE=./.local-db`; then `npm run db:migrate` and `npm run db:seed`.
+The seed is local-only and creates the game catalogue.
 
-The schema migration adds separate `ggz_*` tables and does not alter legacy tables.
-It is explicit, never run on page load or as part of a build. Tables have RLS enabled
-and no public grants. Use a server database role that owns the tables; browser
-clients never receive database credentials.
+Run `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`,
+`npm run test:http`, `npm run test:browser`. Both smoke scripts start/stop their
+own production server; run them sequentially after building. Browser tests use a
+local-only staff fixture and refuse a hosted/remote database. On restricted Linux,
+run `node scripts/prepare-browser.mjs`, then set `CHROMIUM_EXECUTABLE`,
+`FONTCONFIG_PATH` and `LD_LIBRARY_PATH` to the prepared `.browser-cache` locations.
+The multi-user browser checks remove the adapter's single-process flag to maintain
+isolated sessions. Test data, secrets, browser files and local databases are ignored.

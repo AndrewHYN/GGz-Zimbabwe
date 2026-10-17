@@ -1,4 +1,5 @@
 "use client";
+import { EditorForm } from "@/components/management/shared";
 import { useState } from "react";
 import { apiFetch, apiErrorMessage } from "@/lib/api";
 export function TournamentManager({
@@ -108,6 +109,25 @@ export function TournamentManager({
               </button>
             </form>
           ))}
+      {["Draft", "Open"].includes(status) && (
+        <details className="mt-5">
+          <summary className="cursor-pointer font-semibold">
+            Invite a player
+          </summary>
+          <div className="mt-4">
+            <EditorForm
+              fields={[{ name: "gamer_tag", label: "Player gamer tag" }]}
+              submit="Send tournament invitation"
+              save={(body) =>
+                apiFetch(`/api/tournaments/${slug}/invite`, {
+                  method: "POST",
+                  body: JSON.stringify(body),
+                })
+              }
+            />
+          </div>
+        </details>
+      )}
       {error && (
         <p role="alert" className="mt-3 text-red-400">
           {error}
