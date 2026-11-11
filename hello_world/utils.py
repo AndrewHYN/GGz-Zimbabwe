@@ -24,15 +24,14 @@ def _validated_image(image, field_name="image"):
         raise forms.ValidationError("Images must be 4 MB or smaller.")
     try:
         with Image.open(image) as opened:
-            opened.verify()
-        image.seek(0)
-        with Image.open(image) as opened:
             image_format = (opened.format or "").upper()
             if image_format not in ALLOWED_IMAGE_FORMATS:
                 raise forms.ValidationError("Images must be PNG, JPEG, WEBP, or GIF.")
             if opened.width * opened.height > MAX_IMAGE_PIXELS:
                 raise forms.ValidationError("Image dimensions are too large.")
+            opened.verify()
+        image.content_type = Image.MIME[image_format]
         image.seek(0)
-    except (UnidentifiedImageError, OSError, ValueError):
+    except (UnidentifiedImageError, Image.DecompressionBombError, OSError, ValueError):
         raise forms.ValidationError("Upload a valid image file.")
     return image

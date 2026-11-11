@@ -1,10 +1,15 @@
 from datetime import timedelta
+import logging
 
 from django.conf import settings
 from django.contrib.admin.views.decorators import staff_member_required
+from django.db import connection
+from django.db.migrations.executor import MigrationExecutor
 from django.http import FileResponse, JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
+from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_GET
 
 from accounts.models import Block, GamerProfile, Message, Notification, Post, Report
 from games.models import Game
@@ -17,9 +22,26 @@ from django.core.paginator import Paginator
 
 from .companion import answer as companion_answer
 
+logger = logging.getLogger(__name__)
+
 
 def health_check(request):
     return JsonResponse({"status": "ok", "service": "GGz"})
+
+
+@never_cache
+@require_GET
+def readiness_check(request):
+    try:
+        executor = MigrationExecutor(connection)
+        if executor.migration_plan(executor.loader.graph.leaf_nodes()):
+            return JsonResponse({"status": "unavailable"}, status=503)
+        for model in (Game, GamerProfile, Event, Tournament):
+            list(model.objects.values()[:1])
+    except Exception:
+        logger.exception("GGz database readiness check failed")
+        return JsonResponse({"status": "unavailable"}, status=503)
+    return JsonResponse({"status": "ready"})
 
 
 def service_worker(request):

@@ -524,7 +524,11 @@ def map_data(request):
 		"distance_km": round(distance, 1) if lookup_lat is not None and lookup_lng is not None else None,
 		"url": "#",
 	} for item, distance in [(item, _distance_km(lookup_lat, lookup_lng, item.latitude, item.longitude)) for item in venues] if (lookup_lat is None or lookup_lng is None or (distance is not None and distance <= distance_limit))]
-	locations = OrganizationLocation.objects.filter(public_visible=True, latitude__isnull=False, longitude__isnull=False).exclude(latitude=0, longitude=0).select_related("organization").order_by("name")
+	locations = OrganizationLocation.objects.filter(public_visible=True, latitude__isnull=False, longitude__isnull=False).exclude(
+		latitude=0, longitude=0
+	).exclude(verification_status__in=("SUSPENDED", "INACTIVE")).exclude(
+		organization__verification_status="Rejected"
+	).select_related("organization").order_by("name")
 	if query:
 		locations = locations.filter(
 			Q(name__icontains=query)
@@ -592,7 +596,9 @@ def map_data(request):
 			"distance_km": round(distance, 1) if distance is not None else None,
 			"url": reverse("radar_location_detail", args=[item.pk]),
 		})
-	events = Event.objects.filter(location_public=True, latitude__isnull=False, longitude__isnull=False).exclude(latitude=0, longitude=0).select_related("game").order_by("start_date")
+	events = Event.objects.filter(location_public=True, latitude__isnull=False, longitude__isnull=False).exclude(
+		latitude=0, longitude=0
+	).exclude(status="Draft").select_related("game").order_by("start_date")
 	if query:
 		events = events.filter(Q(name__icontains=query) | Q(location__icontains=query) | Q(city__icontains=query) | Q(country__icontains=query) | Q(game__name__icontains=query))
 	if category and category != "all":
@@ -616,7 +622,9 @@ def map_data(request):
 		"distance_km": round(_distance_km(lookup_lat, lookup_lng, item.latitude, item.longitude), 1) if lookup_lat is not None and lookup_lng is not None and _distance_km(lookup_lat, lookup_lng, item.latitude, item.longitude) is not None else None,
 		"url": reverse("event_detail", args=[item.pk]),
 	} for item in events]
-	tournaments = Tournament.objects.filter(latitude__isnull=False, longitude__isnull=False).exclude(latitude=0, longitude=0).select_related("game").order_by("start_date")
+	tournaments = Tournament.objects.filter(latitude__isnull=False, longitude__isnull=False).exclude(
+		latitude=0, longitude=0
+	).exclude(status="Draft").select_related("game").order_by("start_date")
 	if query:
 		tournaments = tournaments.filter(Q(name__icontains=query) | Q(location__icontains=query) | Q(city__icontains=query) | Q(country__icontains=query) | Q(game__name__icontains=query))
 	if category and category != "all":
@@ -638,7 +646,9 @@ def map_data(request):
 		"distance_km": round(_distance_km(lookup_lat, lookup_lng, item.latitude, item.longitude), 1) if lookup_lat is not None and lookup_lng is not None and _distance_km(lookup_lat, lookup_lng, item.latitude, item.longitude) is not None else None,
 		"url": reverse("tournament_detail", args=[item.slug]),
 	} for item in tournaments]
-	organizations = Organization.objects.filter(location_public=True, latitude__isnull=False, longitude__isnull=False).exclude(latitude=0, longitude=0).order_by("name")
+	organizations = Organization.objects.filter(location_public=True, latitude__isnull=False, longitude__isnull=False).exclude(
+		latitude=0, longitude=0
+	).exclude(verification_status="Rejected").order_by("name")
 	if query:
 		organizations = organizations.filter(Q(name__icontains=query) | Q(city__icontains=query) | Q(country__icontains=query) | Q(organization_type__icontains=query))
 	if category and category != "all":
@@ -661,7 +671,6 @@ def map_data(request):
 		"organization_type": item.organization_type,
 		"description": item.description,
 		"distance_km": round(distance, 1) if lookup_lat is not None and lookup_lng is not None else None,
-		"description": item.description,
 		"url": reverse("organization_public_profile", args=[item.slug]),
 	} for item, distance in [(item, _distance_km(lookup_lat, lookup_lng, item.latitude, item.longitude)) for item in organizations] if (lookup_lat is None or lookup_lng is None or (distance is not None and distance <= distance_limit))]
 
@@ -1704,7 +1713,7 @@ def feed_refresh(request):
 
 
 @login_required
-def post_create(request):
+def post_create(request, *, api=False):
 	if request.method != "POST":
 		return redirect("feed")
 	form = PostForm(request.POST, request.FILES)
@@ -1715,11 +1724,15 @@ def post_create(request):
 			post.save()
 		except (BotoCoreError, ClientError, OSError) as exception:
 			_media_storage_error(form, exception)
+			if api:
+				return JsonResponse({"ok": False, "error": "The image could not be uploaded. Please try again."}, status=503)
 			if request.headers.get("x-requested-with") == "XMLHttpRequest":
 				return JsonResponse({"ok": False, "error": "The image could not be uploaded. Please try again."})
 			return render(request, "accounts/feed.html", {"post_form": form})
 		_notify(post.author, get_object_or_404(GamerProfile, user=request.user), "post", f"{post.author.gamer_tag} published a post", f"/feed/posts/{post.id}/")
 		messages.success(request, "Your post is live in the community feed.")
+		if api:
+			return JsonResponse({"ok": True, "id": post.pk}, status=201)
 		if request.headers.get("x-requested-with") == "XMLHttpRequest":
 			post_html = render_to_string(
 				"accounts/post_card.html",
@@ -1728,6 +1741,8 @@ def post_create(request):
 			)
 			return JsonResponse({"ok": True, "message": "Your post is live in the community feed.", "post_html": post_html})
 		return redirect("feed")
+	if api:
+		return JsonResponse({"ok": False, "errors": dict(form.errors)}, status=400)
 	if request.headers.get("x-requested-with") == "XMLHttpRequest":
 		return JsonResponse({"ok": False, "error": form.errors.as_json()})
 	return render(request, "accounts/feed.html", {"post_form": form})

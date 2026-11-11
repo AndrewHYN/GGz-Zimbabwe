@@ -1,3 +1,9 @@
+import logging
+
+from botocore.exceptions import BotoCoreError, ClientError
+from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.db import DatabaseError
 from django.http import JsonResponse
 from django.middleware.csrf import get_token
 from django.db.models import Count, Q
@@ -5,12 +11,17 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from accounts.models import Block, GamerProfile, Notification, Post, Conversation, Message, ConversationParticipant
+from events.discovery import public_organizations
 from events.models import Event
 from games.models import Game, GameReview, GameWishlist
 from games.services import twitch as twitch_service
 from marketplace.models import Listing
 from teams.models import Team
 from tournaments.models import Tournament
+
+from hello_world.utils import _validated_image
+
+logger = logging.getLogger(__name__)
 
 
 def _serialize_file_field(field):
@@ -21,16 +32,25 @@ def _serialize_file_field(field):
     return str(field)
 
 
+def _discoverable_gamers(request, profiles):
+    viewer = getattr(request.user, "gamer_profile", None) if request.user.is_authenticated else None
+    if viewer:
+        from accounts.views import _blocked_profile_ids
+        profiles = profiles.exclude(pk__in=_blocked_profile_ids(viewer))
+    return profiles
+
+
 @require_GET
 def api_profile_detail(request, gamer_tag):
     from django.shortcuts import get_object_or_404
 
     profile = get_object_or_404(
-        GamerProfile.objects.select_related("user").prefetch_related("games"),
+        _discoverable_gamers(request, GamerProfile.objects.select_related("user").prefetch_related("games")),
         gamer_tag=gamer_tag,
     )
     viewer = getattr(request.user, "gamer_profile", None) if request.user.is_authenticated else None
     presence = getattr(profile, "presence", None)
+    show_location = profile.location_public or viewer == profile
 
     data = {
         "id": profile.id,
@@ -40,9 +60,9 @@ def api_profile_detail(request, gamer_tag):
         "cover": _serialize_file_field(profile.cover),
         "bio": profile.bio,
         "location": profile.public_location_label,
-        "city": profile.city,
-        "province": profile.province,
-        "country": profile.country,
+        "city": profile.city if show_location else "",
+        "province": profile.province if show_location else "",
+        "country": profile.country if show_location else "",
         "platform": profile.platform,
         "rank": profile.rank,
         "availability": profile.availability,
@@ -77,6 +97,43 @@ def api_profile_detail(request, gamer_tag):
         )
 
     return JsonResponse(data)
+
+
+@require_POST
+def api_profile_media(request, gamer_tag):
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Sign in to edit your photos."}, status=401)
+    profile = getattr(request.user, "gamer_profile", None)
+    if not profile or profile.gamer_tag != gamer_tag:
+        return JsonResponse({"error": "You can only edit your own photos."}, status=403)
+    field_names = set(request.FILES)
+    if field_names not in ({"avatar"}, {"cover"}):
+        return JsonResponse({"error": "Choose one avatar or cover image."}, status=400)
+    field_name = next(iter(field_names))
+    files = request.FILES.getlist(field_name)
+    if len(files) != 1:
+        return JsonResponse({"error": "Choose one image per upload."}, status=400)
+    try:
+        upload = _validated_image(files[0], field_name)
+    except ValidationError as error:
+        return JsonResponse({"error": " ".join(error.messages)}, status=400)
+    if settings.DEPLOYED and not settings.USE_S3_MEDIA_STORAGE:
+        return JsonResponse({"error": "Image uploads are temporarily unavailable."}, status=503)
+
+    image = getattr(profile, field_name)
+    try:
+        image.save(upload.name, upload, save=False)
+    except (BotoCoreError, ClientError, OSError):
+        logger.exception("Profile media storage write failed")
+        return JsonResponse({"error": "The image could not be stored. Try again shortly."}, status=503)
+    try:
+        profile.save(update_fields=[field_name])
+    except DatabaseError:
+        logger.exception("Profile media database write failed")
+        return JsonResponse({"error": "The profile could not be updated. Try again shortly."}, status=503)
+
+    return JsonResponse({"avatar": _serialize_file_field(profile.avatar), "cover": _serialize_file_field(profile.cover)})
+
 
 @require_GET
 def api_csrf_token(request):
@@ -530,6 +587,53 @@ def api_marketplace_list(request):
     return JsonResponse(data, safe=False)
 
 
+def _organization_summary(organization):
+    return {
+        "id": organization.pk,
+        "name": organization.name,
+        "slug": organization.slug,
+        "description": organization.description,
+        "type": organization.organization_type,
+        "logo": _serialize_file_field(organization.logo),
+        "verified": organization.verification_status == "Verified",
+        "location": (organization.city or organization.country) if organization.location_public else "",
+    }
+
+
+@require_GET
+def api_organizations_list(request):
+    query = request.GET.get("q", "").strip()
+    return JsonResponse([_organization_summary(item) for item in public_organizations(query)], safe=False)
+
+
+@require_GET
+def api_organization_detail(request, slug):
+    organization = public_organizations().filter(slug=slug).first()
+    if organization is None:
+        return JsonResponse({"error": "This organization could not be found."}, status=404)
+    return JsonResponse({
+        **_organization_summary(organization),
+        "website": organization.website,
+        "venues": [
+            {
+                "id": venue.pk,
+                "name": venue.name,
+                "type": venue.location_type,
+                "address": ", ".join(filter(None, (venue.address, venue.city, venue.country))),
+                "description": venue.description,
+                "opening_hours": venue.opening_hours,
+                "verified": venue.is_verified,
+            }
+            for venue in organization.locations.filter(public_visible=True)
+            .exclude(verification_status__in=("SUSPENDED", "INACTIVE")).order_by("name", "pk")
+        ],
+        "events": [
+            {"id": event.pk, "name": event.name, "start_date": event.start_date.isoformat()}
+            for event in organization.events.filter(status__in=("Published", "Upcoming", "Live")).order_by("start_date")[:6]
+        ],
+    })
+
+
 @require_GET
 def api_search(request):
     q = request.GET.get('q', '').strip()
@@ -540,6 +644,7 @@ def api_search(request):
             'teams': [],
             'tournaments': [],
             'events': [],
+            'organizations': [],
         })
 
     games = Game.objects.filter(name__icontains=q)
@@ -560,14 +665,14 @@ def api_search(request):
         for g in games
     ]
 
-    gamers = GamerProfile.objects.filter(gamer_tag__icontains=q)
+    gamers = _discoverable_gamers(request, GamerProfile.objects.filter(gamer_tag__icontains=q))
     gamers_data = [
         {
             'id': gp.id,
             'gamer_tag': gp.gamer_tag,
             'avatar': _serialize_file_field(gp.avatar),
             'bio': gp.bio or None,
-            'location': gp.location or None,
+            'location': gp.public_location_label,
             'platform': gp.platform or None,
         }
         for gp in gamers
@@ -588,7 +693,7 @@ def api_search(request):
         for t in teams
     ]
 
-    tournaments = Tournament.objects.filter(name__icontains=q).select_related('game')
+    tournaments = Tournament.objects.filter(name__icontains=q).exclude(status='Draft').select_related('game')
     tournaments_data = [
         {
             'id': t.id,
@@ -605,7 +710,7 @@ def api_search(request):
         for t in tournaments
     ]
 
-    events = Event.objects.filter(name__icontains=q).select_related('game', 'organization')
+    events = Event.objects.filter(name__icontains=q).exclude(status='Draft').select_related('game', 'organization')
     events_data = [
         {
             'id': e.id,
@@ -628,6 +733,7 @@ def api_search(request):
         'teams': teams_data,
         'tournaments': tournaments_data,
         'events': events_data,
+        'organizations': [_organization_summary(item) for item in public_organizations(q)],
     }, safe=False)
 
 
@@ -745,10 +851,10 @@ def api_conversations_list(request):
 
 @require_GET
 def api_gamers_list(request):
-    gamers = (
-        GamerProfile.objects.select_related("user")
-        .prefetch_related("games")
-        .order_by("-respect_points", "gamer_tag")
+    gamers = _discoverable_gamers(
+        request,
+        GamerProfile.objects.select_related("user", "presence")
+        .annotate(game_count=Count("games")).order_by("-respect_points", "gamer_tag"),
     )
     data = []
     for gp in gamers:
@@ -770,7 +876,7 @@ def api_gamers_list(request):
             "match_wins": gp.match_wins,
             "win_percentage": gp.win_percentage,
             "presence": presence.public_status() if presence else "offline",
-            "game_count": gp.games.count(),
+            "game_count": gp.game_count,
         })
     return JsonResponse(data, safe=False)
 
@@ -1072,7 +1178,11 @@ def api_conversation_start(request, gamer_tag):
 @require_POST
 def api_feed_create(request):
     from accounts.views import post_create
-    return post_create(request)
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Sign in to publish a post."}, status=401)
+    if request.FILES and settings.DEPLOYED and not settings.USE_S3_MEDIA_STORAGE:
+        return JsonResponse({"error": "Image uploads are temporarily unavailable."}, status=503)
+    return post_create(request, api=True)
 
 
 @require_POST

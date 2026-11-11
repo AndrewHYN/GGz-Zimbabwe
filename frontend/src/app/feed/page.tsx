@@ -3,6 +3,7 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { apiErrorMessage, apiFetch } from "@/lib/api";
 
 interface Post {
   id: number;
@@ -33,6 +34,7 @@ export default function FeedPage() {
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState("");
   const [actionId, setActionId] = useState<number | null>(null);
   const [version, setVersion] = useState(0);
 
@@ -71,30 +73,33 @@ export default function FeedPage() {
 
   const hasPosts = useMemo(() => posts.length > 0, [posts]);
 
-  async function publish(event: FormEvent) {
+  async function publish(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!body.trim() || publishing) return;
+    const element = event.currentTarget;
+    setPublishError("");
+    if (image && image.size > 4 * 1024 * 1024) {
+      setPublishError("Choose an image up to 4 MB.");
+      return;
+    }
     setPublishing(true);
     try {
-      if (!csrfToken()) await fetch("/api/csrf/", { credentials: "include" });
       const form = new FormData();
       form.append("body", body.trim());
       if (game) form.append("game", game);
       if (image) form.append("image", image);
 
-      const res = await fetch("/api/feed/create/", {
+      await apiFetch<{ ok: true }>("/api/feed/create/", {
         method: "POST",
-        credentials: "include",
-        headers: { "X-CSRFToken": csrfToken(), "X-Requested-With": "XMLHttpRequest" },
         body: form,
       });
-      if (!res.ok) throw new Error("Post failed");
       setBody("");
       setGame("");
       setImage(null);
+      element.reset();
       setVersion((value) => value + 1);
-    } catch {
-      // Keep the draft so the user can retry.
+    } catch (error) {
+      setPublishError(apiErrorMessage(error, "Your post could not be published. Try again."));
     } finally {
       setPublishing(false);
     }
@@ -140,11 +145,12 @@ export default function FeedPage() {
             {games.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
           <label className="flex h-10 cursor-pointer items-center rounded-xl border border-ggz-border bg-ggz-bg-2 px-3 text-sm text-ggz-text-secondary">
-            <input type="file" accept="image/*" className="sr-only" onChange={(event: ChangeEvent<HTMLInputElement>) => setImage(event.target.files?.[0] ?? null)} />
+            <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="sr-only" onChange={(event: ChangeEvent<HTMLInputElement>) => setImage(event.target.files?.[0] ?? null)} />
             {image ? image.name : "Add image"}
           </label>
           <button type="submit" disabled={publishing || !body.trim()} className="ml-auto rounded-xl bg-ggz-amber px-5 py-2 text-sm font-semibold text-black transition hover:brightness-110 disabled:opacity-40">{publishing ? "Posting…" : "Post"}</button>
         </div>
+        {publishError && <p role="alert" className="mt-3 text-sm text-red-400">{publishError}</p>}
       </form>
 
       {!hasPosts ? (

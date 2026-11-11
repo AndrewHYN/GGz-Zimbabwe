@@ -1,156 +1,80 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import type { FormEvent } from "react";
+import { Button } from "@/components/ui/Button";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { useDiscovery } from "@/lib/useDiscovery";
+
+const categories = [
+  { key: "games", label: "Games", path: "games" },
+  { key: "gamers", label: "Gamers", path: "profiles" },
+  { key: "organizations", label: "Organizations", path: "organizations" },
+  { key: "teams", label: "Teams", path: "teams" },
+  { key: "tournaments", label: "Tournaments", path: "tournaments" },
+  { key: "events", label: "Events", path: "events" },
+] as const;
 
 interface SearchResult {
   id: number;
-  title?: string;
-  username?: string;
+  gamer_tag?: string;
   name?: string;
-  type: "game" | "gamer" | "team" | "tournament" | "event";
   slug?: string;
 }
 
-const TYPE_LABELS: Record<string, string> = {
-  game: "Games",
-  gamer: "Gamers",
-  team: "Teams",
-  tournament: "Tournaments",
-  event: "Events",
-};
-
-const TYPE_ROUTES: Record<string, string> = {
-  game: "/games",
-  gamer: "/profiles",
-  team: "/teams",
-  tournament: "/tournaments",
-  event: "/events",
-};
-
-function resultHref(item: SearchResult): string {
-  if (item.type === "gamer" && item.username) return "/profiles/" + encodeURIComponent(item.username);
-  return `${TYPE_ROUTES[item.type]}/${item.slug || item.id}`;
-}
+type SearchResponse = Partial<Record<(typeof categories)[number]["key"], SearchResult[]>>;
 
 export default function SearchContent() {
-  const searchParams = useSearchParams();
-  const query = searchParams.get("q") || "";
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+  const query = (useSearchParams().get("q") ?? "").trim();
+  const { data, error, loading, retry } = useDiscovery<SearchResponse>(
+    query ? "/api/search/?q=" + encodeURIComponent(query) : null,
+  );
+  const results = categories.flatMap((category) => {
+    const items = data?.[category.key] ?? [];
+    return items.length ? [{ ...category, items }] : [];
+  });
 
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (!query) {
-      setResults([]);
-      return;
-    }
-
-    const fetchResults = async () => {
-      setLoading(true);
-      try {
-        const res = await fetch(`/api/search/?q=${encodeURIComponent(query)}`, {
-          credentials: "include",
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const flattened: SearchResult[] = [
-            ...(data.games ?? []).map((g: { id: number; name: string }) => ({
-              id: g.id,
-              name: g.name,
-              type: "game" as const,
-            })),
-            ...(data.gamers ?? []).map(
-              (u: { id: number; gamer_tag: string }) => ({
-                id: u.id,
-                username: u.gamer_tag,
-                type: "gamer" as const,
-              })
-            ),
-            ...(data.teams ?? []).map(
-              (t: { id: number; name: string; slug: string }) => ({
-                id: t.id,
-                name: t.name,
-                slug: t.slug,
-                type: "team" as const,
-              })
-            ),
-            ...(data.tournaments ?? []).map(
-              (t: { id: number; name: string; slug: string }) => ({
-                id: t.id,
-                name: t.name,
-                slug: t.slug,
-                type: "tournament" as const,
-              })
-            ),
-            ...(data.events ?? []).map((e: { id: number; name: string }) => ({
-              id: e.id,
-              name: e.name,
-              type: "event" as const,
-            })),
-          ];
-          setResults(flattened);
-        } else {
-          setResults([]);
-        }
-      } catch {
-        setResults([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchResults();
-  }, [query]);
-
-  const grouped = results.reduce<Record<string, SearchResult[]>>((acc, item) => {
-    if (!acc[item.type]) acc[item.type] = [];
-    acc[item.type].push(item);
-    return acc;
-  }, {});
-
-  const typeOrder = ["game", "gamer", "team", "tournament", "event"];
-  const hasResults = results.length > 0;
+  function search(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const next = String(new FormData(event.currentTarget).get("q") ?? "").trim();
+    router.push(next ? "/search/?q=" + encodeURIComponent(next) : "/search/");
+  }
 
   return (
-    <div className="max-w-[1536px] mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">
-        {query ? `Search results for "${query}"` : "Search"}
-      </h1>
-
-      {loading ? (
-        <div className="text-center py-12 text-ggz-text-muted">Loading...</div>
-      ) : hasResults ? (
-        <div className="space-y-8">
-          {typeOrder.map((type) => {
-            const items = grouped[type];
-            if (!items || items.length === 0) return null;
-            return (
-              <section key={type}>
-                <h2 className="text-lg font-semibold mb-3 text-ggz-text-muted">
-                  {TYPE_LABELS[type]}
-                </h2>
-                <div className="bg-ggz-bg-1 border border-ggz-border rounded-[var(--radius-lg)] divide-y divide-ggz-border">
-                  {items.map((item) => (
-                    <Link
-                      key={item.id}
-                      href={resultHref(item)}
-                      className="block px-4 py-3 hover:bg-ggz-bg-2 transition-colors"
-                    >
-                      {item.title || item.username || item.name || `#${item.id}`}
-                    </Link>
+    <section className="mx-auto max-w-4xl px-4 py-8">
+      <h1 className="mb-5 text-3xl font-bold">Search GGz</h1>
+      <form onSubmit={search} role="search" aria-label="Search all of GGz" className="flex gap-2">
+        <input key={query} type="search" name="q" aria-label="Search query" defaultValue={query}
+          placeholder="Search games, gamers, and organizations"
+          className="min-w-0 flex-1 rounded-xl border border-ggz-border bg-ggz-bg-2 px-3 text-sm focus:border-ggz-amber" />
+        <Button type="submit">Search</Button>
+      </form>
+      {loading && <p role="status" className="py-6 text-sm text-ggz-text-secondary">Searching…</p>}
+      {error ? (
+        <ErrorState title="Search is unavailable" message="Your query is still here. Try again in a moment." onRetry={retry} />
+      ) : !loading && query && (
+        results.length ? (
+          <div className="mt-7 space-y-6">
+            {results.map((category) => (
+              <section key={category.key}>
+                <h2 className="mb-2 text-lg font-semibold">{category.label}</h2>
+                <ul className="divide-y divide-ggz-border rounded-xl border border-ggz-border bg-ggz-bg-1">
+                  {category.items.map((item) => (
+                    <li key={item.id}>
+                      <Link href={"/" + category.path + "/" + encodeURIComponent(item.gamer_tag ?? item.slug ?? item.id) + "/"}
+                        className="block px-4 py-3 hover:bg-ggz-surface hover:text-ggz-amber">
+                        {item.gamer_tag ?? item.name}
+                      </Link>
+                    </li>
                   ))}
-                </div>
+                </ul>
               </section>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="text-center py-12 text-ggz-text-muted">
-          No results found for &apos;{query}&apos;
-        </div>
+            ))}
+          </div>
+        ) : <p className="py-6 text-ggz-text-secondary">No results found for “{query}”.</p>
       )}
-    </div>
+    </section>
   );
 }

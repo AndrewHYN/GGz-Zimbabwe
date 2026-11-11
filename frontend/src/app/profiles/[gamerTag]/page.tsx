@@ -2,8 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/Button";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { SafeImage } from "@/components/ui/SafeImage";
+import { ApiError, apiErrorMessage, apiFetch, dispatchAuthChanged } from "@/lib/api";
 
 interface Game { id: number; name: string; cover_art_url?: string | null; platform?: string | null; }
 interface ProfileData {
@@ -24,8 +28,12 @@ export default function ProfilePage({ params }: ProfilePageProps) {
   const router = useRouter();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileUnavailable, setProfileUnavailable] = useState(false);
   const [action, setAction] = useState("");
   const [notice, setNotice] = useState("");
+  const [photoNotice, setPhotoNotice] = useState("");
+  const [photoError, setPhotoError] = useState("");
+  const [uploading, setUploading] = useState<"avatar" | "cover" | null>(null);
   const [version, setVersion] = useState(0);
 
   useEffect(() => {
@@ -33,14 +41,20 @@ export default function ProfilePage({ params }: ProfilePageProps) {
     fetch("/api/profiles/detail/" + encodeURIComponent(gamerTag) + "/", { credentials: "include", headers: { "X-Requested-With": "XMLHttpRequest" } })
       .then((res) => {
         if (cancelled) return null;
-        if (!res.ok) throw new Error("Not found");
+        if (!res.ok) throw new ApiError("Unable to load profile.", res.status);
         return res.json() as Promise<ProfileData>;
       })
       .then((data) => {
-        if (!cancelled && data) setProfile(data);
+        if (!cancelled && data) {
+          setProfile(data);
+          setProfileUnavailable(false);
+        }
       })
-      .catch(() => {
-        if (!cancelled) setProfile(null);
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setProfile(null);
+          setProfileUnavailable(!(error instanceof ApiError && error.status === 404));
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -49,6 +63,36 @@ export default function ProfilePage({ params }: ProfilePageProps) {
       cancelled = true;
     };
   }, [gamerTag, version]);
+
+  async function uploadPhoto(event: FormEvent<HTMLFormElement>, kind: "avatar" | "cover") {
+    event.preventDefault();
+    if (!profile?.is_self || uploading) return;
+    const form = event.currentTarget;
+    const body = new FormData(form);
+    const image = body.get(kind);
+    if (!(image instanceof File) || !image.size) return;
+    setPhotoNotice("");
+    setPhotoError("");
+    if (image.size > 4 * 1024 * 1024) {
+      setPhotoError("Choose an image up to 4 MB.");
+      return;
+    }
+    setUploading(kind);
+    const tag = profile.gamer_tag;
+    try {
+      const media = await apiFetch<Pick<ProfileData, "avatar" | "cover">>(
+        "/api/profiles/" + encodeURIComponent(tag) + "/media/", { method: "POST", body },
+      );
+      setProfile((current) => current?.gamer_tag === tag ? { ...current, [kind]: media[kind] } : current);
+      dispatchAuthChanged();
+      setPhotoNotice(kind === "avatar" ? "Avatar updated." : "Cover updated.");
+      form.reset();
+    } catch (error) {
+      setPhotoError(apiErrorMessage(error, "The image could not be uploaded. Try again."));
+    } finally {
+      setUploading(null);
+    }
+  }
 
   async function profileAction(kind: string) {
     if (!profile || action) return;
@@ -101,6 +145,10 @@ export default function ProfilePage({ params }: ProfilePageProps) {
   }
 
   if (loading) return <div className="mx-auto max-w-6xl px-4 py-8 text-ggz-text-secondary">Loading profile…</div>;
+  if (profileUnavailable) return <ErrorState title="Profile unavailable" message="Try loading this gamer profile again." onRetry={() => {
+    setLoading(true);
+    setVersion((value) => value + 1);
+  }} />;
   if (!profile) return <div className="mx-auto max-w-3xl px-4 py-16 text-center"><div className="rounded-2xl border border-ggz-border bg-ggz-bg-1 p-8"><h1 className="text-2xl font-bold text-ggz-text-primary">Profile not found</h1><p className="mt-2 text-sm text-ggz-text-secondary">That gamer tag does not exist.</p></div></div>;
 
   const profileGames = profile.games ?? [];
@@ -114,14 +162,16 @@ export default function ProfilePage({ params }: ProfilePageProps) {
     <div className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
       <div className="overflow-hidden rounded-2xl border border-ggz-border bg-ggz-bg-1">
         <div className="relative h-40 bg-[radial-gradient(circle_at_top_right,rgba(245,158,11,0.18),transparent_34%),linear-gradient(135deg,#17111f,#0f1720)] sm:h-56">
-          {profile.cover && <Image src={profile.cover} alt="" fill priority sizes="100vw" className="object-cover opacity-70" />}
+          <SafeImage key={profile.cover} src={profile.cover} alt="" fill priority sizes="100vw" unoptimized
+            className="object-cover opacity-70" fallback={<span />} />
           <div className="absolute inset-0 bg-gradient-to-t from-ggz-bg-1 via-black/5 to-transparent" />
         </div>
 
         <div className="relative px-5 pb-6 sm:px-8">
           <div className="-mt-12 flex flex-col gap-4 sm:-mt-16 sm:flex-row sm:items-end">
             <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl border-4 border-ggz-bg-1 bg-ggz-bg-2 sm:h-32 sm:w-32">
-              {profile.avatar ? <Image src={profile.avatar} alt={profile.gamer_tag} fill sizes="128px" className="object-cover" /> : <div className="flex h-full w-full items-center justify-center text-3xl font-bold text-ggz-amber">{profile.gamer_tag.slice(0, 1)}</div>}
+              <SafeImage key={profile.avatar} src={profile.avatar} alt={profile.gamer_tag} fill sizes="128px" unoptimized className="object-cover"
+                fallback={<span className="flex h-full w-full items-center justify-center text-3xl font-bold text-ggz-amber">{profile.gamer_tag.slice(0, 1)}</span>} />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
@@ -137,6 +187,27 @@ export default function ProfilePage({ params }: ProfilePageProps) {
           </div>
 
           {profile.bio && <p className="mt-5 max-w-3xl text-sm leading-6 text-ggz-text-secondary">{profile.bio}</p>}
+
+          {profile.is_self && (
+            <details className="mt-5 rounded-xl border border-ggz-border bg-ggz-bg-2 p-4">
+              <summary className="cursor-pointer text-sm font-semibold">Edit profile photos</summary>
+              <p className="mt-3 text-xs text-ggz-text-secondary">Choose a PNG, JPEG, WebP, or GIF up to 4 MB.</p>
+              <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                {(["avatar", "cover"] as const).map((kind) => (
+                  <form key={kind} onSubmit={(event) => uploadPhoto(event, kind)} className="min-w-0">
+                    <label className="block text-sm font-medium" htmlFor={"profile-" + kind}>{kind === "avatar" ? "Avatar" : "Cover photo"}</label>
+                    <input type="file" name={kind} id={"profile-" + kind} required accept="image/png,image/jpeg,image/webp,image/gif"
+                      disabled={uploading !== null} className="my-2 block w-full min-w-0 text-xs file:mr-2 file:rounded file:border-0 file:bg-ggz-surface file:p-2" />
+                    <Button type="submit" size="sm" variant="secondary" disabled={uploading !== null}>
+                      {uploading === kind ? "Uploading…" : "Upload " + kind}
+                    </Button>
+                  </form>
+                ))}
+              </div>
+              {photoError && <p role="alert" className="mt-3 text-sm text-red-400">{photoError}</p>}
+              {photoNotice && <p role="status" className="mt-3 text-sm text-ggz-text-secondary">{photoNotice}</p>}
+            </details>
+          )}
 
           {!profile.is_self && (
             <div className="mt-5 flex flex-wrap gap-2">

@@ -29,6 +29,7 @@ interface User {
   username: string;
   displayName?: string;
   avatar?: string;
+  gamerTag?: string;
 }
 
 function useClickOutside(ref: React.RefObject<HTMLElement | null>, handler: () => void) {
@@ -58,10 +59,11 @@ function NavDropdown({
 }
 
 function DropdownLink({ href, icon: Icon, label, pathname }: { href: string; icon: React.ComponentType<{ className?: string }>; label: string; pathname: string }) {
-  const active = pathname === href;
+  const active = pathname === href || (href !== "/" && pathname.startsWith(href + "/"));
   return (
     <Link
       href={href}
+      aria-current={active ? "page" : undefined}
       className={`flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm transition-colors ${
         active
           ? "bg-ggz-surface text-ggz-amber"
@@ -95,10 +97,13 @@ export default function Navigation() {
   const discoverRef = useRef<HTMLDivElement>(null);
   const communityRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
+  const navigationRef = useRef<HTMLElement>(null);
+  const mobileToggle = useRef<HTMLButtonElement>(null);
 
   useClickOutside(discoverRef, useCallback(() => setDiscoverOpen(false), []));
   useClickOutside(communityRef, useCallback(() => setCommunityOpen(false), []));
   useClickOutside(profileRef, useCallback(() => setProfileOpen(false), []));
+  useClickOutside(navigationRef, useCallback(() => setMobileOpen(false), []));
 
   const refreshUser = useCallback(() => {
     fetch("/api/me/", { credentials: "include", headers: { "X-Requested-With": "XMLHttpRequest" } })
@@ -110,6 +115,7 @@ export default function Navigation() {
             username: data.user.username,
             displayName: data.profile?.gamer_tag || data.user.username,
             avatar: data.profile?.avatar || undefined,
+            gamerTag: data.profile?.gamer_tag || undefined,
           });
         } else {
           setUser(null);
@@ -151,6 +157,7 @@ export default function Navigation() {
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     if (searchQuery.trim()) {
+      setMobileOpen(false);
       router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
     }
   }
@@ -174,7 +181,14 @@ export default function Navigation() {
   }
 
   return (
-    <nav className="sticky top-0 z-50 bg-ggz-base/85 backdrop-blur-lg border-b border-ggz-border">
+    <nav ref={navigationRef} aria-label="Primary navigation"
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && mobileOpen) {
+          setMobileOpen(false);
+          mobileToggle.current?.focus();
+        }
+      }}
+      className="sticky top-0 z-50 bg-ggz-base/85 backdrop-blur-lg border-b border-ggz-border">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4">
         {/* Left section */}
         <div className="flex items-center gap-1">
@@ -203,6 +217,7 @@ export default function Navigation() {
                 <DropdownLink href="/gamers" pathname={pathname} icon={UsersIcon} label="Find Players" />
                 <DropdownLink href="/leaderboards" pathname={pathname} icon={TrophyIcon} label="Rankings" />
                 <DropdownLink href="/discover" pathname={pathname} icon={SearchIcon} label="Nearby Gaming" />
+                <DropdownLink href="/organizations" pathname={pathname} icon={UsersIcon} label="Organizations" />
                 <DropdownLink href="/live" pathname={pathname} icon={BroadcastIcon} label="GGz Live" />
               </NavDropdown>
             </div>
@@ -382,9 +397,13 @@ export default function Navigation() {
 
           {/* Mobile menu toggle */}
           <button
+            ref={mobileToggle}
+            type="button"
             onClick={() => setMobileOpen(!mobileOpen)}
-            className="flex lg:hidden h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-ggz-text-secondary hover:bg-ggz-surface hover:text-ggz-text-primary transition-colors"
+            className="flex lg:hidden h-11 w-11 items-center justify-center rounded-[var(--radius-md)] text-ggz-text-secondary hover:bg-ggz-surface hover:text-ggz-text-primary transition-colors"
             aria-label="Toggle menu"
+            aria-controls="ggz-mobile-navigation"
+            aria-expanded={mobileOpen}
           >
             {mobileOpen ? <XIcon className="h-5 w-5" /> : <MenuIcon className="h-5 w-5" />}
           </button>
@@ -392,8 +411,11 @@ export default function Navigation() {
       </div>
 
       {/* Mobile menu */}
-      {mobileOpen && (
-        <div className="lg:hidden border-t border-ggz-border bg-ggz-base animate-fade-in">
+      <div id="ggz-mobile-navigation" hidden={!mobileOpen}
+        onClick={(event) => {
+          if (event.target instanceof Element && event.target.closest("a")) setMobileOpen(false);
+        }}
+        className="absolute inset-x-0 top-full max-h-[calc(100dvh-3.5rem)] overflow-y-auto overscroll-contain border-b border-t border-ggz-border bg-ggz-base shadow-xl lg:hidden">
           <div className="mx-auto max-w-7xl px-4 py-4 space-y-3">
             {/* Mobile search */}
             <form onSubmit={handleSearch} className="flex items-center">
@@ -402,6 +424,7 @@ export default function Navigation() {
                 <input
                   type="text"
                   placeholder="Search..."
+                  aria-label="Search GGz"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="h-10 w-full rounded-[var(--radius-md)] border border-ggz-border bg-ggz-bg-2 pl-10 pr-4 text-sm text-ggz-text-primary placeholder:text-ggz-text-muted focus:border-ggz-amber focus:outline-none transition-colors"
@@ -448,6 +471,12 @@ export default function Navigation() {
               >
                 <SearchIcon className="h-4 w-4" />
                 Nearby Gaming
+              </Link>
+
+              <Link href="/organizations/" aria-current={isActive("/organizations") ? "page" : undefined}
+                className="flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm text-ggz-text-secondary hover:bg-ggz-surface hover:text-ggz-text-primary">
+                <UsersIcon className="h-4 w-4" />
+                Organizations
               </Link>
 
               <Link
@@ -530,6 +559,15 @@ export default function Navigation() {
                     <p className="text-xs text-ggz-text-muted">@{user.username}</p>
                   </div>
                 </div>
+                {user.gamerTag && (
+                  <Link href={"/profiles/" + encodeURIComponent(user.gamerTag) + "/"}
+                    className="flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm text-ggz-text-secondary hover:bg-ggz-surface">
+                    <UsersIcon className="h-4 w-4" />My profile
+                  </Link>
+                )}
+                <Link href="/messages/" className="flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm text-ggz-text-secondary hover:bg-ggz-surface">
+                  <MessageIcon className="h-4 w-4" />Messages
+                </Link>
                 <Link
                   href="/dashboard"
                   className="flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm text-ggz-text-secondary hover:bg-ggz-surface hover:text-ggz-text-primary transition-colors"
@@ -572,7 +610,6 @@ export default function Navigation() {
             )}
           </div>
         </div>
-      )}
     </nav>
   );
 }

@@ -2456,7 +2456,9 @@ class NotificationAndMessagingTests(TestCase):
 		response = self.client.get(reverse("message_requests"))
 		self.assertNotContains(response, "Sender")
 
-	def test_message_request_sending_is_rate_limited(self):
+	@patch("accounts.views.time", wraps=time)
+	def test_message_request_sending_is_rate_limited(self, clock):
+		clock.time.return_value = 1_800_000_010
 		cache.clear()
 		self.addCleanup(cache.clear)
 		self.client.login(username="sender", password="pass")
@@ -2467,7 +2469,9 @@ class NotificationAndMessagingTests(TestCase):
 		response = self.client.post(start_url, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
 		self.assertEqual(response.status_code, 429)
 
-	def test_conversation_send_is_rate_limited(self):
+	@patch("accounts.views.time", wraps=time)
+	def test_conversation_send_is_rate_limited(self, clock):
+		clock.time.return_value = 1_800_000_010
 		cache.clear()
 		self.addCleanup(cache.clear)
 		conversation = Conversation.objects.create()
