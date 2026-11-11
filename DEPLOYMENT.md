@@ -71,13 +71,13 @@ python manage.py collectstatic --noinput
 python manage.py findstatic admin/css/base.css --verbosity 2
 ```
 
-Vercel’s filesystem is ephemeral for deployed functions. This repository has no configured object-storage backend, so production uploads are **not verified production-ready**. Configure an external storage provider using environment variables, preserve existing database file names where possible, copy the media tree to that provider, and verify an upload and read after deployment. Never change paths only to satisfy deployment.
+The production Django project uses the S3 media backend when all five required AWS storage settings are configured. Keep existing object keys and verify a disposable upload and public read with `python manage.py diagnose_media_storage`. Vercel functions have ephemeral filesystems.
 
 ## Vercel
 
-The current Vercel Django documentation is the source of truth for supported Python runtime, project structure, build output, function timeout, filesystem, and environment variables: <https://vercel.com/docs/frameworks/backend/django>. The repository's `vercel.json` keeps Vercel's detected Django runtime and explicitly runs `scripts/vercel-build.sh`; the WSGI callable remains `hello_world.wsgi:application`.
+The Django Vercel project uses the repository root and runs `scripts/vercel-django-build.sh` through the root `vercel.json`. The WSGI callable remains `hello_world.wsgi:application`. The Next.js project uses `frontend/` and its own `vercel.json`.
 
-The Vercel build runs `python manage.py migrate --noinput` through `scripts/vercel-build.sh` before `collectstatic`. The script requires `DATABASE_URL`, refuses SQLite, and accepts only PostgreSQL URLs. Do not put imports, admin creation, or destructive database commands in a Vercel build or startup hook. Vercel preview URLs must be added to `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS` only when those previews are intended to accept authenticated form submissions.
+The production Django build requires PostgreSQL and checks migration history and representative database reads before collecting static files. Review and apply pending migrations through a controlled operation using the production database target and a verified backup. After release, check `/ready/` directly on Django and `/api/ready/` on the public frontend.
 
 Messaging, presence, and notifications retain SSE as the primary delivery path and expose authenticated JSON snapshot modes for reconnect and serverless fallback. Chat history is cursor-paginated, messages carry client idempotency keys, and typing state is transient and permission-checked. Presence streams are short-lived and visibility-aware; the browser closes them in hidden tabs and reconnects when visible. This avoids wasteful long-lived workers on the current WSGI/Vercel deployment.
 

@@ -18,11 +18,16 @@ function getCookie(name: string): string | null {
 
 async function fetchWithTimeout(url: string, options: RequestInit, ms = 20000): Promise<Response> {
   const controller = new AbortController();
+  const signal = options.signal;
+  const abort = () => controller.abort(signal?.reason);
+  if (signal?.aborted) abort();
+  signal?.addEventListener("abort", abort, { once: true });
   const timer = setTimeout(() => controller.abort(), ms);
   try {
     return await fetch(url, { ...options, signal: controller.signal });
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener("abort", abort);
   }
 }
 

@@ -13,6 +13,7 @@ from django.db.models import Q
 from django.utils.text import slugify
 
 from accounts.models import GamerProfile
+from .discovery import public_organizations
 from .forms import EventForm, EventPromotionRequestForm, OrganizationForm, OrganizationLocationForm
 from .models import Event, EventPromotionRequest, EventRsvp, Organization, OrganizationLocation
 
@@ -159,16 +160,7 @@ def organization_public_profile(request, slug):
 
 def organization_list(request):
 	query = (request.GET.get("q") or "").strip()
-	organizations = Organization.objects.filter(locations__public_visible=True).prefetch_related("locations").distinct().order_by("name")
-	if query:
-		organizations = organizations.filter(
-			Q(name__icontains=query)
-			| Q(description__icontains=query)
-			| Q(organization_type__icontains=query)
-			| Q(city__icontains=query)
-			| Q(country__icontains=query)
-			| Q(locations__name__icontains=query)
-		).distinct()
+	organizations = public_organizations(query)
 	return render(request, "events/organization_list.html", {"organizations": organizations, "query": query})
 
 

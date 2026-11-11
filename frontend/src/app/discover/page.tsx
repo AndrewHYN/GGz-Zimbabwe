@@ -1,7 +1,11 @@
 "use client";
 
-import RadarMap from "@/components/maps/RadarMap";
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useMemo, useState, type FormEvent } from "react";
+import RadarMap, { type RadarPoint } from "@/components/maps/RadarMap";
+import { Button } from "@/components/ui/Button";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { useDiscovery } from "@/lib/useDiscovery";
 
 interface MapItem {
   id: number;
@@ -10,18 +14,22 @@ interface MapItem {
   latitude: number;
   longitude: number;
   location?: string;
-  category?: string;
   organization?: string;
+  organization_url?: string;
+  verification_status?: string;
   game?: string;
-  distance_km?: number | null;
-  rating_average?: number | null;
-  event_count?: number;
-  tournament_count?: number;
   url?: string;
 }
 
+interface Hotspot {
+  latitude: number;
+  longitude: number;
+  gamer_count: number;
+  popular_games: string[];
+}
+
 interface RadarData {
-  hotspots: MapItem[];
+  hotspots: Hotspot[];
   venues: MapItem[];
   locations: MapItem[];
   events: MapItem[];
@@ -29,70 +37,133 @@ interface RadarData {
   organizations: MapItem[];
 }
 
-const emptyData: RadarData = { hotspots: [], venues: [], locations: [], events: [], tournaments: [], organizations: [] };
+interface Result extends RadarPoint {
+  detail: string;
+  href?: string;
+  verified?: boolean;
+}
+
+const layers = [
+  { id: "venues", name: "Venues", color: "bg-amber-400" },
+  { id: "organizations", name: "Organizations", color: "bg-emerald-400" },
+  { id: "events", name: "Events", color: "bg-sky-400" },
+  { id: "tournaments", name: "Tournaments", color: "bg-purple-400" },
+  { id: "hotspots", name: "Gamer hotspots", color: "bg-rose-400" },
+] as const;
+
+function itemResult(item: MapItem, layer: RadarPoint["layer"]): Result {
+  let href: string | undefined;
+  if (item.kind === "radar_location" && /^\/organizations\/[\w-]+\/$/.test(item.organization_url ?? "")) {
+    href = item.organization_url + "#venue-" + item.id;
+  } else if (/^\/(organizations|events|tournaments)\/[\w-]+\/$/.test(item.url ?? "")) {
+    href = item.url;
+  }
+  return {
+    key: item.kind + "-" + item.id,
+    name: item.name,
+    latitude: item.latitude,
+    longitude: item.longitude,
+    layer,
+    detail: [item.location, item.organization || item.game].filter(Boolean).join(" · "),
+    verified: item.verification_status === "VERIFIED",
+    href,
+  };
+}
 
 export default function DiscoverPage() {
-  const [data, setData] = useState<RadarData>(emptyData);
   const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [visible, setVisible] = useState<RadarPoint["layer"][]>(layers.map((layer) => layer.id));
+  const [selectedKey, setSelectedKey] = useState("");
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const { data, loading, error, retry } = useDiscovery<RadarData>(
+    "/api/radar/map/?q=" + encodeURIComponent(query),
+  );
 
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch("/api/radar/map/?q=" + encodeURIComponent(query), { credentials: "include", signal: controller.signal })
-      .then((res) => { if (!res.ok) throw new Error("Radar unavailable"); return res.json(); })
-      .then((payload) => setData({
-        hotspots: payload.hotspots ?? [],
-        venues: payload.venues ?? [],
-        locations: payload.locations ?? [],
-        events: payload.events ?? [],
-        tournaments: payload.tournaments ?? [],
-        organizations: payload.organizations ?? [],
-      }))
-      .catch((error) => { if (error.name !== "AbortError") setData(emptyData); })
-      .finally(() => setLoading(false));
-    return () => controller.abort();
-  }, [query]);
+  const points = useMemo(() => {
+    if (!data) return [];
+    const q = query.toLowerCase();
+    return [
+      ...(data.locations ?? []).map((item) => itemResult(item, "venues")),
+      ...(data.venues ?? []).map((item) => itemResult(item, "venues")),
+      ...(data.organizations ?? []).map((item) => itemResult(item, "organizations")),
+      ...(data.events ?? []).map((item) => itemResult(item, "events")),
+      ...(data.tournaments ?? []).map((item) => itemResult(item, "tournaments")),
+      ...(data.hotspots ?? [])
+        .filter((item) => !q || item.popular_games.some((game) => game.toLowerCase().includes(q)))
+        .map((item): Result => ({
+          key: "hotspot-" + item.latitude + "-" + item.longitude,
+          name: "Gamer hotspot",
+          latitude: item.latitude,
+          longitude: item.longitude,
+          layer: "hotspots",
+          detail: item.gamer_count + " gamers" + (item.popular_games.length ? " · " + item.popular_games.join(", ") : ""),
+        })),
+    ].filter((point) => visible.includes(point.layer)
+      && (!verifiedOnly || point.layer !== "venues" || point.verified)
+      && Number.isFinite(point.latitude) && Math.abs(point.latitude) <= 90
+      && Number.isFinite(point.longitude) && Math.abs(point.longitude) <= 180);
+  }, [data, query, verifiedOnly, visible]);
 
-  const items = useMemo(() => [...data.locations, ...data.venues, ...data.events, ...data.tournaments, ...data.organizations].slice(0, 60), [data]);
-  const mapPoints = useMemo(() => items.filter((item) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude)), [items]);
+  function search(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSelectedKey("");
+    setQuery(String(new FormData(event.currentTarget).get("q") ?? "").trim());
+  }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
-      <div className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ggz-amber">GGz Radar</p>
-        <h1 className="mt-1 text-3xl font-bold text-ggz-text-primary">Nearby gaming</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-ggz-text-secondary">The original GGz map system is now exposed through the 2.0 shell: public venues, organizations, events, tournaments and gamer hotspots.</p>
-      </div>
-
-      <div className="rounded-2xl border border-ggz-border bg-ggz-bg-1 p-4">
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search Radar…" className="h-11 w-full rounded-xl border border-ggz-border bg-ggz-bg-2 px-4 text-sm text-ggz-text-primary outline-none focus:border-ggz-amber" />
-      </div>
-
-      <div className="mt-5 grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
-        <RadarMap points={mapPoints} />
-
-        <div className="rounded-2xl border border-ggz-border bg-ggz-bg-1 p-4">
-          <div className="mb-3"><h2 className="font-semibold text-ggz-text-primary">Radar results</h2><p className="text-xs text-ggz-text-muted">{loading ? "Loading…" : items.length + " results"}</p></div>
-          <div className="max-h-[470px] space-y-2 overflow-y-auto">
-            {items.map((item, index) => (
-              <div key={item.kind + "-" + item.id + "-" + index} className="rounded-xl border border-ggz-border bg-ggz-bg-2 p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0"><p className="truncate text-sm font-semibold text-ggz-text-primary">{item.name}</p><p className="mt-0.5 text-xs text-ggz-text-secondary">{item.location || item.organization || item.game || "Zimbabwe"}</p></div>
-                  <span className="shrink-0 rounded-full bg-ggz-amber/10 px-2 py-1 text-[10px] font-semibold uppercase text-ggz-amber">{item.kind.replace("_", " ")}</span>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-ggz-text-muted">
-                  {item.distance_km != null && <span>{item.distance_km} km</span>}
-                  {item.rating_average != null && <span>{Number(item.rating_average).toFixed(1)} rating</span>}
-                  {item.event_count != null && <span>{item.event_count} events</span>}
-                  {item.tournament_count != null && <span>{item.tournament_count} tournaments</span>}
-                </div>
-                <p className="mt-2 text-[10px] text-ggz-text-muted">{item.latitude.toFixed(4)}, {item.longitude.toFixed(4)}</p>
-              </div>
-            ))}
-            {!loading && items.length === 0 && <p className="p-5 text-sm text-ggz-text-secondary">No public Radar results match that search.</p>}
-          </div>
+    <section className="mx-auto max-w-7xl px-4 py-8">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-bold">GGz Radar</h1>
+          <p className="mt-1 text-sm text-ggz-text-secondary">Find gaming venues and events across Zimbabwe.</p>
         </div>
+        <Link href="/organizations/" className="text-sm font-semibold text-ggz-amber hover:underline">Browse organizations</Link>
       </div>
-    </div>
+      <form onSubmit={search} role="search" aria-label="Search Radar" className="flex max-w-2xl gap-2">
+        <input type="search" name="q" aria-label="City, venue, or game" placeholder="City, venue, or game"
+          className="min-w-0 flex-1 rounded-xl border border-ggz-border bg-ggz-bg-2 px-3 text-sm focus:border-ggz-amber" />
+        <Button type="submit">Search</Button>
+      </form>
+      <fieldset className="my-4 flex flex-wrap gap-x-4 gap-y-2 text-sm">
+        <legend className="mb-2 text-sm font-semibold">Map layers</legend>
+        {layers.map((layer) => (
+          <label key={layer.id} className="inline-flex min-h-8 items-center gap-1.5">
+            <input type="checkbox" checked={visible.includes(layer.id)} className="accent-amber-400"
+              onChange={(event) => {
+                const checked = event.currentTarget.checked;
+                setVisible((current) => checked ? [...current, layer.id] : current.filter((value) => value !== layer.id));
+              }} />
+            <span aria-hidden="true" className={"size-2 rounded-full " + layer.color} />{layer.name}
+          </label>
+        ))}
+        <label className="inline-flex min-h-8 items-center gap-1.5">
+          <input type="checkbox" checked={verifiedOnly} onChange={(event) => setVerifiedOnly(event.target.checked)} className="accent-amber-400" />
+          Verified venues only
+        </label>
+      </fieldset>
+      <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+        <RadarMap points={points} selected={points.find((point) => point.key === selectedKey)} onSelect={setSelectedKey} />
+        <section className="min-w-0 rounded-2xl border border-ggz-border bg-ggz-bg-1 p-4">
+          <h2 className="text-lg font-semibold">Radar results</h2>
+          {loading && <p role="status" className="mt-3 text-sm text-ggz-text-secondary">Searching Radar…</p>}
+          {error ? (
+            <ErrorState title="Radar results are unavailable" message="Try loading locations again." onRetry={retry} />
+          ) : !loading && (points.length ? (
+            <ul className="mt-3 max-h-[440px] space-y-2 overflow-y-auto">
+              {points.map((point) => (
+                <li key={point.key} className={"min-w-0 rounded-xl border bg-ggz-bg-2 p-3 " + (selectedKey === point.key ? "border-ggz-amber" : "border-ggz-border")}>
+                  <button type="button" onClick={() => setSelectedKey(point.key)} aria-pressed={point.key === selectedKey}
+                    className="block text-left font-semibold hover:text-ggz-amber">
+                    {point.name}
+                  </button>
+                  {point.detail && <p className="mt-1 text-sm text-ggz-text-secondary">{point.detail}</p>}
+                  {point.href && <Link href={point.href} className="mt-2 inline-block text-sm text-ggz-amber hover:underline">View details</Link>}
+                </li>
+              ))}
+            </ul>
+          ) : <p className="mt-3 text-sm text-ggz-text-secondary">No public results match the current search and layers.</p>)}
+        </section>
+      </div>
+    </section>
   );
 }

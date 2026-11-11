@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 interface AvatarProps {
   src?: string | null;
@@ -16,26 +16,12 @@ export function Avatar({ src, alt, size = "md", fallback, className = "" }: Avat
     xl: "h-20 w-20 text-xl",
   };
 
-  const fallbackText = fallback || alt.charAt(0).toUpperCase();
-
-  if (!src) {
-    return (
-      <div className={`${sizes[size]} rounded-full bg-ggz-surface flex items-center justify-center font-bold text-ggz-amber flex-shrink-0 ${className}`}>
-        {fallbackText}
-      </div>
-    );
-  }
-
   return (
-    <div className={`${sizes[size]} relative rounded-full overflow-hidden flex-shrink-0 ${className}`}>
-      <Image
-        src={src}
-        alt={alt}
-        fill
-        className="object-cover"
-        sizes="80px"
-        unoptimized
-      />
+    <div className={sizes[size] + " relative shrink-0 overflow-hidden rounded-full bg-ggz-surface " + className}>
+      <SafeImage key={src} src={src} alt={alt} fill sizes="80px" unoptimized className="object-cover"
+        fallback={<span aria-hidden="true" className="flex h-full w-full items-center justify-center font-bold text-ggz-amber">
+          {fallback || alt.charAt(0).toUpperCase()}
+        </span>} />
     </div>
   );
 }
